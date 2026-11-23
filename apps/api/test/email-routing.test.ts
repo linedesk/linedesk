@@ -410,6 +410,14 @@ describe('saving the rules', () => {
       // Only ids and the switch: no names, no addresses; a disabled account is not listed.
       expect(byUser(off.body.data)).toEqual({ [ws.owner.userId]: true, [dave.userId]: true, [sarah.userId]: false })
       expect(JSON.stringify(off.body.data)).not.toContain('@')
+      // A member without a name: their address, so their row shows it instead of "A teammate"; only theirs.
+      await db.update(user).set({ name: ' ' }).where(eq(user.id, sarah.userId))
+      const unnamed = (await act(dave, 'callEmails.get', {})).body.data as {
+        members: { userId: string; email?: string }[]
+      }
+      expect(unnamed.members.filter(m => m.email)).toEqual([
+        expect.objectContaining({ userId: sarah.userId, email: await emailOf(sarah) }),
+      ])
       previewDeps.model = async () => ({ model: 'test', complete: async () => '{}' }) as EvaluationModel
       await act(ws.owner, 'notifications.setDefaults', { email: false })
       const on = await act(dave, 'callEmails.get', {})

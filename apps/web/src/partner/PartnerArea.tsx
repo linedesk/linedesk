@@ -884,7 +884,7 @@ function Team({ data, frozen, toast }: { data: PartnerData; frozen: boolean; toa
             key={m.userId}
             lead={<Avatar name={m.name || m.email} size={24} />}
             title={m.name || m.email}
-            sub={m.email}
+            sub={m.name ? m.email : undefined}
             aside={m.role === 'owner' ? t('team.partner.role.owner') : t('team.partner.role.admin')}
             actions={
               owner &&

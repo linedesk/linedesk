@@ -24,9 +24,10 @@ export function readAuthConfig(env: Env) {
   const microsoftKeys = pair(env.MICROSOFT_CLIENT_ID, env.MICROSOFT_CLIENT_SECRET)
   const microsoft = microsoftKeys && { ...microsoftKeys, tenantId: env.MICROSOFT_TENANT_ID || 'common' }
   const oidcKeys = pair(env.OIDC_CLIENT_ID, env.OIDC_CLIENT_SECRET)
+  const oidcName = env.OIDC_DISPLAY_NAME?.trim()
   const oidc =
     oidcKeys && env.OIDC_DISCOVERY_URL
-      ? { ...oidcKeys, discoveryUrl: env.OIDC_DISCOVERY_URL, label: env.OIDC_DISPLAY_NAME || 'Single sign-on' }
+      ? { ...oidcKeys, discoveryUrl: env.OIDC_DISCOVERY_URL, label: oidcName || 'Single sign-on', unnamed: !oidcName }
       : null
   // No provider is trusted by name (Better Auth's `trustedProviders` would join an account without
   // asking whether the email is verified). Every provider sign-in must prove its address instead:
@@ -41,7 +42,7 @@ export function readAuthConfig(env: Env) {
       google && { id: 'google', label: 'Google' },
       microsoft && { id: 'microsoft', label: 'Microsoft' },
       github && { id: 'github', label: 'GitHub' },
-      oidc && { id: 'oidc', label: oidc.label },
+      oidc && { id: 'oidc', label: oidc.label, ...(oidc.unnamed ? { unnamed: true } : {}) },
     ].filter(Boolean) as SsoMethod[],
     links: readLegalLinks(env),
     signInOrigin: signInOrigin(env),

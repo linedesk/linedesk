@@ -16,7 +16,7 @@ import { ConfirmEmail } from '../ConfirmEmail.tsx'
 import { signOutAndForget } from '../localData.ts'
 import { CardFooter, CodeStep } from '../Login.tsx'
 import { authErrorMessage, authFormError } from '../sign-in-code.ts'
-import { rememberSignInMethod, startRedirectSignIn, takeRedirectSignIn } from '../sign-in-methods.ts'
+import { providerName, rememberSignInMethod, startRedirectSignIn, takeRedirectSignIn } from '../sign-in-methods.ts'
 import { switchToWorkspace } from '../shell/invitations.ts'
 import { previewInvitation } from './team-api.ts'
 import { AuthError } from '../ui/AuthError.tsx'
@@ -357,7 +357,7 @@ export function InviteSignIn({
                 onClick={() =>
                   attempt(m.id, async () => {
                     // Counted as a sign-in only once it comes back with a session (loadAccount).
-                    startRedirectSignIn(m.id, m.label)
+                    startRedirectSignIn(m.id, providerName(m))
                     fail(await auth.signIn.social({ provider: m.id, ...back }))
                   })
                 }

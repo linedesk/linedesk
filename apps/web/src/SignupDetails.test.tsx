@@ -62,6 +62,13 @@ test('New workspace from the app: the same single field, then Create workspace; 
   expect(html).not.toContain('autoComplete="organization"')
 })
 
+test('a partner account from the app: Create partner account, not Create workspace (it gets no workspace)', () => {
+  const html = page(true, { onBack: () => {} })
+  expect(html).toContain('>Create partner account<')
+  expect(html).toContain('By clicking Create partner account')
+  expect(html).not.toContain('Create workspace')
+})
+
 test('no free trial for this account: nothing is charged here, no price, the plan comes at the end of the setup', () => {
   const html = page(false, undefined, true)
   expect(html).toContain('Nothing is charged now. You pay when you start your plan, at the end of the setup.')

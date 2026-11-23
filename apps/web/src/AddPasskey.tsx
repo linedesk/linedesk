@@ -15,12 +15,14 @@ import { SignedInAuthPage } from './shell/SignedInAuthPage.tsx'
 
 /**
  * The one line why, by how this device signed in: after a provider (Google, Microsoft, GitHub, an SSO) what a passkey
- * saves is that provider's page, else the email code. The longer explanation sits behind the "?" (auth.addPasskey.help).
+ * saves is that provider's page (named, unless the SSO kept its default label), else the email code. The longer
+ * explanation sits behind the "?" (auth.addPasskey.help).
  */
 function useWhy(): string {
   const t = useT()
   const provider = lastSignInProvider()
-  return provider ? t('auth.addPasskey.whyProvider', { provider }) : t('auth.addPasskey.why')
+  if (provider === null) return t('auth.addPasskey.why')
+  return provider ? t('auth.addPasskey.whyProvider', { provider }) : t('auth.addPasskey.whyUnnamedProvider')
 }
 
 type Step = 'ask' | 'adding' | 'added'

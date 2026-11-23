@@ -7,7 +7,7 @@ import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } fr
 import { codeCooldownS } from '@linedesk/actions'
 import { type AuthMethods, auth, completeSetup, type LegalLinks, passkeySupported, type SsoMethod, fetchAuthMethods, requestPasswordResetCode, requestSignInCode, resetPasswordWithCode, signInWithCode, signInWithPasskey, startSso, takeRedirectError, lostSignInState, providerElsewhereMessage, providerSignInElsewhere } from './auth.ts'
 import { authErrorMessage, authFormError, CODE_LENGTH, codeErrorMessage, emailError, newCodeWaitText, newPasswordError, noAccountText, normalizeCode, NO_CODE_HINT_AFTER_S, passwordResetOffer, RESEND_AFTER_S, resendInText, resetErrorMessage, retryAfterOf } from './sign-in-code.ts'
-import { passkeyRequestClosed, readLastUsedMethod, rememberSignInMethod, signInStart } from './sign-in-methods.ts'
+import { passkeyRequestClosed, providerName, readLastUsedMethod, rememberSignInMethod, signInStart } from './sign-in-methods.ts'
 import { emailFieldPasskey } from './passkey-autofill.ts'
 import { useQuery } from './cachedQuery.ts'
 import { LastUsed, ProviderButton, SignInMark } from './ui/brand-logos.tsx'
@@ -167,7 +167,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
 
   function continueWith(method: SsoMethod) {
     void attempt(method.id, async () => {
-      rememberSignInMethod(method.id, method.label)
+      rememberSignInMethod(method.id, providerName(method))
       fail(await startSso(method))
       return true
     })
@@ -621,7 +621,7 @@ export function CodeWait({ waitS, providerNote }: { waitS: number; providerNote?
         <ProviderButton key={m.id} method={m.id} label={m.label} lastUsed={false} busy={opening === m.id} disabled={opening !== null}
           onClick={() => {
             setOpening(m.id)
-            rememberSignInMethod(m.id, m.label)
+            rememberSignInMethod(m.id, providerName(m))
             void startSso(m).then(res => { if (res.error) setOpening(null) }, () => setOpening(null))
           }} />
       ))}

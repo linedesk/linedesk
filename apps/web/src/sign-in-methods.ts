@@ -18,27 +18,34 @@ export function readLastUsedMethod(): SignInMethodId | null {
 /**
  * A sign-in with `method` on this device: remembered, and without a passkey the "Add a passkey" page is due (passkey-ask.ts).
  * `provider`: the provider's name (Google, Microsoft, GitHub, an SSO's label) when it was one, so that page can say
- * what a passkey saves them ("without Google") instead of the email code they never used.
+ * what a passkey saves them ("without Google") instead of the email code they never used; `''` for an SSO that kept
+ * the default label (providerName), which names no provider.
  */
 export function rememberSignInMethod(method: SignInMethodId, provider?: string) {
   markSignedIn(method)
   try {
     localStorage.setItem(LAST_USED_KEY, method)
-    if (provider) localStorage.setItem(LAST_PROVIDER_KEY, provider)
+    if (provider !== undefined) localStorage.setItem(LAST_PROVIDER_KEY, provider)
     else localStorage.removeItem(LAST_PROVIDER_KEY)
   } catch {
     // Without storage the badge just does not show.
   }
 }
 
-/** The provider's name when this device last signed in with one (Google, Microsoft, GitHub, an SSO), else null. */
+/**
+ * The provider's name when this device last signed in with one (Google, Microsoft, GitHub, an SSO), `''` after an SSO
+ * without a name of its own, null after any other way.
+ */
 export function lastSignInProvider(): string | null {
   try {
-    return localStorage.getItem(LAST_PROVIDER_KEY) || null
+    return localStorage.getItem(LAST_PROVIDER_KEY)
   } catch {
     return null
   }
 }
+
+/** What to remember of a provider sign-in: its name, `''` for an SSO that kept the default label ("Single sign-on"). */
+export const providerName = (method: { label: string; unnamed?: boolean }) => (method.unnamed ? '' : method.label)
 
 /** How the sign-in page starts. `passkeyFirst`: "Sign in with passkey" on top; `emailOpen`: the email form already shown. */
 export type SignInStart = { passkeyFirst: boolean; emailOpen: boolean }

@@ -74,11 +74,11 @@ describe('readAuthConfig', () => {
     expect(readAuthConfig(keys).oidc).toBeNull()
     const url = 'https://id.example.com/.well-known/openid-configuration'
     expect(readAuthConfig({ ...keys, OIDC_DISCOVERY_URL: url }).methods.sso).toEqual([
-      { id: 'oidc', label: 'Single sign-on' },
+      { id: 'oidc', label: 'Single sign-on', unnamed: true },
     ])
-    expect(readAuthConfig({ ...keys, OIDC_DISCOVERY_URL: url, OIDC_DISPLAY_NAME: 'Okta' }).methods.sso[0]?.label).toBe(
-      'Okta',
-    )
+    expect(readAuthConfig({ ...keys, OIDC_DISCOVERY_URL: url, OIDC_DISPLAY_NAME: 'Okta' }).methods.sso).toEqual([
+      { id: 'oidc', label: 'Okta' },
+    ])
   })
 
   it('asks for no calendar access at sign-in: that is asked only when a calendar is connected (calendar.connectStart)', () => {

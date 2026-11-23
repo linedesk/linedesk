@@ -3,6 +3,7 @@ import { signedInJustNow } from './passkey-ask.ts'
 import {
   lastSignInProvider,
   passkeyRequestClosed,
+  providerName,
   readLastUsedMethod,
   rememberSignInMethod,
   signInStart,
@@ -35,6 +36,21 @@ describe('last used sign-in method', () => {
     rememberSignInMethod('microsoft', 'Microsoft')
     expect(lastSignInProvider()).toBe('Microsoft')
     rememberSignInMethod('email')
+    expect(lastSignInProvider()).toBeNull()
+  })
+
+  it("an SSO that kept the default label is remembered as a provider without a name ('')", () => {
+    const memory = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => memory.get(k) ?? null,
+      setItem: (k: string, v: string) => memory.set(k, v),
+      removeItem: (k: string) => memory.delete(k),
+    })
+    expect(providerName({ label: 'Single sign-on', unnamed: true })).toBe('')
+    expect(providerName({ label: 'Okta' })).toBe('Okta')
+    rememberSignInMethod('oidc', providerName({ label: 'Single sign-on', unnamed: true }))
+    expect(lastSignInProvider()).toBe('')
+    rememberSignInMethod('password')
     expect(lastSignInProvider()).toBeNull()
   })
 
@@ -77,7 +93,13 @@ describe('a failed passkey request', () => {
   })
 
   it('shows everything else: a wrong site address, an authenticator or unknown error, the server', () => {
-    for (const code of ['ERROR_INVALID_RP_ID', 'ERROR_INVALID_DOMAIN', 'ERROR_AUTHENTICATOR_GENERAL_ERROR', ['AUTH', 'CANCELLED'].join('_'), 'TOO_MANY_REQUESTS'])
+    for (const code of [
+      'ERROR_INVALID_RP_ID',
+      'ERROR_INVALID_DOMAIN',
+      'ERROR_AUTHENTICATOR_GENERAL_ERROR',
+      ['AUTH', 'CANCELLED'].join('_'),
+      'TOO_MANY_REQUESTS',
+    ])
       expect(passkeyRequestClosed({ code })).toBe(false)
     expect(passkeyRequestClosed(null)).toBe(false)
     expect(passkeyRequestClosed({ status: 500 })).toBe(false)

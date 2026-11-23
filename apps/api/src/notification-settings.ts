@@ -153,7 +153,7 @@ async function loadCallEmails(
   const [fallback, rows, model] = await Promise.all([
     emailDefault(tx, workspaceId),
     tx
-      .select({ userId: member.userId, own: member_notification_settings.email })
+      .select({ userId: member.userId, name: user.name, email: user.email, own: member_notification_settings.email })
       .from(member)
       .innerJoin(user, eq(user.id, member.userId))
       .leftJoin(
@@ -168,7 +168,12 @@ async function loadCallEmails(
   ])
   return {
     you: userId,
-    members: rows.map(r => ({ userId: r.userId, everyCall: r.own ?? fallback })),
+    // An address only for a member without a name: their row shows it instead of "A teammate".
+    members: rows.map(r => ({
+      userId: r.userId,
+      everyCall: r.own ?? fallback,
+      ...(r.name?.trim() ? {} : { email: r.email }),
+    })),
     newTeammates: fallback,
     llm: !!model,
   }

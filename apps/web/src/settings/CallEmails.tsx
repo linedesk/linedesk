@@ -73,8 +73,9 @@ export function CallEmails({ name, rules, onChange, canEdit, undoable, showError
   const members = useMembers()
   const membersState = useLoadState('workspace_members')
   const routing = useQuery<EmailRoutingData>(canEdit ? ROUTING_KEY : null, loadRouting)
-  const emailOf = (userId: string) => routing.data?.members.find(m => m.userId === userId)?.email
   const hears = useQuery<CallEmailsData>(CALL_EMAILS_KEY, loadCallEmails)
+  const emailOf = (userId: string) =>
+    (routing.data?.members ?? hears.data?.members)?.find(m => m.userId === userId)?.email
   // Rules need a language model; without one only the switches work, so only they show, for everyone.
   const showRules = hears.data?.llm === true
 
@@ -206,7 +207,7 @@ function WhoHears({
   return (
     <div className="st-swlist ce-people">
       {shown.map(m => {
-        const label = memberLabel(m)
+        const label = memberLabel(m, data.members.find(x => x.userId === m.user_id)?.email)
         const editable = mayChange(m)
         return (
           <SwitchRow
@@ -274,7 +275,10 @@ function RuleCard({
   const whenMissing = showErrors && !rule.when.trim()
   const assignOptions: SelectOption<string>[] = [
     { value: '', label: t('settings.assistant.emails.rule.nobody') },
-    ...rule.to.map(id => ({ value: id, label: memberLabel(members.find(m => m.user_id === id)) })),
+    ...rule.to.map(id => {
+      const member = members.find(m => m.user_id === id)
+      return { value: id, label: memberLabel(member, emailOf(id)) }
+    }),
   ]
   return (
     <li className="ce-rule">
@@ -361,18 +365,23 @@ function People({
   const t = useT()
   const options = members
     .filter(m => !m.disabled && !ids.includes(m.user_id))
-    .map(m => ({ value: m.user_id, label: memberLabel(m), meta: emailOf(m.user_id) }))
+    .map(m => {
+      const email = emailOf(m.user_id)
+      const label = memberLabel(m, email)
+      // Without a name the label is the email already: it shows once.
+      return { value: m.user_id, label, meta: label === email ? undefined : email }
+    })
   return (
     <div className="ce-chips">
       {ids.map(userId => {
         const member = members.find(m => m.user_id === userId)
-        const label = memberLabel(member)
         const email = emailOf(userId)
+        const label = memberLabel(member, email)
         return (
           <span key={userId} className="ce-chip">
             <Avatar name={label} size={20} src={memberAvatar(member)} />
             {label}
-            {email && <span className="ce-chip-email">{email}</span>}
+            {email && email !== label && <span className="ce-chip-email">{email}</span>}
             {!disabled && (
               <button
                 type="button"

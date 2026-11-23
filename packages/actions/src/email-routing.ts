@@ -67,8 +67,11 @@ export const emailRoutingGet = defineAction({
   readOnly: true,
 })
 
-/** One member's row in Who hears about calls: whether they get the email about every call. */
-export type CallEmailsMember = { userId: string; everyCall: boolean }
+/**
+ * One member's row in Who hears about calls: whether they get the email about every call. `email` only for a member
+ * without a name, whose row shows it instead (every member reads the team's addresses anyway, team.list).
+ */
+export type CallEmailsMember = { userId: string; everyCall: boolean; email?: string }
 
 /** `data` of callEmails.get. */
 export type CallEmailsData = {

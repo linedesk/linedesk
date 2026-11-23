@@ -1,5 +1,6 @@
 // What GET /v1/auth-methods returns. Types only, so the web app can import them.
-export type SsoMethod = { id: string; label: string }
+/** `unnamed`: an SSO whose install kept the default label ("Single sign-on"), so the label names no provider. */
+export type SsoMethod = { id: string; label: string; unnamed?: boolean }
 /** `emailCode`: sign in with a code sent by email (needs email delivery). */
 /** `passkey`: sign in with a passkey added in Account settings (AUTH_PASSKEY_ENABLED, on by default). */
 export type AuthMethods = {

@@ -23,9 +23,12 @@ export function useMember(userId: string | null): WorkspaceMember | undefined {
   return userId ? members.find(m => m.user_id === userId) : undefined
 }
 
-/** A member's name; one without a name (or not synced yet) reads "A teammate". */
-export const memberLabel = (m: Pick<WorkspaceMember, 'name'> | undefined) =>
-  m?.name.trim() || i18n().t('team.invite.aTeammate')
+/**
+ * A member's name; one without a name reads as their email where the screen knows it (the local store has no emails),
+ * else (or not synced yet) "A teammate".
+ */
+export const memberLabel = (m: Pick<WorkspaceMember, 'name'> | undefined, email?: string) =>
+  m?.name.trim() || email || i18n().t('team.invite.aTeammate')
 
 /** A member's profile picture (Account settings › Profile), null without one: the initials show. */
 export const memberAvatar = (m: Pick<WorkspaceMember, 'user_id' | 'avatar_version'> | undefined) =>

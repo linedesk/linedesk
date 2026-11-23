@@ -2,7 +2,7 @@
 // the number of partners still to approve.
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test } from 'vitest'
-import { PartnerTabs } from './Partners.tsx'
+import { PartnerOwner, PartnerTabs } from './Partners.tsx'
 
 const link = (html: string, href: string) => html.match(new RegExp(`<a[^>]*href="${href}"[^>]*>.*?</a>`))?.[0] ?? ''
 
@@ -13,4 +13,13 @@ test('All and Waiting for approval, each its own address; the number only while 
   const none = renderToStaticMarkup(<PartnerTabs waiting count={0} />)
   expect(link(none, '#admin/partners/waiting')).toContain('aria-current="page"')
   expect(none).not.toContain('class="n"')
+})
+
+test('the owner: name over email; an owner without a name shows the email once', () => {
+  const owner = (name: string) =>
+    renderToStaticMarkup(
+      <PartnerOwner partner={{ owner: { userId: 'u1', name, email: 'sam@acme.example' }, ownerInvitation: null }} />,
+    )
+  expect(owner('Sam Lee')).toBe('Sam Lee<span class="adm-sub">sam@acme.example</span>')
+  expect(owner('')).toBe('sam@acme.example')
 })

@@ -373,7 +373,7 @@ function UserPicker({ users, picked, onPick }: { users: AdminUser[]; picked: str
             <Avatar name={u.name || u.email} size={24} src={u.avatar_url} />
             <span className="st-member-t">
               <b>{u.name || u.email}</b>
-              <span className="help">{u.email}</span>
+              {u.name && <span className="help">{u.email}</span>}
             </span>
           </button>
         ))}
@@ -454,7 +454,7 @@ export function WorkspaceMembersCard({ workspace: w, users, notify, reload }: Wo
             <MemberRow
               key={m.member_id}
               title={name}
-              sub={m.email}
+              sub={m.name ? m.email : undefined}
               lead="person"
               avatarUrl={m.avatar_url}
               role={m.role}

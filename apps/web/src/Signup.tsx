@@ -9,7 +9,7 @@
 import { T, useT } from '@linedesk/i18n/react'
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { auth, providerSignInElsewhere, type SsoMethod, signInWithCode, startSso, takeRedirectError } from './auth.ts'
-import { rememberSignInMethod } from './sign-in-methods.ts'
+import { providerName, rememberSignInMethod } from './sign-in-methods.ts'
 import { ProviderButton } from './ui/brand-logos.tsx'
 import { CardFooter, CodeWait, HaveAccount, useAuthMethods } from './Login.tsx'
 import { browserPlace } from './countryHint.ts'
@@ -332,7 +332,7 @@ export function EmailStep({
       setOpening(null)
       return refused(answer)
     }
-    rememberSignInMethod(method.id, method.label)
+    rememberSignInMethod(method.id, providerName(method))
     const res = await startSso(method).catch(() => ({ error: true }))
     if (res.error) {
       setOpening(null)
@@ -623,7 +623,13 @@ export function DetailsStep({
         {noTrial && <p className="auth-plan-now">{t('auth.signup.payLater')}</p>}
         <p className="auth-terms">
           <T
-            k={fromApp ? 'auth.signup.termsCreateWorkspace' : 'auth.signup.termsCreate'}
+            k={
+              fromApp
+                ? partner
+                  ? 'auth.signup.termsCreatePartnerAccount'
+                  : 'auth.signup.termsCreateWorkspace'
+                : 'auth.signup.termsCreate'
+            }
             values={{
               terms: chunks => <ExternalLink href={terms.termsUrl}>{chunks}</ExternalLink>,
               privacy: chunks => <ExternalLink href={terms.privacyUrl}>{chunks}</ExternalLink>,
@@ -637,7 +643,12 @@ export function DetailsStep({
           aria-busy={busy || undefined}
         >
           {busy && <Spinner />}
-          {fromApp ? t('auth.signup.createWorkspace') : t('auth.signup.createAccount')}
+          {/* Signed in already, a partner gets its partner account and no workspace (docs/white-label.md). */}
+          {fromApp
+            ? partner
+              ? t('auth.signup.createPartnerAccount')
+              : t('auth.signup.createWorkspace')
+            : t('auth.signup.createAccount')}
         </button>
         {fromApp ? (
           <button type="button" className="auth-switch" disabled={busy} onClick={fromApp.onBack}>

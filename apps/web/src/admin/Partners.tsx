@@ -68,6 +68,26 @@ export function PartnerTabs({ waiting, count }: { waiting: boolean; count: numbe
   )
 }
 
+/** The Owner cell: their name over their email; without a name the email once; an invited owner's email. */
+export function PartnerOwner({ partner: p }: { partner: Pick<AdminPartner, 'owner' | 'ownerInvitation'> }) {
+  const t = useT()
+  if (p.owner)
+    return (
+      <>
+        {p.owner.name || p.owner.email}
+        {p.owner.name && <span className="adm-sub">{p.owner.email}</span>}
+      </>
+    )
+  if (p.ownerInvitation)
+    return (
+      <>
+        {p.ownerInvitation.email}
+        <span className="adm-sub">{t('admin.partners.ownerInvited')}</span>
+      </>
+    )
+  return EMPTY
+}
+
 export function Partners({ notify, waiting = false }: { notify: Notify; waiting?: boolean }) {
   const t = useT()
   const supportAccess = useSupportAccess()
@@ -245,19 +265,7 @@ export function Partners({ notify, waiting = false }: { notify: Notify; waiting?
                           )}
                         </th>
                         <td data-label={t('admin.partners.owner')}>
-                          {p.owner ? (
-                            <>
-                              {p.owner.name || p.owner.email}
-                              <span className="adm-sub">{p.owner.email}</span>
-                            </>
-                          ) : p.ownerInvitation ? (
-                            <>
-                              {p.ownerInvitation.email}
-                              <span className="adm-sub">{t('admin.partners.ownerInvited')}</span>
-                            </>
-                          ) : (
-                            EMPTY
-                          )}
+                          <PartnerOwner partner={p} />
                         </td>
                         <td data-label={t('admin.partners.bill')}>
                           {p.billStatus ? t(BILL_STATUS[p.billStatus]) : t('admin.partners.noBill')}
