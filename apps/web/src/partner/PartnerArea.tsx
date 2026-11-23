@@ -9,6 +9,7 @@ import {
   type PartnerData,
   UNPAID_PARTNER_CLIENTS,
 } from '@linedesk/actions'
+import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { day } from '../admin/parts.tsx'
@@ -40,6 +41,7 @@ import { Card, Dialog, FormField, Input } from '../ui/form.tsx'
 import { Avatar, Badge, Button, Icon, Note } from '../ui/kit.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { List, ListRow } from '../ui/list.tsx'
+import { PriceLine, usePrice } from '../ui/price.tsx'
 import { type PageSection, SettingsLayout, sectionParts, useSection } from '../ui/SettingsLayout.tsx'
 import { ClientSettingsDialog } from './ClientSettingsDialog.tsx'
 import { ClientList } from './ClientTable.tsx'
@@ -51,7 +53,7 @@ import { PartnerBrand } from './PartnerBrand.tsx'
 import { PartnerDomain } from './PartnerDomain.tsx'
 import { PartnerKeys } from './PartnerKeys.tsx'
 import { PartnerSender } from './PartnerSender.tsx'
-import { PartnerPrice, PartnerSetup } from './PartnerSetup.tsx'
+import { PartnerSetup, partnerChargeCents, partnerMonthCents, usePartnerBreakdown } from './PartnerSetup.tsx'
 
 type Section = 'clients' | 'team' | 'brand' | 'domain' | 'email' | 'keys' | 'billing'
 
@@ -59,22 +61,24 @@ type Section = 'clients' | 'team' | 'brand' | 'domain' | 'email' | 'keys' | 'bil
 const RUNNING: readonly string[] = ['trialing', 'active', 'past_due', 'comped']
 
 /**
- * The partner area's sections: Domain for every partner (it says itself when this server has no provider for it);
- * Email sender and AI keys only for a partner with a bill (White-label Cloud: own keys take the usage fee away, the
- * sender needs the install's Resend), Billing only for the partner bill's owner.
+ * The partner area's sections. Domain and Email sender only where this server offers them (a provider for partner
+ * addresses; an email provider that verifies domains), or the partner has one already: never a page that only says
+ * "not available". Email sender and AI keys only for a partner with a bill (White-label Cloud: own keys take the usage
+ * fee away, the sender needs the install's Resend), Billing only for the partner bill's owner.
  */
-export function partnerSections(t: ReturnType<typeof useT>, billing: boolean, keys = false): PageSection<Section>[] {
+export function partnerSections(
+  t: ReturnType<typeof useT>,
+  billing: boolean,
+  keys = false,
+  offers: PartnerData['offers'] = { domain: true, sender: true },
+): PageSection<Section>[] {
   return [
     { id: 'clients', label: t('team.partner.clients.title') },
     { id: 'team', label: t('team.partner.team.title') },
     { id: 'brand', label: t('team.partner.brand.title') },
-    { id: 'domain', label: t('team.partner.domain.title') },
-    ...(keys
-      ? [
-          { id: 'email' as const, label: t('team.partner.sender.title') },
-          { id: 'keys' as const, label: t('team.partner.keys.title') },
-        ]
-      : []),
+    ...(offers.domain ? [{ id: 'domain' as const, label: t('team.partner.domain.title') }] : []),
+    ...(keys && offers.sender ? [{ id: 'email' as const, label: t('team.partner.sender.title') }] : []),
+    ...(keys ? [{ id: 'keys' as const, label: t('team.partner.keys.title') }] : []),
     ...(billing ? [{ id: 'billing' as const, label: t('team.partner.billing.title') }] : []),
   ]
 }
@@ -146,10 +150,18 @@ function PartnerConsole({ partner, onExit, onFirstWorkspace }: Props) {
         t,
         billMine || (!data && linked === 'billing'),
         !!data?.bill || (!data && (linked === 'keys' || linked === 'email')),
+        data?.offers,
       ),
     [t, billMine, data, linked],
   )
   const current = useSection('partner', sections)
+  // A link to a section this partner does not have here (Domain or Email sender on a server without them, Billing for
+  // an admin of the team): once the partner has loaded, the address says where the page really is (Clients).
+  useEffect(() => {
+    if (!data) return
+    const { section } = sectionParts('partner', window.location.hash)
+    if (section && !sections.some(s => s.id === section)) window.history.replaceState(null, '', '#partner')
+  }, [data, sections])
   // Esc goes back to the inbox, as from Server admin (not while typing in a field, and not when it closes a dialog or
   // a menu: that Esc only closes it).
   useEffect(() => {
@@ -244,37 +256,38 @@ function PartnerConsole({ partner, onExit, onFirstWorkspace }: Props) {
 }
 
 /**
- * White-label Cloud waits for its Checkout (the Clients section's own card, never a banner over every section): its
- * real price a month (the partner bill's), billed yearly or monthly, and Activate, which resumes the setup's Activate
- * step; until then up to UNPAID_PARTNER_CLIENTS client workspaces are drafts. While the setup is not finished (Activate
- * is its end), "Continue setup by hand" goes back into it, as ✦ in the top bar goes to the agent. Someone else on the
- * team reads that the owner activates it. `primary`: the page's one main action once there is a client to activate it
- * for (else Add client is).
+ * White-label Cloud waits for its Checkout (the Clients section's own card, never a banner over every section): the
+ * real charge a month with the drafts there are now ("$30 a month"), one line with what it is made of and that numbers,
+ * calls and invitations start once it is active, and Activate, the card's one action, which resumes the setup's Activate
+ * step. Someone else on the team reads that the owner activates it. `primary`: the page's one main action once there is
+ * a client to activate it for (else Add client is).
  */
 function ActivateCard({ data, primary }: { data: PartnerData; primary: boolean }) {
   const t = useT()
+  const { money } = usePrice()
+  const breakdown = usePartnerBreakdown()
   const bill = data.bill!
   if (!bill.mine) return <Note tone="info">{t('team.partner.bill.waitsForOwner')}</Note>
+  const clients = data.clients.length
+  const line = [
+    breakdown(bill.price, data.clients),
+    bill.price.interval === 'year'
+      ? t('team.partner.bill.billedYearly', { total: money(partnerChargeCents(bill.price, clients)) })
+      : null,
+    t('team.partner.bill.startsOnActivate'),
+  ]
+    .filter(Boolean)
+    .join(' ')
   return (
     <Card title={t('team.partner.bill.activateTitle')}>
       {/* The button under the words, not in the card's head: on a phone the head has no room for both. */}
       <div className="pa-activate">
         <div className="pa-activate-text">
-          <PartnerPrice price={bill.price} />
-          <p className="pa-fine">{t('team.partner.clients.setupLimit', { limit: UNPAID_PARTNER_CLIENTS })}</p>
+          <PriceLine note={line}>
+            {t('common.plan.pricePerMonth', { price: money(partnerMonthCents(bill.price, clients)) })}
+          </PriceLine>
         </div>
         <div className="pa-activate-actions">
-          <Button
-            size="sm"
-            variant="ghost"
-            title={t('onboarding.agentSetup.partner.byHandTitle')}
-            onClick={() => {
-              rememberPartnerByHand(data.partner.id, true)
-              window.location.hash = PARTNER_SETUP_HASH
-            }}
-          >
-            {t('team.partner.setup.continueByHand')}
-          </Button>
           {/* The setup's one Activate step (PartnerSetup.tsx): the drafts, the real total, Checkout; Back comes here. */}
           <Button size="sm" variant={primary ? 'primary' : 'secondary'} onClick={() => openPartnerActivate('#partner')}>
             {t('team.partner.bill.activateButton')}
@@ -283,6 +296,24 @@ function ActivateCard({ data, primary }: { data: PartnerData; primary: boolean }
       </div>
     </Card>
   )
+}
+
+/**
+ * Why Add client cannot be used now, said next to it before anyone fills in the form (never a disabled button alone,
+ * never a refusal after the form): a pending partner without billing waits for approval; a server that bills and a
+ * partner without a partner plan, or the server's limit reached (`newClientRefused`, B3); before the Checkout, the
+ * drafts used up. Null: Add client works (or the note above the sections says why not: suspended, plan not running).
+ */
+export function addClientBlock(data: PartnerData, frozen: boolean): { key: MessageKey; limit?: number } | null {
+  if (frozen) return !data.bill && data.partner.status === 'pending' ? { key: msg('team.partner.pending') } : null
+  if (data.newClientRefused) return { key: CLIENT_REFUSED[data.newClientRefused] }
+  if (!roomForClient(data)) return { key: msg('team.partner.clients.setupLimit'), limit: UNPAID_PARTNER_CLIENTS }
+  return null
+}
+
+const CLIENT_REFUSED: Record<NonNullable<PartnerData['newClientRefused']>, MessageKey> = {
+  client_needs_bill: msg('team.partner.clients.needsPlan'),
+  client_limit: msg('team.partner.error.client_limit'),
 }
 
 /** After a change: the partner as the server has it now, and the person's workspace list (a new client). */
@@ -339,26 +370,17 @@ export function Clients({
         }
       : undefined
 
-  const room = roomForClient(data)
   const empty = data.clients.length === 0
-  // Why New client cannot be used now, said next to it (never a disabled button alone): the drafts before activating
-  // are used up; otherwise the note above the sections (suspended, plan not running) or, without billing, approval.
   const activating = !!data.bill && unpaidPartner(data) && data.partner.status !== 'suspended'
-  // The Activate card says the draft limit already for its owner: never the same sentence twice on the page.
-  const blocked = frozen
-    ? !data.bill && data.partner.status === 'pending'
-      ? t('team.partner.pending')
-      : null
-    : room || (activating && data.bill?.mine)
-      ? null
-      : t('team.partner.clients.setupLimit', { limit: UNPAID_PARTNER_CLIENTS })
+  const block = addClientBlock(data, frozen)
+  const blocked = block && t(block.key, { limit: block.limit ?? 0 })
   const newClient = (
     <Button
       size="sm"
       variant={activating && !empty ? 'secondary' : 'primary'}
       icon="plus"
-      disabled={frozen || !room}
-      title={t('team.partner.clients.newTip')}
+      disabled={frozen || !!block}
+      title={blocked || t('team.partner.clients.newTip')}
       onClick={() => setCreating(true)}
     >
       {t('team.partner.clients.new')}

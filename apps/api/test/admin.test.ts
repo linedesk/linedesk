@@ -2628,6 +2628,7 @@ describe('impersonation', () => {
       // Read-only and `partner`, as above: the partner's own address and its records (partner-domain.ts).
       'partnerDomain.get',
       // Read-only and account:own, which an impersonation never has.
+      'partnerInvitation.listMine',
       'partnerInvitation.view',
       // Read-only and `partner`, as above: the partner's own AI keys, never a key (partner-keys.ts).
       'partnerKeys.get',
@@ -2676,7 +2677,12 @@ describe('impersonation', () => {
     const refused = [...actions.values()]
       .filter(def => !mayRunWhileImpersonating(def, { edits: true }))
       .map(d => d.name)
-    expect(refused.sort()).toEqual(['invitation.accept', 'team.invite'])
+    expect(refused.sort()).toEqual([
+      'invitation.accept',
+      'partnerInvitation.accept',
+      'partnerInvitation.acceptMine',
+      'team.invite',
+    ])
   })
 
   test('Allow edits: per impersonation session, then as the user, own sign-in never (LIN-700, LIN-708)', async () => {

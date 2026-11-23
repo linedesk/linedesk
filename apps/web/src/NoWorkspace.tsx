@@ -1,6 +1,7 @@
 // Signed in, but a member of no workspace: a new account not added to one yet, skipped an invitation ("Not now"), or
 // removed from the last one. What they can do here:
-// - join a workspace they are invited to (a skipped invitation stays here until it is answered);
+// - join a workspace they are invited to (a skipped invitation stays here until it is answered), or a partner team
+//   whose invitation they left before Join (it is listed here too, joined in place; LIN-776);
 // - name their own business, if they are a server admin (only server admins create workspaces; self-serve creation
 //   comes with billing), after the passkey check; everyone else waits for a server admin to add them;
 // - open Account settings, which need no workspace, or sign out (the account menu; "Use a different account" while
@@ -9,23 +10,27 @@
 //   "Name your business" too (the first workspace), with Server admin one click away; once they have a workspace, /
 //   opens it.
 
+import type { MyPartnerInvitation } from '@linedesk/actions'
+import { T, useT } from '@linedesk/i18n/react'
 import { type ReactNode, useEffect, useState } from 'react'
 import { AdminMode } from './admin/AdminMode.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import { auth, isInstanceAdmin, type Me } from './auth.ts'
+import { i18n } from './i18n/index.tsx'
+import { signOutAndForget } from './localData.ts'
 import { AdminStart } from './onboarding/AdminStart.tsx'
 import { AgentSetup, choseManualSetup, isAgentSetupHash, rememberManual } from './onboarding/AgentSetup.tsx'
 import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
-import { AccountSettings } from './settings/account/index.tsx'
 import { backToInstallAgent, PARTNER_AGENT_HASH } from './onboarding/setup-choice.ts'
 import { PartnerAgentSetup } from './partner/PartnerAgentSetup.tsx'
 import { PartnerArea } from './partner/PartnerArea.tsx'
-import { signOutAndForget } from './localData.ts'
+import { partnerErrorText, refreshMyPartners } from './partner/partner-api.ts'
 import { deletedOnPurpose, leftOnPurpose } from './session.ts'
-import { SignedInAuthPage } from './shell/SignedInAuthPage.tsx'
-import { T, useT } from '@linedesk/i18n/react'
-import { i18n } from './i18n/index.tsx'
+import { AccountSettings } from './settings/account/index.tsx'
+import { callAction } from './settings/settings-api.ts'
 import { roleLabel } from './shell/invitations.ts'
+import { SignedInAuthPage } from './shell/SignedInAuthPage.tsx'
+import { AuthError } from './ui/AuthError.tsx'
 
 export type PendingInvitation = { id: string; workspaceName: string; role: string }
 type InvitationRow = { id: string; organizationName?: string; role: string; status: string; expiresAt: string | Date }
@@ -44,6 +49,15 @@ export function pendingInvitations(rows: InvitationRow[], now = new Date()): Pen
 async function loadInvitations(): Promise<PendingInvitation[]> {
   const res = await auth.organization.listUserInvitations()
   return res.error ? [] : pendingInvitations((res.data ?? []) as InvitationRow[])
+}
+
+/** The open partner team invitations to this address (`partnerInvitation.listMine`); none when they cannot be read. */
+async function loadPartnerInvitations(): Promise<MyPartnerInvitation[]> {
+  try {
+    return (await callAction<{ invitations: MyPartnerInvitation[] }>('partnerInvitation.listMine', {})).invitations
+  } catch {
+    return []
+  }
 }
 
 /**
@@ -93,8 +107,10 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
   const [manualSetup, setManualSetup] = useState(false)
   // The install walkthrough was left in this tab (finished or set aside): by hand goes on to naming the business.
   const [installLeft, setInstallLeft] = useState(false)
+  const [partnerInvitations, setPartnerInvitations] = useState<MyPartnerInvitation[] | null>(null)
   useEffect(() => {
     void loadInvitations().then(setInvitations)
+    void loadPartnerInvitations().then(setPartnerInvitations)
   }, [])
   const leave = () => {
     window.location.hash = '#start'
@@ -168,11 +184,21 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
       />
     )
   }
-  if (invitations === null) return <SignedInAuthPage>{null}</SignedInAuthPage>
+  if (invitations === null || partnerInvitations === null) return <SignedInAuthPage>{null}</SignedInAuthPage>
+  const invited = invitations.length + partnerInvitations.length > 0
 
   const extras = (
     <>
       {invitations.length > 0 && <InvitationList invitations={invitations} onOpen={onOpenInvite} />}
+      {partnerInvitations.length > 0 && (
+        <PartnerInvitationList
+          invitations={partnerInvitations}
+          onJoined={() => {
+            window.location.hash = '#partner'
+            onDone()
+          }}
+        />
+      )}
       {admin && (
         <button
           type="button"
@@ -211,7 +237,12 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
       </AdminStart>
     )
   return (
-    <NoWorkspaceYet onDone={onDone} lostWorkspace={lostWorkspace} hasInvitations={invitations.length > 0}>
+    <NoWorkspaceYet
+      onDone={onDone}
+      lostWorkspace={lostWorkspace}
+      hasInvitations={invited}
+      onlyPartner={invitations.length === 0 && partnerInvitations.length > 0}
+    >
       {extras}
     </NoWorkspaceYet>
   )
@@ -270,14 +301,75 @@ function InvitationList({ invitations, onOpen }: { invitations: PendingInvitatio
   )
 }
 
+/**
+ * Partner team invitations to this address, joined in place (`partnerInvitation.acceptMine`): someone who signed in
+ * through the invitation's link and left it before Join (the passkey prompt, Not now) is not "waiting for an
+ * invitation" (B5, LIN-776).
+ */
+export function PartnerInvitationList({
+  invitations,
+  onJoined,
+}: {
+  invitations: MyPartnerInvitation[]
+  onJoined: () => void
+}) {
+  const t = useT()
+  const [busy, setBusy] = useState<string | null>(null)
+  const [problem, setProblem] = useState<string | null>(null)
+  async function join(id: string) {
+    setBusy(id)
+    setProblem(null)
+    try {
+      await callAction('partnerInvitation.acceptMine', { invitationId: id })
+      await refreshMyPartners()
+      onJoined()
+    } catch (err) {
+      setProblem(partnerErrorText(err))
+      setBusy(null)
+    }
+  }
+  return (
+    <div className="auth-invites" role="group" aria-label={t('auth.noWorkspace.partnerInvitations')}>
+      {invitations.map(i => (
+        <div key={i.id} className="auth-invite">
+          <span>
+            <T
+              k="auth.noWorkspace.partnerInvited"
+              values={{
+                partner: i.partnerName,
+                role: i.role,
+                b: chunks => <b>{chunks}</b>,
+              }}
+            />
+          </span>
+          <button
+            type="button"
+            className="k-btn k-btn-primary k-btn-sm"
+            disabled={busy !== null}
+            aria-busy={busy === i.id || undefined}
+            onClick={() => void join(i.id)}
+            title={t('auth.noWorkspace.joinPartnerTip', { partner: i.partnerName })}
+          >
+            {t('team.partner.invite.join')}
+          </button>
+        </div>
+      ))}
+      {problem && <AuthError message={problem} />}
+    </div>
+  )
+}
+
 /** This person may not create a workspace (only server admins do): they wait for a server admin to add them. */
 function NoWorkspaceYet({
   hasInvitations,
+  onlyPartner = false,
   lostWorkspace,
   onDone,
   children,
 }: {
   hasInvitations: boolean
+  /** The invitations are partner teams' only: the line asks to join that, not a workspace. */
+  onlyPartner?: boolean
   lostWorkspace: string | null
   onDone: () => void
   children: ReactNode
@@ -293,9 +385,17 @@ function NoWorkspaceYet({
               : leftOnPurpose(lostWorkspace)
                 ? t('auth.lost.left', { workspace: lostWorkspace })
                 : t('auth.lost.noAccess', { workspace: lostWorkspace })
-            : t('auth.noWorkspace.waiting')}
+            : hasInvitations
+              ? t('auth.noWorkspace.invitedTitle')
+              : t('auth.noWorkspace.waiting')}
         </h1>
-        <p>{hasInvitations ? t('auth.noWorkspace.joinOrAsk') : t('auth.noWorkspace.ask')}</p>
+        <p>
+          {onlyPartner
+            ? t('auth.noWorkspace.joinPartner')
+            : hasInvitations
+              ? t('auth.noWorkspace.joinOrAsk')
+              : t('auth.noWorkspace.ask')}
+        </p>
         {children}
         <button type="button" className="auth-switch" onClick={() => void signOutAndForget().then(onDone)}>
           {t('auth.differentAccount')}

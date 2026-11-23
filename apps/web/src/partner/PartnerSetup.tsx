@@ -29,14 +29,12 @@ import {
 } from '../onboarding/setup-choice.ts'
 import { callAction } from '../settings/settings-api.ts'
 import { switchToWorkspace } from '../shell/invitations.ts'
-import { refreshWorkspaces } from '../shell/WorkspaceSwitcher.tsx'
-import { tabWorkspace } from '../tabWorkspace.ts'
-import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
+import { FormField, FormMessage, Input } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import { List, ListRow } from '../ui/list.tsx'
 import { PlanCard, usePlanPrice } from '../ui/PlanCard.tsx'
-import { PriceLine, usePrice } from '../ui/price.tsx'
+import { usePrice } from '../ui/price.tsx'
 import { InviteOwnerDialog, NewClientDialog, roomForClient, unpaidPartner } from './PartnerArea.tsx'
 import {
   BRAND_QUERY,
@@ -80,58 +78,59 @@ export function partnerSetupStart(
   return done.brand ? 'clients' : 'agency'
 }
 
+type PartnerPriceInfo = { interval: 'month' | 'year'; planCents: number; seatCents: number }
+
+/** What White-label Cloud costs a month with this many client workspaces: the base fee and a seat each, in cents. */
+export const partnerMonthCents = (price: PartnerPriceInfo, clients: number) =>
+  price.planCents + price.seatCents * clients
+
 /**
- * White-label Cloud's price as the partner bill has it (`planCents` and `seatCents` a month): the base fee and each
- * client workspace a month, and on the yearly plan their totals a year in the grey note under it (ui/price.tsx).
- * The partner area's Activate card shows it so.
+ * The small line under the real price a month, what it is made of: "$19 White-label Cloud + $11 for Maple Plumbing."
+ * (one client by name, more by their number), or with none yet what each client workspace will add.
  */
-export function PartnerPrice({
-  price,
-}: {
-  price: { interval: 'month' | 'year'; planCents: number; seatCents: number }
-}) {
+export function usePartnerBreakdown() {
   const t = useT()
   const { money } = usePrice()
-  const note =
-    price.interval === 'year'
-      ? t('team.partner.bill.yearNote', { price: money(price.planCents * 12), seat: money(price.seatCents * 12) })
-      : null
-  return (
-    <PriceLine note={note}>
-      {t('team.partner.bill.price', { price: money(price.planCents), seat: money(price.seatCents) })}
-    </PriceLine>
-  )
+  return (price: PartnerPriceInfo, clients: readonly { name: string }[]) => {
+    const plan = money(price.planCents)
+    if (clients.length === 0) return t('team.partner.bill.breakdownNone', { plan, seat: money(price.seatCents) })
+    if (clients.length === 1)
+      return t('team.partner.bill.breakdownOne', { plan, seat: money(price.seatCents), name: clients[0]!.name })
+    return t('team.partner.bill.breakdownMany', {
+      plan,
+      seats: money(price.seatCents * clients.length),
+      count: clients.length,
+    })
+  }
 }
 
 /**
- * What Activate costs with these drafts, in the shared plan card (ui/PlanCard.tsx): the price a month first ("$14 a
- * month", "+ $9 a month × 2 client workspaces" next to it), what Checkout charges right after as the grey note ("$384
- * billed yearly, charged today"), what each client workspace includes, the tax line and "See all details". No trial
- * for a partner, so the price leads.
+ * What Activate costs with these drafts, in the shared plan card (ui/PlanCard.tsx): the real charge a month as the
+ * headline ("$30 a month"), then one grey line with what it is made of and when it is charged ("$19 White-label Cloud
+ * + $11 for Maple Plumbing. Charged today, then every month."; on the yearly plan the year's total charged today), what
+ * each client workspace includes, the tax line and "See all details". No trial for a partner, so the price leads.
  */
 export function PartnerTotal({
   price,
   prices,
   clients,
 }: {
-  price: { interval: 'month' | 'year'; planCents: number; seatCents: number }
+  price: PartnerPriceInfo
   prices: PlanPrices | null | undefined
-  clients: number
+  clients: readonly { name: string }[]
 }) {
   const t = useT()
   const { money } = usePrice()
   const planPrice = usePlanPrice()
-  const total = money(partnerChargeCents(price, clients))
+  const breakdown = usePartnerBreakdown()
+  const charged =
+    price.interval === 'year'
+      ? t('team.partner.setup.activate.chargedYearlyNow', { total: money(partnerChargeCents(price, clients.length)) })
+      : t('team.partner.setup.activate.chargedMonthlyNow')
   return (
     <PlanCard
-      price={planPrice(money(price.planCents))}
-      unit={t('common.plan.clientSeats', { seat: money(price.seatCents), count: clients })}
-      note={t(
-        price.interval === 'year'
-          ? 'team.partner.setup.activate.chargedYearly'
-          : 'team.partner.setup.activate.chargedMonthly',
-        { total },
-      )}
+      price={planPrice(money(partnerMonthCents(price, clients.length)))}
+      note={`${breakdown(price, clients)} ${charged}`}
       prices={prices}
       each="client"
     />
@@ -139,8 +138,8 @@ export function PartnerTotal({
 }
 
 /** What the first year (or month) of White-label Cloud costs with this many client workspaces, in cents. */
-export function partnerChargeCents(price: { interval: string; planCents: number; seatCents: number }, clients: number) {
-  return (price.planCents + price.seatCents * clients) * (price.interval === 'year' ? 12 : 1)
+export function partnerChargeCents(price: PartnerPriceInfo, clients: number) {
+  return partnerMonthCents(price, clients) * (price.interval === 'year' ? 12 : 1)
 }
 
 /** The client workspaces in the order they were made. */
@@ -472,16 +471,14 @@ export function ClientsStep({
 }
 
 /**
- * Step 3, the end of the setup: White-label Cloud with the drafts it starts with (each can be removed here), the price
- * a month with what Checkout charges right after as the grey note, and Stripe Checkout. Only Back and Activate: the
- * agent page's Activate row and the partner area's Activate line open this same step.
+ * Step 3, the end of the setup: White-label Cloud's real charge a month with the drafts it starts with and what it is
+ * made of, and Stripe Checkout. Only Back and Activate: the agent page's Activate row and the partner area's Activate
+ * card open this same step. A draft is removed in the partner area's client list (its "…" menu), not here.
  */
 export function ActivateStep({ data, onBack }: { data: PartnerData; onBack: () => void }) {
   const t = useT()
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
-  const [removing, setRemoving] = useState<PartnerClient | null>(null)
-  const clients = inOrder(data.clients)
 
   async function activate() {
     if (busy) return
@@ -494,29 +491,14 @@ export function ActivateStep({ data, onBack }: { data: PartnerData; onBack: () =
       setBusy(false)
     }
   }
-  useSetupKeys(removing ? {} : { onEnter: () => void activate(), onEscape: onBack })
+  useSetupKeys({ onEnter: () => void activate(), onEscape: onBack })
 
   return (
     <>
       <div className="ob-body">
         <h1>{t('team.partner.setup.activate.title')}</h1>
         <p className="ob-lede">{t('team.partner.setup.activate.lede')}</p>
-        {clients.length > 0 && (
-          <List label={t('team.partner.setup.activate.clients')} className="ps-clients">
-            {clients.map(c => (
-              <ListRow
-                key={c.id}
-                title={c.name}
-                actions={
-                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => setRemoving(c)}>
-                    {t('team.partner.setup.activate.remove')}
-                  </Button>
-                }
-              />
-            ))}
-          </List>
-        )}
-        <PartnerTotal price={data.bill!.price} prices={data.bill!.prices} clients={clients.length} />
+        <PartnerTotal price={data.bill!.price} prices={data.bill!.prices} clients={inOrder(data.clients)} />
         {problem && <FormMessage>{problem}</FormMessage>}
       </div>
       <SetupFoot
@@ -526,69 +508,6 @@ export function ActivateStep({ data, onBack }: { data: PartnerData; onBack: () =
         label={t('team.partner.bill.activateButton')}
         hint={t('onboarding.activate.cardHint')}
       />
-      {removing && <RemoveDraftDialog data={data} client={removing} onClose={() => setRemoving(null)} />}
     </>
-  )
-}
-
-/**
- * Removes a draft before the Checkout: the partner's owner deletes a client workspace nobody owns yet
- * (`partner.deleteClient`, audited; a draft never has an owner, its invitation waits for the Checkout). A light
- * confirm: a draft holds only what was set up in it.
- */
-function RemoveDraftDialog({
-  data,
-  client,
-  onClose,
-}: {
-  data: PartnerData
-  client: PartnerClient
-  onClose: () => void
-}) {
-  const t = useT()
-  const [busy, setBusy] = useState(false)
-  const [problem, setProblem] = useState<string | null>(null)
-  async function remove() {
-    if (busy) return
-    setBusy(true)
-    setProblem(null)
-    try {
-      await callAction('partner.deleteClient', {
-        partnerId: data.partner.id,
-        workspaceId: client.id,
-        confirmName: client.name,
-      })
-    } catch (err) {
-      setProblem(partnerErrorText(err))
-      setBusy(false)
-      return
-    }
-    // The tab's own workspace went: the page loads again, back on this step, in the partner's next workspace or none.
-    if (tabWorkspace() === client.id) return window.location.reload()
-    const [partner, clients] = await Promise.all([loadPartner(data.partner.id), loadClients(data.partner.id)])
-    setQueryData(PARTNER_QUERY(data.partner.id), partner)
-    setQueryData(PARTNER_CLIENTS_QUERY(data.partner.id), clients)
-    void refreshWorkspaces()
-    onClose()
-  }
-  return (
-    <Dialog
-      title={t('team.partner.setup.activate.removeTitle', { name: client.name })}
-      description={t('team.partner.setup.activate.removeText')}
-      size="sm"
-      onClose={busy ? () => {} : onClose}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose} disabled={busy}>
-            {t('common.action.cancel')}
-          </Button>
-          <Button variant="danger" busy={busy} onClick={() => void remove()}>
-            {t('team.partner.setup.activate.remove')}
-          </Button>
-        </>
-      }
-    >
-      {problem && <FormMessage>{problem}</FormMessage>}
-    </Dialog>
   )
 }

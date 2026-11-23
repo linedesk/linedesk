@@ -12,6 +12,7 @@ import {
   CLIENT_PROBLEMS,
   type ClientProblem,
   type MyPartner,
+  type MyPartnerInvitation,
   PARTNER_CLIENT_LIMIT_DEFAULT,
   PARTNER_CLIENT_LIMIT_MAX,
   type PartnerBillSummary,
@@ -44,6 +45,7 @@ import {
   partners,
   phone_numbers,
   provider_failures,
+  setup_events,
   type Tx,
   user,
   workspace_settings,
@@ -52,7 +54,7 @@ import { getT } from '@linedesk/i18n/server'
 import { and, asc, desc, eq, gt, gte, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { planPrices } from './billing-checkout.ts'
 import { billingRules } from './billing-rules.ts'
-import { refuseMoneyChange } from './billing-settings.ts'
+import { billingSwitchOn, refuseMoneyChange } from './billing-settings.ts'
 import { DEFAULT_TIME_ZONE } from './bookings.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
@@ -66,6 +68,7 @@ import { lockBalance, periodAt } from './ledger.ts'
 import { forgetMember, inviteToWorkspace } from './memberships.ts'
 import { billForNewClient, mirroredState, seatsFollow, seatsFollowDelete } from './partner-billing.ts'
 import { emailBrandOf } from './partner-brand.ts'
+import { domainOffered } from './partner-domain.ts'
 import { invitedByPartnerTeam } from './partner-invited.ts'
 import {
   LIMIT_OWNER_ONLY,
@@ -74,7 +77,7 @@ import {
   PARTNER_SUSPENDED,
   refusePartner,
 } from './partner-refusals.ts'
-import { endSuspendedSenders } from './partner-sender.ts'
+import { endSuspendedSenders, senderOffered } from './partner-sender.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { reloadHosts } from './request-host.ts'
 import { isPendingPayment } from './self-serve.ts'
@@ -325,13 +328,72 @@ async function invite(
   return id
 }
 
-/** An invitation by its link's token, locked; null when there is none. */
-async function invitationByToken(tx: Tx, token: string) {
-  const [row] = await tx
+/**
+ * Joins the partner team from an open invitation: by the email's link or, for the address it was sent to, by its id.
+ * `find` reads it: first without a lock (to learn its partner), then locked once the partner row is, the order
+ * partnerMember.revokeInvite takes them, so an accept and a withdrawal at the same moment wait instead of deadlocking
+ * (security review of LIN-776, L-2). Then only for the invited address, confirmed.
+ */
+async function acceptInvitation(
+  tx: Tx,
+  actor: Actor,
+  now: string,
+  find: (lock: boolean) => Promise<typeof partner_invitations.$inferSelect | null>,
+) {
+  const account = await me(tx, actor)
+  const found = await find(false)
+  if (!found) throw refusePartner('invitation_invalid')
+  const partner = await lockedPartner(tx, found.partner_id)
+  // Read again under the partner's lock: a withdrawal or another accept committed meanwhile wins.
+  const inv = await find(true)
+  if (!inv || !isOpen(inv, now)) throw refusePartner('invitation_invalid')
+  if (partner.status === 'suspended') throw refusePartner('partner_suspended')
+  if (account.email.toLowerCase() !== inv.email) throw refusePartner('invitation_other_email')
+  if (!account.emailVerified) throw refusePartner('email_unverified')
+  const [already] = await tx
+    .select({ id: partner_members.user_id })
+    .from(partner_members)
+    .where(and(eq(partner_members.partner_id, partner.id), eq(partner_members.user_id, account.id)))
+  if (already) throw refusePartner('already_member')
+  if (await ownsClientByEmail(tx, partner.id, account.email)) throw refusePartner('client_owner')
+  if (inv.role === 'owner') {
+    const [owner] = await tx
+      .select({ id: partner_members.user_id })
+      .from(partner_members)
+      .where(and(eq(partner_members.partner_id, partner.id), eq(partner_members.role, 'owner')))
+    if (owner) throw refusePartner('owner_taken')
+  }
+  await tx
+    .insert(partner_members)
+    .values({ partner_id: partner.id, user_id: account.id, role: inv.role, created_at: now })
+  await tx.update(partner_invitations).set({ accepted_at: now }).where(eq(partner_invitations.id, inv.id))
+  await syncPartnerMemberships(tx, partner.id, now)
+  return {
+    rows: {},
+    data: { partner: { id: partner.id, name: partner.name }, role: inv.role, subject: subject(account.email) },
+  }
+}
+
+/**
+ * An invitation by its id, locked, only when it was sent to `email` (acceptMine): an id for another address answers
+ * like an unknown one, so the id says nothing about anyone else's invitations.
+ */
+async function invitationById(tx: Tx, id: string, email: string, lock = true) {
+  const query = tx
+    .select()
+    .from(partner_invitations)
+    .where(and(eq(partner_invitations.id, id), eq(partner_invitations.email, email.toLowerCase())))
+  const [row] = lock ? await query.for('update') : await query
+  return row ?? null
+}
+
+/** An invitation by its link's token, locked unless `lock` is false; null when there is none. */
+async function invitationByToken(tx: Tx, token: string, lock = true) {
+  const query = tx
     .select()
     .from(partner_invitations)
     .where(eq(partner_invitations.token_hash, hashToken(token)))
-    .for('update')
+  const [row] = lock ? await query.for('update') : await query
   return row ?? null
 }
 
@@ -449,7 +511,26 @@ async function partnerData(
       invitedByTeam: invitedByTeam.get(c.id) ?? [],
     })),
     bill: await billSummary(tx, partner, actorId),
+    newClientRefused: await newClientRefused(tx, partner, clients.length),
+    offers: { domain: await domainOffered(tx, partner.id), sender: await senderOffered(tx, partner.id) },
   }
+}
+
+/**
+ * What would refuse a new client workspace whatever is typed in the form (createForClient), so Partner › Clients says it
+ * before the form: a billed server and no partner plan (billForNewClient), or, off billing, the server's limit
+ * (refuseOverCeiling). A pending partner without a bill, a suspended one and the drafts before the Checkout are said
+ * by the page already.
+ */
+async function newClientRefused(
+  tx: Tx,
+  partner: PartnerRow,
+  clients: number,
+): Promise<PartnerData['newClientRefused']> {
+  if (partner.billing_account_id) return null
+  if (await billingSwitchOn(tx)) return 'client_needs_bill'
+  if (partner.status === 'approved' && clients >= (await partnerClientLimit(tx))) return 'client_limit'
+  return null
 }
 
 /**
@@ -946,6 +1027,20 @@ async function listClients(tx: Tx, partner: PartnerRow, now: string): Promise<Pa
     .where(inArray(calls.workspace_id, ids))
     .groupBy(calls.workspace_id)
   const since = new Date(Date.parse(now) - PROVIDER_ERROR_DAYS * DAY_MS).toISOString()
+  // A draft's setup was started: the business found, or the onboarding finished or skipped (setup-events.ts).
+  const started = new Set(
+    (
+      await tx
+        .select({ workspaceId: setup_events.workspace_id })
+        .from(setup_events)
+        .where(
+          and(
+            inArray(setup_events.workspace_id, ids),
+            inArray(setup_events.event, ['business_found', 'onboarding_done', 'onboarding_skipped']),
+          ),
+        )
+    ).map(r => r.workspaceId),
+  )
   const failing = new Set(
     (
       await tx
@@ -983,8 +1078,10 @@ async function listClients(tx: Tx, partner: PartnerRow, now: string): Promise<Pa
     if (c.disabledAt) problems.push('disabled')
     if (percent !== null && percent >= 100) problems.push('limit_reached')
     else if (percent !== null && percent >= 80) problems.push('limit_near')
-    if (!own.length) problems.push('no_number')
-    else if (forwarding === 'unverified')
+    // A draft has no number before the Checkout by design: no number, no forwarding to check yet.
+    const draft = onBill && c.billingState === 'pending_payment'
+    if (!draft && !own.length) problems.push('no_number')
+    else if (!draft && forwarding === 'unverified')
       problems.push(check && FORWARDING_FAILED.includes(check) ? 'forwarding_failed' : 'forwarding_unverified')
     if (failing.has(c.id)) problems.push('provider_errors')
     const owner = owners.get(c.id) ?? null
@@ -1010,6 +1107,8 @@ async function listClients(tx: Tx, partner: PartnerRow, now: string): Promise<Pa
       ownKeys: !!c.ownKeys,
       clientCallQuality: !!c.clientCallQuality,
       ownCarrier: !!c.carrier && c.carrier !== 'default',
+      draft,
+      setupStarted: started.has(c.id),
       problems,
     }
   })
@@ -1104,39 +1203,46 @@ export const partnerHandlers: Record<string, Handler> = {
     return { rows: {}, data: view }
   },
 
-  'partnerInvitation.accept': async ({ tx, actor, now }, input: { token: string }) => {
+  'partnerInvitation.accept': async ({ tx, actor, now }, input: { token: string }) =>
+    acceptInvitation(tx, actor, now, lock => invitationByToken(tx, input.token, lock)),
+
+  /**
+   * The open invitations to the caller's own address (NoWorkspace.tsx): someone who signed in without the email's link,
+   * or left it before Join (B5, LIN-776), sees them and joins in place, as with a workspace invitation.
+   */
+  'partnerInvitation.listMine': async ({ tx, actor, now }) => {
     const account = await me(tx, actor)
-    const found = await invitationByToken(tx, input.token)
-    if (!found) throw refusePartner('invitation_invalid')
-    const partner = await lockedPartner(tx, found.partner_id)
-    // Read again under the partner's lock: a withdrawal or another accept committed meanwhile wins.
-    const inv = await invitationByToken(tx, input.token)
-    if (!inv || !isOpen(inv, now)) throw refusePartner('invitation_invalid')
-    if (partner.status === 'suspended') throw refusePartner('partner_suspended')
-    if (account.email.toLowerCase() !== inv.email) throw refusePartner('invitation_other_email')
-    if (!account.emailVerified) throw refusePartner('email_unverified')
-    const [already] = await tx
-      .select({ id: partner_members.user_id })
-      .from(partner_members)
-      .where(and(eq(partner_members.partner_id, partner.id), eq(partner_members.user_id, account.id)))
-    if (already) throw refusePartner('already_member')
-    if (await ownsClientByEmail(tx, partner.id, account.email)) throw refusePartner('client_owner')
-    if (inv.role === 'owner') {
-      const [owner] = await tx
-        .select({ id: partner_members.user_id })
-        .from(partner_members)
-        .where(and(eq(partner_members.partner_id, partner.id), eq(partner_members.role, 'owner')))
-      if (owner) throw refusePartner('owner_taken')
-    }
-    await tx
-      .insert(partner_members)
-      .values({ partner_id: partner.id, user_id: account.id, role: inv.role, created_at: now })
-    await tx.update(partner_invitations).set({ accepted_at: now }).where(eq(partner_invitations.id, inv.id))
-    await syncPartnerMemberships(tx, partner.id, now)
-    return {
-      rows: {},
-      data: { partner: { id: partner.id, name: partner.name }, role: inv.role, subject: subject(account.email) },
-    }
+    // As invitation.listMine: an address not confirmed yet sees none (it could not join them either).
+    if (!account.emailVerified) return { rows: {}, data: { invitations: [] as MyPartnerInvitation[] } }
+    const rows = await tx
+      .select({ inv: partner_invitations, partnerName: partners.name })
+      .from(partner_invitations)
+      .innerJoin(partners, eq(partners.id, partner_invitations.partner_id))
+      .where(
+        and(
+          eq(partner_invitations.email, account.email.toLowerCase()),
+          isNull(partner_invitations.accepted_at),
+          isNull(partner_invitations.canceled_at),
+          gt(partner_invitations.expires_at, now),
+          ne(partners.status, 'suspended'),
+        ),
+      )
+      .orderBy(asc(partner_invitations.created_at))
+    const invitations: MyPartnerInvitation[] = []
+    for (const r of rows)
+      invitations.push({
+        id: r.inv.id,
+        partnerName: r.partnerName,
+        role: r.inv.role as PartnerRole,
+        invitedBy: await inviterName(tx, r.inv.invited_by),
+      })
+    return { rows: {}, data: { invitations } }
+  },
+
+  /** Join from an open invitation to the caller's own address, by its id (listMine): the same checks as the link's. */
+  'partnerInvitation.acceptMine': async ({ tx, actor, now }, input: { invitationId: string }) => {
+    const { email } = await me(tx, actor)
+    return acceptInvitation(tx, actor, now, lock => invitationById(tx, input.invitationId, email, lock))
   },
 
   'workspace.createForClient': createForClient,

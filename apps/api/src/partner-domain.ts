@@ -43,19 +43,19 @@ import { getDomain } from 'tldts'
 import { Agent, fetch as undiciFetch } from 'undici'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { db } from './db.ts'
-import { txtProven } from './domains/doh.ts'
 import { cloudflareSaas } from './domains/cloudflare-saas.ts'
+import { txtProven } from './domains/doh.ts'
 import { fakeDomains } from './domains/fake.ts'
 import { type CustomHostname, type DomainProvider, DomainProviderError, hostnameState } from './domains/provider.ts'
 import { installAddress, sendNotice } from './email.ts'
 import { withEmailBrand } from './email-brand.ts'
-import { partnerDomainAddedAlert, partnerDomainEmail, type PartnerDomainEmail } from './emails/partner.ts'
+import { type PartnerDomainEmail, partnerDomainAddedAlert, partnerDomainEmail } from './emails/partner.ts'
 import { type Handler, type Preparer, Reject } from './handler-context.ts'
 import { queueDomainCheck } from './jobs.ts'
 import { brandGate, partnerOnTeam, protectedNames } from './partner-brand.ts'
+import { activeProvider } from './provider-settings.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { hostProbePassed, isMainHost, reloadHosts } from './request-host.ts'
-import { activeProvider } from './provider-settings.ts'
 import { publicLookup } from './webhooks.ts'
 
 const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
@@ -534,6 +534,11 @@ const currentRow = async (tx: Pick<Tx, 'select'>, partnerId: string) =>
       .from(partner_domains)
       .where(and(eq(partner_domains.partner_id, partnerId), ne(partner_domains.status, 'removed')))
   )[0] ?? null
+
+/** Whether Partner › Domain is shown: this server has a provider for partner addresses, or the partner has one already. */
+export async function domainOffered(tx: Pick<Tx, 'select'>, partnerId: string): Promise<boolean> {
+  return !!(await domainProvider()) || !!(await currentRow(tx, partnerId))
+}
 
 /** The records the partner adds: our TXT, the CNAME, and Cloudflare's ownership TXT when it asks for one. */
 export function recordsOf(row: DomainRow, cnameTarget: string): DomainRecord[] {

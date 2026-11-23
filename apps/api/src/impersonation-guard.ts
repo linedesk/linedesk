@@ -118,9 +118,15 @@ const IMPERSONATION_REFUSED_READS: ReadonlySet<string> = new Set([
 /**
  * Refused during an impersonation also with edits on (security review of #1669): inviting someone would let the admin
  * invite their own address and keep the workspace after the hour, and accepting an invitation joins the person's own
- * account to a workspace (as Better Auth's /organization/accept-invitation, refused above).
+ * account to a workspace (as Better Auth's /organization/accept-invitation, refused above) or to a partner team (by its
+ * link or by its id, LIN-776).
  */
-const IMPERSONATION_ALWAYS_REFUSED: ReadonlySet<string> = new Set(['team.invite', 'invitation.accept'])
+const IMPERSONATION_ALWAYS_REFUSED: ReadonlySet<string> = new Set([
+  'team.invite',
+  'invitation.accept',
+  'partnerInvitation.accept',
+  'partnerInvitation.acceptMine',
+])
 
 /**
  * Whether an impersonated session may run this action. `impersonation.edits`: the admin turned edits on, so the

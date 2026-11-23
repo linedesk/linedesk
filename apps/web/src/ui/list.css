@@ -119,6 +119,12 @@
 }
 
 /* Menu: a small popover under its button. */
+/* The ▾ after a labelled menu button's text ("Set up ▾"): quiet, close to the words. */
+.k-menu-chevron {
+  margin-left: 2px;
+  margin-right: -2px;
+  color: var(--ink-muted);
+}
 .k-menu-wrap {
   position: relative;
   display: inline-flex;

@@ -2,7 +2,9 @@
 // accounts. Optional: without them every client call runs on this server's keys and is billed as usual. The owner
 // connects a key per stage (signed in recently: the personal key step-up), it is tested at once and daily; the team
 // sees the provider, the last four characters and the test, never a key. Clients are switched on one by one in
-// Partner › Clients › Settings; a switched-on client's call has no usage fee when it ran fully on these keys.
+// Partner › Clients › Settings; a switched-on client's call has no usage fee when it ran fully on these keys. Until the
+// partner has a key, the section says what is in use (this server's AI) in one line, and "Use your own keys" opens the
+// stages: nothing to set up is the normal case, not four "Not connected" rows.
 import {
   PARTNER_KEY_CODES,
   PARTNER_KEY_STAGES,
@@ -142,6 +144,34 @@ const emptyRow = (stage: PartnerKeyStage): PartnerKeyRow => ({
   updatedAt: null,
 })
 
+/**
+ * Whether the stages show: once the partner has a key (or an instance admin turned its keys off), or the owner chose
+ * "Use your own keys". Else one line says the calls run on this server's AI.
+ */
+export const ownKeysShown = (data: Pick<PartnerKeysData, 'stages' | 'disabled'>, revealed: boolean) =>
+  revealed || !!data.disabled || data.stages.some(r => !!r.provider)
+
+/** The one line in place of the stages: this server's AI is in use; the owner can open the stages from here. */
+export function ServerAiRow({ canEdit, onUseOwn }: { canEdit: boolean; onUseOwn: () => void }) {
+  const t = useT()
+  return (
+    <List label={t('team.partner.keys.title')}>
+      <ListRow
+        lead={<Logo mark={{ icon: 'spark' }} size={28} />}
+        title={t('team.partner.keys.serverTitle')}
+        sub={t('team.partner.keys.serverLine')}
+        actions={
+          canEdit && (
+            <Button size="sm" variant="ghost" title={t('team.partner.keys.useOwnTip')} onClick={onUseOwn}>
+              {t('team.partner.keys.useOwn')}
+            </Button>
+          )
+        }
+      />
+    </List>
+  )
+}
+
 /** One line under the list: whether calls can run on the keys yet. */
 export function readyLine(data: PartnerKeysData): MessageKey {
   if (data.ready.threeStage && data.ready.realtime) return msg('team.partner.keys.readyBoth')
@@ -155,6 +185,8 @@ export function PartnerKeys({ partnerId, toast }: { partnerId: string; toast: (t
   const query = useQuery(PARTNER_KEYS_QUERY(partnerId), () => loadKeys(partnerId))
   const data = query.data
   const [connecting, setConnecting] = useState<PartnerKeyStage | null>(null)
+  const [revealed, setRevealed] = useState(false)
+  const shown = !!data && ownKeysShown(data, revealed)
   const [busy, setBusy] = useState<string | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
   const store = (next: PartnerKeysData) => setQueryData(PARTNER_KEYS_QUERY(partnerId), next)
@@ -191,7 +223,7 @@ export function PartnerKeys({ partnerId, toast }: { partnerId: string; toast: (t
   return (
     <Card
       title={t('team.partner.keys.title')}
-      description={t('team.partner.keys.description')}
+      description={data && !shown ? t('team.partner.keys.serverDescription') : t('team.partner.keys.description')}
       help={t('team.partner.keys.help')}
     >
       <Loading
@@ -201,7 +233,8 @@ export function PartnerKeys({ partnerId, toast }: { partnerId: string; toast: (t
         onRetry={() => void query.reload()}
         skeleton={<SkeletonRows rows={4} columns={2} />}
       >
-        {data && (
+        {data && !shown && <ServerAiRow canEdit={data.canEdit} onUseOwn={() => setRevealed(true)} />}
+        {data && shown && (
           <>
             {data.disabled && (
               <Note tone="danger">{t('team.partner.keys.disabled', { reason: data.disabled.reason })}</Note>

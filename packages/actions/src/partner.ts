@@ -139,6 +139,25 @@ export const partnerInvitationAccept = defineAction({
   sensitive: ['token'],
 })
 
+export const partnerInvitationListMine = defineAction({
+  name: 'partnerInvitation.listMine',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "The open partner team invitations to your own address, for someone who signed in without the email's link: the partner, the role and who sent it.",
+  input: z.object({}),
+  permission: 'account:own',
+  readOnly: true,
+})
+
+export const partnerInvitationAcceptMine = defineAction({
+  name: 'partnerInvitation.acceptMine',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    'Join a partner team from an open invitation to your own address (partnerInvitation.listMine), without the link. Only for the address it was sent to, confirmed.',
+  input: z.object({ invitationId: z.string().min(1).max(64) }),
+  permission: 'account:own',
+})
+
 export const workspaceCreateForClient = defineAction({
   name: 'workspace.createForClient',
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
@@ -388,6 +407,27 @@ export type PartnerData = {
   invitations: PartnerInvitationRow[]
   clients: PartnerClient[]
   bill: PartnerBillSummary | null
+  /**
+   * Why a new client workspace would be refused before anyone fills in the form (Add client says it instead of failing
+   * after it): this server bills and the partner has no partner plan (`client_needs_bill`), or, where billing is off,
+   * the partner has as many clients as the server allows (`client_limit`). Null: nothing stops it here (a pending,
+   * suspended or unpaid partner is said elsewhere).
+   */
+  newClientRefused: 'client_needs_bill' | 'client_limit' | null
+  /**
+   * What this server offers the partner beyond clients and brand: its own address (S5, a domain provider) and its own
+   * email sender (S6, an email provider that verifies domains). A partner that already has one keeps its section.
+   */
+  offers: { domain: boolean; sender: boolean }
+}
+
+/** `partnerInvitation.listMine`: an open invitation to the signed-in person's address. */
+export type MyPartnerInvitation = {
+  id: string
+  partnerName: string
+  role: PartnerRole
+  /** Who sent it: their name; null when sent from the command line or by someone no longer here. */
+  invitedBy: string | null
 }
 
 /** `partnerInvitation.view`. `state`: whether the link can be accepted by the signed-in person. */
@@ -484,6 +524,13 @@ export type PartnerClientRow = {
   clientCallQuality: boolean
   /** Calls come in on the client's own Twilio or Telnyx account: needed for a call without a usage fee. */
   ownCarrier: boolean
+  /**
+   * A draft: made before the partner's Checkout and waiting for it (`pending_payment`). It has no number yet by design,
+   * so the list shows it as a draft, not with "No number".
+   */
+  draft: boolean
+  /** Its setup was started (the business found, or the onboarding finished or skipped): a draft that is not untouched. */
+  setupStarted: boolean
   problems: ClientProblem[]
 }
 

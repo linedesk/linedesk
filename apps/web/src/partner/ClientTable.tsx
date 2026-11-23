@@ -1,17 +1,18 @@
 // Partner › Clients, the list (white-label slice S3, LIN-454): one row per client workspace that fits the page at every
 // width. The name with what needs a look (problems, worst first, in amber or red), the owner and the number under it,
 // this period's usage from the partner bill's ledger as an amount with a small bar against the monthly limit, and one
-// Open with a "…" menu for the rest; a draft before White-label Cloud runs is set up instead, "By hand" or "With an AI
-// agent", as on the setup's Clients step. Never call content: counts and money only.
+// Open with a "…" menu for the rest. A draft before White-label Cloud runs is calm: a grey "Draft" badge and whether
+// its setup started (no "No number": it gets one after the Checkout), and one "Set up ▾" menu (with an AI agent or by
+// hand, as on the setup's Clients step) in place of Open. Never call content: counts and money only.
 import type { PartnerClient, PartnerClientList, PartnerClientRow, PartnerData } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useFormat, useT } from '@linedesk/i18n/react'
 import type { ReactNode } from 'react'
 import { useQuery } from '../cachedQuery.ts'
 import { formatPhone } from '../inbox-model.ts'
-import { ColumnHeads, ListEmpty, MenuButton, type MenuItem } from '../ui/list.tsx'
 import { Badge, Button, cx } from '../ui/kit.tsx'
 import { Loading, SkeletonList } from '../ui/LoadStates.tsx'
+import { ColumnHeads, ListEmpty, MenuButton, type MenuItem } from '../ui/list.tsx'
 import { barWidth, clientActions, othersThanOwner, problemTone, usageTone, usedNothing } from './clientModel.ts'
 import { loadClients, PARTNER_CLIENTS_QUERY } from './partner-api.ts'
 import './partner-area.css'
@@ -125,19 +126,22 @@ function ClientRow({
   const format = useFormat()
   const suspended = data.partner.status === 'suspended'
   const others = othersThanOwner(client)
-  const facts: ReactNode[] = [
-    ownerText(t, row),
-    row.number
-      ? row.numbers > 1
-        ? t('team.partner.clients.numberAndMore', { number: formatPhone(row.number), count: row.numbers - 1 })
-        : formatPhone(row.number)
-      : null,
-    row.lastRealCallAt
-      ? t('team.partner.clients.lastCall', {
-          day: format.date(new Date(row.lastRealCallAt), { month: 'short', day: 'numeric' }),
-        })
-      : null,
-  ].filter(Boolean)
+  // A draft (before the Checkout): whether its setup started, in place of the owner, number and calls it cannot have yet.
+  const facts: ReactNode[] = row.draft
+    ? [row.setupStarted ? t('team.partner.clients.draftStarted') : t('team.partner.clients.draftNotSetUp')]
+    : [
+        ownerText(t, row),
+        row.number
+          ? row.numbers > 1
+            ? t('team.partner.clients.numberAndMore', { number: formatPhone(row.number), count: row.numbers - 1 })
+            : formatPhone(row.number)
+          : null,
+        row.lastRealCallAt
+          ? t('team.partner.clients.lastCall', {
+              day: format.date(new Date(row.lastRealCallAt), { month: 'short', day: 'numeric' }),
+            })
+          : null,
+      ].filter(Boolean)
   const labels: Record<ReturnType<typeof clientActions>[number]['id'], string> = {
     settings: t('team.partner.clients.settings'),
     inviteOwner: t('team.partner.clients.inviteOwner'),
@@ -187,6 +191,7 @@ function ClientRow({
           {row.ownKeys && (
             <Badge title={t('team.partner.clients.ownKeys.badgeTip')}>{t('team.partner.clients.ownKeys.badge')}</Badge>
           )}
+          {row.draft && <Badge title={t('team.partner.clients.draftTip')}>{t('team.partner.clients.draft')}</Badge>}
           {row.problems.map(p => (
             <Badge key={p} tone={problemTone(p)}>
               {t(PROBLEM_KEY[p])}
@@ -214,26 +219,24 @@ function ClientRow({
       <Usage row={row} />
       <div className="pc-actions">
         {invitesWait && onSetUp && client ? (
-          <>
-            <Button
-              size="sm"
-              variant="ghost"
-              busy={opening === `hand:${row.id}`}
-              disabled={frozen || !!opening}
-              onClick={() => onSetUp(client, 'hand')}
-            >
-              {t('team.partner.setup.clients.byHand')}
-            </Button>
-            <Button
-              size="sm"
+          <span className="pc-setup">
+            <MenuButton
+              label={t('team.partner.clients.setUp')}
+              chevron
               variant="secondary"
-              busy={opening === `agent:${row.id}`}
+              align="end"
               disabled={frozen || !!opening}
-              onClick={() => onSetUp(client, 'agent')}
-            >
-              {t('team.partner.setup.clients.withAgent')}
-            </Button>
-          </>
+              title={t('team.partner.clients.setUpTip', { name: row.name })}
+              items={[
+                {
+                  id: 'agent',
+                  label: t('team.partner.setup.clients.withAgent'),
+                  onSelect: () => onSetUp(client, 'agent'),
+                },
+                { id: 'hand', label: t('team.partner.setup.clients.byHand'), onSelect: () => onSetUp(client, 'hand') },
+              ]}
+            />
+          </span>
         ) : (
           <Button
             size="sm"

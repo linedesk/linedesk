@@ -4,8 +4,8 @@
 // Styles in list.css (k-list, k-row, k-menu).
 import { type KeyboardEvent, type ReactNode, type Ref, useEffect, useRef, useState } from 'react'
 import { useAnchoredList } from './floating.ts'
-import { Button, cx } from './kit.tsx'
 import type { IconName } from './icons.ts'
+import { Button, cx, Icon } from './kit.tsx'
 import './list.css'
 import { useT } from '@linedesk/i18n/react'
 
@@ -157,6 +157,8 @@ type MenuButtonProps = {
   disabled?: boolean
   /** Which edge of the button the menu lines up with. */
   align?: 'start' | 'end'
+  /** A small ▾ after the label: a labelled button that opens a choice ("Set up ▾"). */
+  chevron?: boolean
 }
 
 const itemsIn = (root: HTMLElement | null) => [
@@ -175,6 +177,7 @@ export function MenuButton({
   variant = 'ghost',
   disabled,
   align = 'end',
+  chevron = false,
 }: MenuButtonProps) {
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLSpanElement>(null)
@@ -231,6 +234,7 @@ export function MenuButton({
         onClick={() => setOpen(o => !o)}
       >
         {label}
+        {chevron && <Icon name="down" size={14} className="k-menu-chevron" />}
       </Button>
       {open && (
         <div

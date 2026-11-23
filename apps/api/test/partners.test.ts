@@ -2,6 +2,10 @@
 // partner and its client workspaces, never another partner's; client memberships follow the team (invite, accept,
 // remove, suspend, approve); a partner's membership is changed only on the partner. Makes server admins and switches
 // billing on for one test: an instance-wide file (vitest.config.ts).
+
+import { createHash } from 'node:crypto'
+import { UNPAID_PARTNER_CLIENTS } from '@linedesk/actions'
+import type { BillingProvider, SeatQuantityInput } from '@linedesk/billing'
 import {
   api_keys,
   assistants,
@@ -24,17 +28,13 @@ import {
   workspace_settings,
 } from '@linedesk/db'
 import { and, eq, isNull } from 'drizzle-orm'
-import { UNPAID_PARTNER_CLIENTS } from '@linedesk/actions'
+import { PgBoss } from 'pg-boss'
 import { afterAll, beforeAll, describe, expect, onTestFinished, test, vi } from 'vitest'
 import { listAudit } from '../src/audit.ts'
 import { BILLING_ENABLED_KEY } from '../src/billing-settings.ts'
 import { db } from '../src/db.ts'
 import { type Email, emailSender } from '../src/email.ts'
-import type { BillingProvider, SeatQuantityInput } from '@linedesk/billing'
 import { lockExtraCalls } from '../src/extra-calls.ts'
-import { postEntry } from '../src/ledger.ts'
-import { createHash } from 'node:crypto'
-import { PgBoss } from 'pg-boss'
 import {
   createSeatSyncQueues,
   PARTNER_SEAT_SYNC,
@@ -42,6 +42,7 @@ import {
   setJobQueue,
   WORKSPACE_DELETED_EMAIL,
 } from '../src/jobs.ts'
+import { postEntry } from '../src/ledger.ts'
 import { runSeatSync, seatProration, seatSyncFailed, syncSeats } from '../src/partner-billing.ts'
 import { workspaceOwnKeys } from '../src/partner-keys.ts'
 import { canonicalJson } from '../src/run-action.ts'
@@ -523,7 +524,10 @@ describe('client memberships follow the team', () => {
       status: 200,
     })
     try {
+      // Below the limit nothing stops a new client; at it, Partner › Clients says so before the form (B3, LIN-776).
+      expect((await act(p.owner, 'partner.get', { partnerId: p.id })).body.data.newClientRefused).toBeNull()
       await createClient(p, 'Second Client')
+      expect((await act(p.owner, 'partner.get', { partnerId: p.id })).body.data.newClientRefused).toBe('client_limit')
       expect(await act(p.owner, 'workspace.createForClient', { partnerId: p.id, name: 'Third' })).toMatchObject({
         status: 409,
         body: { code: 'client_limit' },
@@ -610,6 +614,10 @@ describe('client memberships follow the team', () => {
       .values({ key: BILLING_ENABLED_KEY, value: 'on' })
       .onConflictDoUpdate({ target: instance_settings.key, set: { value: 'on' } })
     try {
+      // Said before the form (B3, LIN-776): partner.get names what would refuse it.
+      expect((await act(a.owner, 'partner.get', { partnerId: a.id })).body.data.newClientRefused).toBe(
+        'client_needs_bill',
+      )
       expect(await act(a.owner, 'workspace.createForClient', { partnerId: a.id, name: 'Billed Client' })).toMatchObject(
         {
           status: 409,
@@ -635,6 +643,74 @@ describe('accounts of a partner team', () => {
     expect(await act(who, 'partnerInvitation.accept', { token: tokenFor(email) })).toMatchObject({ status: 200 })
     expect(await partnerMembership(clientA, who.userId)).toMatchObject({ role: 'admin', partnerId: a.id })
     await act(a.owner, 'partnerMember.remove', { partnerId: a.id, userId: who.userId })
+  })
+
+  test('signed in without the link (or left before Join), the open invitations to the address are listed and joined in place (B5)', async () => {
+    const email = newEmail('nolink')
+    expect(await act(a.owner, 'partnerMember.invite', { partnerId: a.id, email })).toMatchObject({ status: 200 })
+    const who = (await signInWithCode(email)).who!
+    const mine = await act(who, 'partnerInvitation.listMine', {})
+    expect(mine).toMatchObject({ status: 200 })
+    expect(mine.body.data.invitations).toEqual([
+      { id: expect.any(String), partnerName: a.name, role: 'admin', invitedBy: expect.anything() },
+    ])
+    const id: string = mine.body.data.invitations[0].id
+    // Someone invited elsewhere sees only their own invitation, and this id answers them as an unknown one.
+    const otherEmail = newEmail('other')
+    expect(await act(b.owner, 'partnerMember.invite', { partnerId: b.id, email: otherEmail })).toMatchObject({
+      status: 200,
+    })
+    const other = (await signInWithCode(otherEmail)).who!
+    expect(
+      (await act(other, 'partnerInvitation.listMine', {})).body.data.invitations.map(
+        (i: { partnerName: string }) => i.partnerName,
+      ),
+    ).toEqual([b.name])
+    expect(await act(other, 'partnerInvitation.acceptMine', { invitationId: id })).toMatchObject({
+      body: { code: 'invitation_invalid' },
+    })
+    expect(await act(who, 'partnerInvitation.acceptMine', { invitationId: id })).toMatchObject({ status: 200 })
+    expect(await partnerMembership(clientA, who.userId)).toMatchObject({ role: 'admin', partnerId: a.id })
+    // Joined: nothing open any more, and the same id again is refused.
+    expect((await act(who, 'partnerInvitation.listMine', {})).body.data.invitations).toEqual([])
+    expect(await act(who, 'partnerInvitation.acceptMine', { invitationId: id })).toMatchObject({
+      body: { code: 'invitation_invalid' },
+    })
+    await act(a.owner, 'partnerMember.remove', { partnerId: a.id, userId: who.userId })
+  })
+
+  test('joining by id refuses what the link refuses: an address not confirmed, a withdrawn invitation, a suspended partner', async () => {
+    // Not confirmed: nothing listed, and the id is refused with the reason.
+    const unconfirmedEmail = newEmail('unconfirmed')
+    expect(await act(a.owner, 'partnerMember.invite', { partnerId: a.id, email: unconfirmedEmail })).toMatchObject({
+      status: 200,
+    })
+    const unconfirmed = await signUp(unconfirmedEmail)
+    expect((await act(unconfirmed, 'partnerInvitation.listMine', {})).body.data.invitations).toEqual([])
+    const [pending] = await db
+      .select()
+      .from(partner_invitations)
+      .where(and(eq(partner_invitations.email, unconfirmedEmail), isNull(partner_invitations.canceled_at)))
+    expect(await act(unconfirmed, 'partnerInvitation.acceptMine', { invitationId: pending!.id })).toMatchObject({
+      body: { code: 'email_unverified' },
+    })
+    await verify(unconfirmed)
+    // Withdrawn meanwhile: nothing listed and nothing joined (with no open invitation left the account has no rights
+    // here at all).
+    await act(a.owner, 'partnerMember.revokeInvite', { partnerId: a.id, invitationId: pending!.id })
+    expect((await act(unconfirmed, 'partnerInvitation.listMine', {})).body?.data?.invitations ?? []).toEqual([])
+    expect((await act(unconfirmed, 'partnerInvitation.acceptMine', { invitationId: pending!.id })).status).not.toBe(200)
+    expect(await db.select().from(partner_members).where(eq(partner_members.user_id, unconfirmed.userId))).toEqual([])
+    // A suspended partner's invitation is not listed and not joined.
+    const p = await makePartner('Suspended Inviter')
+    const email = newEmail('suspended')
+    expect(await act(p.owner, 'partnerMember.invite', { partnerId: p.id, email })).toMatchObject({ status: 200 })
+    const [inv] = await db.select().from(partner_invitations).where(eq(partner_invitations.email, email))
+    const who = (await signInWithCode(email)).who!
+    await asServerAdmin(admin, () => act(admin, 'partner.suspend', { partnerId: p.id }))
+    expect((await act(who, 'partnerInvitation.listMine', {})).body?.data?.invitations ?? []).toEqual([])
+    expect((await act(who, 'partnerInvitation.acceptMine', { invitationId: inv!.id })).status).not.toBe(200)
+    expect(await db.select().from(partner_members).where(eq(partner_members.user_id, who.userId))).toEqual([])
   })
 
   test('an account made for a partner invitation that ended unused goes with the sign-up sweep; an open one stays', async () => {
@@ -860,10 +936,16 @@ describe('the partner bill (S2)', () => {
         billingState: 'pending_payment',
       })
     expect(await create('One too many')).toMatchObject({ status: 409, body: { code: 'unpaid_client_limit' } })
-    // A draft waits for the Checkout: listed without the "Plan not active" problem.
+    // A draft waits for the Checkout: listed as a draft, without "Plan not active" and without "No number" (it gets
+    // its number after the Checkout), untouched until its setup starts (LIN-776). A bill that waits needs no plan.
     const listed = (await act(p.owner, 'partner.listClients', { partnerId: p.id })).body.data.clients
     expect(listed).toHaveLength(UNPAID_PARTNER_CLIENTS)
-    for (const c of listed) expect(c.problems).not.toContain('bill_inactive')
+    for (const c of listed) {
+      expect(c).toMatchObject({ draft: true, setupStarted: false })
+      expect(c.problems).not.toContain('bill_inactive')
+      expect(c.problems).not.toContain('no_number')
+    }
+    expect((await act(p.owner, 'partner.get', { partnerId: p.id })).body.data.newClientRefused).toBeNull()
     // A draft deleted makes room again.
     expect(
       await act(p.owner, 'partner.deleteClient', { partnerId: p.id, workspaceId: drafts[0], confirmName: 'Draft 1' }),
@@ -1381,6 +1463,8 @@ describe('Partner › Clients (S3)', () => {
       ownKeys: false,
       clientCallQuality: false,
       ownCarrier: false,
+      draft: false,
+      setupStarted: false,
       problems: ['limit_near'],
     })
     expect(second).toMatchObject({ id: quiet, seconds: 0, costCents: 0, limitCents: null, problems: [] })

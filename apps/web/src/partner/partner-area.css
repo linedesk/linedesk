@@ -149,6 +149,17 @@
     width: 44px;
     height: 44px;
   }
+  /* A draft's "Set up ▾": as wide as Open would be, next to "…". */
+  .pc-actions > .pc-setup,
+  .pc-setup > .k-menu-wrap {
+    display: flex;
+    flex: 1;
+  }
+  .pc-actions .pc-setup .k-menu-btn {
+    width: 100%;
+    justify-content: center;
+    font-size: 13.5px;
+  }
 }
 
 /* Usage limit…: this period's use above the limit field. */
@@ -171,15 +182,11 @@
 }
 
 /* New client: country and time zone side by side. */
+/* Country and time zone under each other: the time zone's name, offset and time need the dialog's whole width. */
 .pc-place {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
-}
-@media (max-width: 479px) {
-  .pc-place {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 /* Partner › Team: Invite at the end of the list, the address and its button on one line. */
@@ -238,7 +245,7 @@
 .pa-activate-text > .pa-fine {
   margin-top: 6px;
 }
-/* Continue setup by hand, then Activate: one row at the right of the price, under it on a phone. */
+/* Activate: at the right of the price, under it on a phone. */
 .pa-activate-actions {
   display: flex;
   align-items: center;

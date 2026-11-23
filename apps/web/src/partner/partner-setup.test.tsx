@@ -1,10 +1,18 @@
 // A partner owner's guided setup and the partner area's first run (PartnerSetup.tsx, PartnerArea.tsx; 2026-11-18): the
 // steps and where they open, White-label Cloud's real price, and the three states a new partner goes through: drafts
 // before payment, waiting for approval (never a blocker: one info note in Brand) and approved.
-import { type PartnerBrandData, type PartnerData, UNPAID_PARTNER_CLIENTS } from '@linedesk/actions'
+import {
+  type PartnerBrandData,
+  type PartnerClientRow,
+  type PartnerData,
+  UNPAID_PARTNER_CLIENTS,
+} from '@linedesk/actions'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test } from 'vitest'
-import { Clients } from './PartnerArea.tsx'
+import { setQueryData } from '../cachedQuery.ts'
+import { i18n } from '../i18n/index.tsx'
+import { ClientList } from './ClientTable.tsx'
+import { Clients, partnerSections } from './PartnerArea.tsx'
 import { BrandForm, ReviewNote } from './PartnerBrand.tsx'
 import {
   ActivateStep,
@@ -14,6 +22,7 @@ import {
   partnerSetupStart,
   partnerSetupSteps,
 } from './PartnerSetup.tsx'
+import { PARTNER_CLIENTS_QUERY } from './partner-api.ts'
 
 const price = { interval: 'year' as const, planCents: 1400, seatCents: 900 }
 const prices = {
@@ -41,6 +50,7 @@ const partnerData = (over: {
   bill?: Bill['status'] | null
   clients?: number
   mine?: boolean
+  refused?: PartnerData['newClientRefused']
 }): PartnerData => ({
   partner: { id: 'ptn_1', name: 'Northwind Digital', status: over.status ?? 'pending' },
   role: 'owner',
@@ -48,6 +58,8 @@ const partnerData = (over: {
   invitations: [],
   clients: Array.from({ length: over.clients ?? 0 }, (_, i) => client(i)),
   bill: over.bill === null ? null : { status: over.bill ?? 'pending_payment', mine: over.mine ?? true, price, prices },
+  newClientRefused: over.refused ?? null,
+  offers: { domain: false, sender: false },
 })
 
 const clientsHtml = (data: PartnerData, frozen = false) =>
@@ -90,22 +102,31 @@ test('what Checkout charges: the base fee and a seat per client workspace, for a
 })
 
 const totalHtml = (interval: 'year' | 'month', clients: number) =>
-  renderToStaticMarkup(<PartnerTotal price={{ ...price, interval }} prices={prices} clients={clients} />)
+  renderToStaticMarkup(
+    <PartnerTotal
+      price={{ ...price, interval }}
+      prices={prices}
+      clients={Array.from({ length: clients }, (_, i) => client(i))}
+    />,
+  )
 
-test('Activate: the shared plan card, the price a month leads, what Checkout charges today is the grey note', () => {
-  expect(totalHtml('year', 2)).toContain(
-    '<div class="price-line"><b><span class="plan-card-price">$14 a month</span> <span class="plan-card-unit">+ $9 a month × 2 client workspaces</span></b><span class="help">$384 billed yearly, charged today</span></div>',
-  )
-  // No drafts yet: what each client workspace will cost, the total of the base fee alone.
-  expect(totalHtml('year', 0)).toContain(
-    '<span class="plan-card-unit">+ $9 a month per client workspace</span></b><span class="help">$168 billed yearly, charged today</span>',
-  )
+test('Activate: the real charge a month leads, one grey line says what it is made of and when it is charged', () => {
+  // One draft: named in the line ("$11 for Maple Plumbing"); the headline is what is really charged a month.
   expect(totalHtml('month', 1)).toContain(
-    '+ $9 a month × 1 client workspace</span></b><span class="help">$23 charged today, then every month</span>',
+    '<div class="price-line"><b><span class="plan-card-price">$23 a month</span></b><span class="help">$14 White-label Cloud + $9 for Client 0. Charged today, then every month.</span></div>',
+  )
+  // Several: counted. Yearly: the month first, the year's total charged today in the line.
+  expect(totalHtml('year', 2)).toContain(
+    '<span class="plan-card-price">$32 a month</span></b><span class="help">$14 White-label Cloud + $18 for 2 client workspaces. $384 billed yearly, charged today.</span>',
+  )
+  // No drafts yet: the base fee, and what each client workspace will add.
+  expect(totalHtml('month', 0)).toContain(
+    '<span class="plan-card-price">$14 a month</span></b><span class="help">$14 White-label Cloud + $9 a month per client workspace. Charged today, then every month.</span>',
   )
   // No trial for a partner: the price leads; what each client workspace includes and "See all details", as everywhere.
   const html = totalHtml('year', 2)
   expect(html).not.toContain('days free')
+  expect(html).not.toContain('plan-card-unit')
   expect(html).toContain('Each client workspace includes:')
   expect(html).toContain('50 call minutes each month, then $0.05 a minute')
   expect(html).toContain('See all details')
@@ -114,11 +135,11 @@ test('Activate: the shared plan card, the price a month leads, what Checkout cha
 const activateHtml = (clients: number) =>
   renderToStaticMarkup(<ActivateStep data={partnerData({ clients })} onBack={() => {}} />)
 
-test('Activate is the end of the setup: each draft with Remove, the total, only Back and Activate', () => {
+test('Activate is the end of the setup: the total with the drafts, only Back and Activate, no client rows', () => {
   const three = activateHtml(UNPAID_PARTNER_CLIENTS)
-  expect(three.match(/>Remove</g)?.length).toBe(UNPAID_PARTNER_CLIENTS)
-  for (let i = 0; i < UNPAID_PARTNER_CLIENTS; i++) expect(three).toContain(`Client ${i}`)
-  expect(three).toContain(`× ${UNPAID_PARTNER_CLIENTS} client workspaces`)
+  // Drafts are removed in the client list, not here: no rows with Remove above the price.
+  expect(three).not.toContain('>Remove<')
+  expect(three).toContain(`for ${UNPAID_PARTNER_CLIENTS} client workspaces`)
   // Two buttons in the footer: Back and Activate; no "later" way off to the agent or a client.
   const foot = three.slice(three.indexOf('class="ob-foot"'))
   expect(foot.match(/<button/g)?.length).toBe(2)
@@ -127,9 +148,9 @@ test('Activate is the end of the setup: each draft with Remove, the total, only 
   // As on the owner's Start your free trial step: the card is asked for on the next page, said next to the button.
   expect(foot).toContain('You add your card on the next page.')
   expect(three).not.toContain('first')
-  const none = activateHtml(0)
-  expect(none).not.toContain('>Remove<')
-  expect(none).toContain('$14 a month</span> <span class="plan-card-unit">+ $9 a month per client workspace</span>')
+  expect(activateHtml(0)).toContain(
+    '$14 a month</span></b><span class="help">$14 White-label Cloud + $9 a month per client workspace.',
+  )
 })
 
 const clientsStepHtml = (clients: number, bill?: Bill['status']) =>
@@ -178,20 +199,24 @@ test('once White-label Cloud runs, a client row says who owns it and offers what
   expect(paid).toMatch(/k-btn-primary[^>]*>(<[^>]+>)*Done/)
 })
 
-test('the partner area before payment: drafts are set up by hand or with the agent, and the setup can go on by hand', () => {
+test('the partner area before payment: one Activate with the real charge a month, no "Continue setup by hand"', () => {
   const html = clientsHtml(partnerData({ clients: 1 }))
-  expect(html).toContain('Continue setup by hand')
-  // The list loads on its own (its rows wait for partner.listClients), so the card's own actions are what show here.
-  expect(html).toContain('Activate White-label Cloud')
-  expect(clientsHtml(partnerData({ bill: 'active', clients: 1 }))).not.toContain('Continue setup by hand')
+  expect(html).not.toContain('Continue setup by hand')
+  // The card: "$23 a month", then what it is made of and what starts once active; Activate is its one button.
+  expect(html).toContain(
+    '<b>$23 a month</b><span class="help">$14 White-label Cloud + $9 for Client 0. $276 billed yearly. Numbers, calls and client invitations start once you activate.</span>',
+  )
+  const card = html.slice(html.indexOf('pa-activate'), html.indexOf('</section>', html.indexOf('pa-activate')))
+  expect(card.match(/<button/g)?.length).toBe(1)
+  expect(clientsHtml(partnerData({ bill: 'active', clients: 1 }))).not.toContain('Activate White-label Cloud')
 })
 
 test('before payment, no clients: one primary action (New client), Activate next to it with the real price', () => {
   const html = clientsHtml(partnerData({}))
   expect(html).toContain('No clients yet')
-  // The price a month leads; the yearly totals are the grey note under it (ui/price.tsx).
+  // The price a month leads; on the yearly plan the year's total is in the grey line (ui/price.tsx).
   expect(html).toContain(
-    '<b>$14 a month + $9 a month per client workspace</b><span class="help">$168 billed yearly + $108 a year per client workspace</span>',
+    '<b>$14 a month</b><span class="help">$14 White-label Cloud + $9 a month per client workspace. $168 billed yearly. Numbers, calls and client invitations start once you activate.</span>',
   )
   expect(html.match(/k-btn-primary/g)?.length).toBe(1)
   expect(html).not.toContain('disabled=""')
@@ -200,10 +225,22 @@ test('before payment, no clients: one primary action (New client), Activate next
 test('before payment, drafts: New client still works; at the cap it says why it cannot', () => {
   const some = clientsHtml(partnerData({ clients: 1 }))
   expect(some).not.toContain('disabled=""')
-  expect(some).toContain('Activate White-label Cloud')
+  expect(some).not.toContain('You can add more after you activate')
   const full = clientsHtml(partnerData({ clients: UNPAID_PARTNER_CLIENTS }))
   expect(full).toContain('disabled=""')
   expect(full).toContain(`Add up to ${UNPAID_PARTNER_CLIENTS} clients now. You can add more after you activate.`)
+})
+
+test('Add client tells a partner without a plan before the form, not after it (B3)', () => {
+  const html = clientsHtml(partnerData({ status: 'approved', bill: null, refused: 'client_needs_bill' }))
+  expect(html).toContain('Client workspaces need a partner plan on this server')
+  expect(html).toMatch(/disabled=""[^>]*>(<[^>]+>)*Add client|Add client[^"]*"[^>]*disabled=""/)
+  const limit = clientsHtml(partnerData({ status: 'approved', bill: null, refused: 'client_limit', clients: 2 }))
+  expect(limit).toContain('as many client workspaces as this server allows')
+  expect(limit).toContain('disabled=""')
+  // Nothing stops it: no reason, nothing greyed.
+  const fine = clientsHtml(partnerData({ status: 'approved', bill: null, clients: 1 }))
+  expect(fine).not.toContain('disabled=""')
 })
 
 test('waiting for approval blocks nothing where billing is on: no note in Clients, one info note in Brand', () => {
@@ -255,4 +292,76 @@ test('Brand says where the brand stands in one note, never a second line about a
   expect(reviewed.match(/role="note"/g)?.length).toBe(1)
   expect(reviewed).toContain(APPROVAL)
   expect(reviewed).toContain('k-note-info')
+})
+
+test('Domain and Email sender only where this server offers them (or the partner has one already)', () => {
+  const t = i18n().t
+  const ids = (offers: PartnerData['offers'], keys = true) => partnerSections(t, true, keys, offers).map(s => s.id)
+  expect(ids({ domain: false, sender: false })).toEqual(['clients', 'team', 'brand', 'keys', 'billing'])
+  expect(ids({ domain: true, sender: true })).toEqual([
+    'clients',
+    'team',
+    'brand',
+    'domain',
+    'email',
+    'keys',
+    'billing',
+  ])
+  // Email sender needs a partner bill as before, even where the server offers it.
+  expect(ids({ domain: true, sender: true }, false)).toEqual(['clients', 'team', 'brand', 'domain', 'billing'])
+})
+
+const row = (over: Partial<PartnerClientRow>): PartnerClientRow => ({
+  id: 'ws_0',
+  name: 'Maple Plumbing',
+  owner: null,
+  number: null,
+  numbers: 0,
+  forwarding: null,
+  lastRealCallAt: null,
+  calls: 0,
+  seconds: 0,
+  costCents: null,
+  limitCents: null,
+  limitPercent: null,
+  billed: true,
+  ownKeys: false,
+  clientCallQuality: false,
+  ownCarrier: false,
+  draft: true,
+  setupStarted: false,
+  problems: [],
+  ...over,
+})
+
+const listHtml = (rows: PartnerClientRow[], data = partnerData({ clients: 1 })) => {
+  setQueryData(PARTNER_CLIENTS_QUERY(data.partner.id), { period: null, clients: rows })
+  return renderToStaticMarkup(
+    <ClientList
+      data={data}
+      frozen={false}
+      invitesWait
+      opening={null}
+      onOpen={() => {}}
+      onSetUp={() => {}}
+      onInvite={() => {}}
+      onRelease={() => {}}
+      onDelete={() => {}}
+      onSettings={() => {}}
+    />,
+  )
+}
+
+test('a draft before activation is calm: a grey Draft badge, whether its setup started, one Set up menu', () => {
+  const html = listHtml([row({ id: 'ws_0' })])
+  expect(html).toContain('>Draft<')
+  expect(html).toContain('Not set up yet')
+  // Neutral, never the amber "No number" warning; no owner line it cannot have yet.
+  expect(html).not.toContain('No number')
+  expect(html).not.toContain('k-badge-warning')
+  expect(html).not.toContain('No owner yet')
+  // One menu button in place of "By hand" and "With an AI agent".
+  expect(html).toMatch(/aria-haspopup="menu"[^>]*>(<[^>]+>)*Set up/)
+  expect(html).not.toContain('With an AI agent')
+  expect(listHtml([row({ id: 'ws_0', setupStarted: true })])).toContain('Setup started · goes live once you activate')
 })

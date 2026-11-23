@@ -372,6 +372,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     // A partner team invitation (docs/white-label.md): its link, for the address it was sent to.
     'partnerInvitation.view',
     'partnerInvitation.accept',
+    'partnerInvitation.listMine',
+    'partnerInvitation.acceptMine',
   ],
   // A white-label partner's team (docs/white-label.md): the handlers check the caller is on the named partner's team.
   partner: [

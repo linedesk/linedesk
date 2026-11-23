@@ -179,6 +179,11 @@ const currentRow = async (tx: Pick<Tx, 'select'>, partnerId: string) =>
       .where(and(eq(partner_sender_domains.partner_id, partnerId), ne(partner_sender_domains.status, 'removed')))
   )[0] ?? null
 
+/** Whether Partner › Email sender is shown: this server can verify partner domains, or the partner has a sender already. */
+export async function senderOffered(tx: Pick<Tx, 'select'>, partnerId: string): Promise<boolean> {
+  return !!senderDomainProvider() || !!(await currentRow(tx, partnerId))
+}
+
 async function senderData(tx: Tx, partner: PartnerRow, role: string): Promise<PartnerSenderData> {
   const [brand] = await tx.select().from(partner_branding).where(eq(partner_branding.partner_id, partner.id))
   const gate = await brandGate(tx, partner)

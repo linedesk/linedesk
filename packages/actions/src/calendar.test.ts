@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import {
   actions,
+  applyLocally,
   appointmentBook,
   appointmentCancel,
   appointmentReschedule,
-  applyLocally,
   bookingMode,
   CALLER_NAME_MAX,
   calendarFindSlots,
   callFinish,
   fitsBookingMode,
   type LocalTables,
-  rolePermissions,
   type Role,
+  rolePermissions,
 } from './index.ts'
 
 describe('calendar.findSlots', () => {
@@ -94,6 +94,7 @@ describe('calendar.findSlots', () => {
       'partnerBrand.protectedNames',
       'partnerBrand.reviews',
       'partnerDomain.get',
+      'partnerInvitation.listMine',
       'partnerInvitation.view',
       'partnerKeys.get',
       'partnerSender.get',

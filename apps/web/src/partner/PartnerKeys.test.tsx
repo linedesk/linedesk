@@ -3,7 +3,7 @@
 import type { PartnerKeyRow, PartnerKeysData } from '@linedesk/actions'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test } from 'vitest'
-import { KeyRows, keysErrorText, readyLine, stageLine, stageState } from './PartnerKeys.tsx'
+import { KeyRows, keysErrorText, ownKeysShown, readyLine, ServerAiRow, stageLine, stageState } from './PartnerKeys.tsx'
 
 const row = (stage: PartnerKeyRow['stage'], over: Partial<PartnerKeyRow> = {}): PartnerKeyRow => ({
   stage,
@@ -74,4 +74,22 @@ test("a refusal with a keys code in the page's words, others as the partner area
   expect(keysErrorText(Object.assign(new Error('x'), { code: 'keys_disabled' }))).toContain('turned your AI keys off')
   expect(keysErrorText(Object.assign(new Error('x'), { code: 'forbidden' }))).not.toBe('x')
   expect(keysErrorText(new Error('Too many key tests.'))).toBe('Too many key tests.')
+})
+
+test('no key yet: one line says the server’s AI is in use; the stages show once there is a key, turned off, or asked for', () => {
+  const none = data({ stages: [row('stt'), row('llm'), row('tts'), row('realtime')] })
+  expect(ownKeysShown(none, false)).toBe(false)
+  // The owner opens them with "Use your own keys".
+  expect(ownKeysShown(none, true)).toBe(true)
+  // A partner with any key, or keys a server admin turned off, sees the stages at once.
+  expect(ownKeysShown(data(), false)).toBe(true)
+  expect(ownKeysShown({ ...none, disabled: { reason: 'abuse', at: new Date().toISOString() } }, false)).toBe(true)
+  const owner = renderToStaticMarkup(<ServerAiRow canEdit onUseOwn={() => {}} />)
+  expect(owner).toContain('AI for calls')
+  expect(owner).toContain('This server&#x27;s speech, model and voice')
+  expect(owner).toContain('>Use your own keys<')
+  // No pricing claim in the line: calls are billed at the client's call quality.
+  expect(owner).not.toMatch(/included|free|plan/i)
+  // An admin of the team reads the line, without the owner's button.
+  expect(renderToStaticMarkup(<ServerAiRow canEdit={false} onUseOwn={() => {}} />)).not.toContain('Use your own keys')
 })
