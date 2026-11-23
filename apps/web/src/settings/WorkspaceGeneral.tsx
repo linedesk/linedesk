@@ -1,11 +1,12 @@
 // Workspace settings › General: what is the same for the whole workspace. The business name (workspace.rename), the kind of business (LIN-680),
 // the workspace icon (WorkspaceIconField), the country (Automatic until set: workspace-locale.ts), the time zone (moved here from the assistant's Advanced section;
 // Hours & holidays links here) and the value of a booked appointment (also set from the Insights summary). Owners and admins change them; members see them, with one note on top saying why they can't.
-import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '@linedesk/i18n/react'
 import { showAppointmentValue } from '../insights/Insights.tsx'
 import { useRun } from '../store.tsx'
 import { Input } from '../ui/form.tsx'
+import { LinkButton } from '../ui/AppLink.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { AppointmentValue } from './AppointmentValue.tsx'
 import { useAppointmentsInUse } from './appointmentsInUse.ts'
@@ -21,13 +22,80 @@ import {
 } from './settings-api.ts'
 import { renameCheck, saveRename } from './workspaceGeneral.ts'
 import { CountrySelect } from './CountrySelect.tsx'
-import { timeZoneLabel } from './timeZones.ts'
+import { clockIn, timeZoneLabel } from './timeZones.ts'
 import { AUTOMATIC, explicitCountryPatch } from './workspaceLocaleModel.ts'
 import { WorkspaceIconField } from './WorkspaceIconField.tsx'
-import type { BusinessKind } from '@linedesk/actions'
 import { refreshGoLiveChecklist } from '../inbox/GoLiveChecklist.tsx'
 import { Select } from '../ui/controls.tsx'
-import { kindOptions } from './businessKind.ts'
+import { kindLabel, kindOptions } from './businessKind.ts'
+import { type BusinessKind, phoneCountryName, type WorkspaceCountrySource } from '@linedesk/actions'
+import { i18n } from '../i18n/index.tsx'
+import { useNow } from './TimeZonePicker.tsx'
+
+/** Where an automatic country comes from ("from your assistant's number"); null when there is nothing to name. */
+const countrySourceLabel = (source: WorkspaceCountrySource): string | null =>
+  source === 'default' || source === 'explicit' ? null : i18n().t('settings.general.country.source', { source })
+
+/**
+ * A setting that reads as its value: "Plumbing & HVAC · from your website · Change" (LIN-766). Change turns the row into
+ * the setting's control; a pick (or Esc) turns it back. Members see the value without Change.
+ */
+function ValueOrControl({
+  id,
+  value,
+  source,
+  canEdit,
+  control,
+}: {
+  id: string
+  value: string
+  /** Where the value comes from, or what goes with it ("1:46 PM now"); null: nothing. */
+  source?: string | null
+  canEdit: boolean
+  /** Today's control; `done` turns the row back into the value. */
+  control: (done: () => void) => ReactNode
+}) {
+  const t = useT()
+  const [changing, setChanging] = useState(false)
+  const change = () => {
+    setChanging(true)
+    // The control takes the focus, so the keyboard goes on where the pointer was.
+    setTimeout(() => document.getElementById(id)?.focus(), 0)
+  }
+  const done = () => {
+    setChanging(false)
+    setTimeout(() => document.getElementById(`${id}-change`)?.focus(), 0)
+  }
+  if (changing)
+    return (
+      <div
+        role="group"
+        className="ws-changing"
+        onKeyDown={e => {
+          // Esc puts the value back (a list that is open closes first and marks the key as handled).
+          if (e.key !== 'Escape' || e.defaultPrevented) return
+          e.preventDefault()
+          e.stopPropagation()
+          done()
+        }}
+      >
+        {control(done)}
+      </div>
+    )
+  return (
+    <div className="ws-value">
+      <span className="ws-value-text" id={id}>
+        {value}
+      </span>
+      {source && <span className="ws-value-source">· {source}</span>}
+      {canEdit && (
+        <LinkButton id={`${id}-change`} title={t('settings.general.changeTitle', { what: value })} onClick={change}>
+          {t('settings.general.change')}
+        </LinkButton>
+      )}
+    </div>
+  )
+}
 
 type Props = {
   canEdit: boolean
@@ -159,13 +227,23 @@ function Country({ canEdit }: { canEdit: boolean }) {
         skeleton={<Skeleton shape="field" width="100%" />}
       >
         {data && (
-          <CountrySelect
+          <ValueOrControl
             id="ws-country"
-            value={data.country ?? AUTOMATIC}
-            automatic={automatic}
-            served={data.servedCountries}
-            onChange={change}
-            disabled={!canEdit}
+            canEdit={canEdit}
+            value={phoneCountryName(automatic.country, i18n())}
+            source={data.country ? null : countrySourceLabel(automatic.source)}
+            control={done => (
+              <CountrySelect
+                id="ws-country"
+                value={data.country ?? AUTOMATIC}
+                automatic={automatic}
+                served={data.servedCountries}
+                onChange={value => {
+                  change(value)
+                  done()
+                }}
+              />
+            )}
           />
         )}
       </Loading>
@@ -215,14 +293,34 @@ function Kind({ canEdit }: { canEdit: boolean }) {
         onRetry={() => void settings.reload()}
         skeleton={<Skeleton shape="field" width="100%" />}
       >
-        {data && (
+        {data && !data.businessKind && (
+          // Never picked: the list stays out, so the kind gets picked.
           <Select<BusinessKind | typeof NO_KIND>
             id="ws-kind"
             label={t('settings.general.kind.label')}
-            value={data.businessKind ?? NO_KIND}
+            value={NO_KIND}
             options={kindOptions()}
             onChange={change}
             disabled={!canEdit}
+          />
+        )}
+        {data?.businessKind && (
+          <ValueOrControl
+            id="ws-kind"
+            canEdit={canEdit}
+            value={kindLabel(data.businessKind)}
+            control={done => (
+              <Select<BusinessKind | typeof NO_KIND>
+                id="ws-kind"
+                label={t('settings.general.kind.label')}
+                value={data.businessKind ?? NO_KIND}
+                options={kindOptions()}
+                onChange={kind => {
+                  change(kind)
+                  done()
+                }}
+              />
+            )}
           />
         )}
       </Loading>
@@ -242,6 +340,7 @@ function TimeZone({ canEdit }: { canEdit: boolean }) {
   const settings = useWorkspaceSettings()
   const data = settings.data
   const zone = data?.timeZone
+  const now = useNow()
   const change = (timeZone: string) => {
     if (timeZone === zone) return
     patchWorkspaceSettings({ timeZone, timeZoneFollowsCountry: false })
@@ -264,12 +363,22 @@ function TimeZone({ canEdit }: { canEdit: boolean }) {
         skeleton={<Skeleton shape="field" width="100%" />}
       >
         {zone && (
-          <TimeZoneSelect
+          <ValueOrControl
             id="ws-time-zone"
-            value={zone}
-            onChange={change}
-            disabled={!canEdit}
-            countryDefault={data?.countryTimeZone}
+            canEdit={canEdit}
+            value={timeZoneLabel(zone)}
+            source={t('settings.general.timeZone.now', { time: clockIn(zone, now) })}
+            control={done => (
+              <TimeZoneSelect
+                id="ws-time-zone"
+                value={zone}
+                onChange={value => {
+                  change(value)
+                  done()
+                }}
+                countryDefault={data?.countryTimeZone}
+              />
+            )}
           />
         )}
         {zone && data?.timeZoneFollowsCountry !== undefined && (

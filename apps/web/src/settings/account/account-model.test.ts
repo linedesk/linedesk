@@ -1,38 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { describeDevice, hasPassword, orderSessions, passwordProblem, signInMethodLabels } from './account-model.ts'
-
-const sso = [
-  { id: 'google', label: 'Google' },
-  { id: 'oidc', label: 'Acme SSO' },
-]
-const links = { terms: null, privacy: null, supportEmail: null }
-const on = { password: true, emailCode: true, passkey: false, sso, links }
-const off = { password: true, emailCode: false, passkey: false, sso: [], links }
+import { describeDevice, hasPassword, orderSessions, passwordProblem } from './account-model.ts'
 
 describe('sign-in methods', () => {
   it('knows whether a password is set', () => {
     expect(hasPassword([{ providerId: 'credential' }])).toBe(true)
     expect(hasPassword([{ providerId: 'google' }])).toBe(false)
-  })
-
-  it('labels linked methods in a fixed order, with the install name for OIDC', () => {
-    expect(
-      signInMethodLabels([{ providerId: 'oidc' }, { providerId: 'google' }, { providerId: 'credential' }], off),
-    ).toEqual(['Password', 'Google', 'Single sign-on'])
-    expect(signInMethodLabels([{ providerId: 'oidc' }, { providerId: 'credential' }], { ...off, sso })).toEqual([
-      'Password',
-      'Acme SSO',
-    ])
-  })
-
-  it('adds the email link when this install sends them', () => {
-    expect(signInMethodLabels([], on)).toEqual(['Email code'])
-    expect(signInMethodLabels([{ providerId: 'credential' }], on)).toEqual(['Password', 'Email code'])
-    expect(signInMethodLabels([{ providerId: 'microsoft' }], off)).toEqual(['Microsoft'])
-  })
-
-  it('leaves out a password that this install does not accept', () => {
-    expect(signInMethodLabels([{ providerId: 'credential' }], { ...on, password: false })).toEqual(['Email code'])
   })
 })
 

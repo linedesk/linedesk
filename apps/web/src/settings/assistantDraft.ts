@@ -459,28 +459,6 @@ export const recordingNoticeToSave = (d: Draft) => {
   return { recording_notice_on: d.recording_notice_on, recording_notice: text && !isDefault ? text : null }
 }
 
-/** When the assistant asks whether the caller is still there, in words for the help line. */
-export function silenceSummary(
-  d: Pick<Draft, 'silence_first_gap_s' | 'silence_reminders' | 'silence_reminder'>,
-): string {
-  const { t, format } = i18n()
-  const gap = Number(d.silence_first_gap_s)
-  const asks = Array.from({ length: Number(d.silence_reminders) }, (_, i) => gap * (i + 1))
-  if (!asks.length) return t('settings.assistant.draft.silenceNever')
-  return t('settings.assistant.draft.silenceAsks', {
-    reminder: d.silence_reminder.trim() || DEFAULT_SILENCE_REMINDER,
-    times: format.list(asks.map(n => format.number(n))),
-  })
-}
-
-/** When the assistant ends a call itself, in words for the help line. */
-export function hangUpSummary(d: Pick<Draft, 'silence_hang_up_s' | 'max_call_minutes'>): string {
-  return i18n().t('settings.assistant.draft.hangUpSummary', {
-    seconds: Number(d.silence_hang_up_s),
-    minutes: Number(d.max_call_minutes),
-  })
-}
-
 /** "(503) 555-0199" and "+1 503 555 0199" are the same number: both show as the latter. */
 function normalizedNumber(typed: string): string {
   const e164 = outboundE164(typed)

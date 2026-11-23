@@ -28,9 +28,7 @@ import {
   editTransfer,
   removeTransfer,
   canAddPendingTransfer,
-  hangUpSummary,
   silenceProblem,
-  silenceSummary,
   silenceToSave,
   withMainLanguage,
   recordingNoticeProblem,
@@ -328,12 +326,6 @@ describe('silence on the line', () => {
       silence_closing: null,
       goodbye_line: null,
     })
-    expect(silenceSummary(d)).toBe(
-      'Asks "Are you still there?" after 8 and 16 seconds of silence. Never while a call is transferred.',
-    )
-    expect(hangUpSummary(d)).toBe(
-      'Says this and hangs up at 24 seconds of silence. At 20 minutes it says goodbye and hangs up. A call put through to a person goes on.',
-    )
   })
   it('own values are kept and checked', () => {
     const d = draftOf(
@@ -355,10 +347,6 @@ describe('silence on the line', () => {
       goodbye_line: null,
     })
     expect(silenceToSave({ ...d, silence_reminder: ' Hello? ' }).silence_reminder).toBe('Hello?')
-    expect(silenceSummary(d)).toBe('Never asks: it only hangs up after the silence below.')
-    expect(silenceSummary({ ...d, silence_reminders: '1', silence_reminder: 'Hello?' })).toMatch(
-      /^Asks "Hello\?" after 8 seconds/,
-    )
     const bad = [
       { silence_first_gap_s: '2' },
       { silence_first_gap_s: 'ten' },

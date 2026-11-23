@@ -10,6 +10,7 @@ import { useBusinessHours } from './BusinessHours.tsx'
 import { closureState, upcomingDays } from './closedDaysModel.ts'
 import { useClosedDays } from './Holidays.tsx'
 import { hoursSummary, rulesSummary, type Summary, transfersSummary } from './summaryModel.ts'
+import { useContactWho } from './transferOwner.ts'
 
 type Tags = Record<string, (chunks: ReactNode[]) => ReactNode>
 
@@ -72,7 +73,8 @@ export function TransfersSummary({
 }) {
   const { today, closure } = useClosedDays()
   const vacationOn = !!closure && closureState(closure, today) === 'on'
-  return <SummaryView summary={transfersSummary({ name, transfers, hoursOn, vacationOn })} icon="phone-out" />
+  const who = useContactWho()
+  return <SummaryView summary={transfersSummary({ name, transfers, hoursOn, vacationOn, who })} icon="phone-out" />
 }
 
 /** Rules: the tone, when the assistant says it is an AI, and the switches that are on. From the draft. */

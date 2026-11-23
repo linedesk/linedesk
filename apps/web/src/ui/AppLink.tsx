@@ -40,9 +40,20 @@ export function ExternalLink({ href, children }: { href: string; children: React
 }
 
 /** An action inside text ("Try again", "Confirm"): looks like the link, but does something here instead of going somewhere. */
-export function LinkButton({ onClick, title, children }: { onClick: () => void; title?: string; children: ReactNode }) {
+export function LinkButton({
+  onClick,
+  title,
+  id,
+  children,
+}: {
+  onClick: () => void
+  title?: string
+  /** To put the focus back on it. */
+  id?: string
+  children: ReactNode
+}) {
   return (
-    <button type="button" className="k-link" title={title} onClick={onClick}>
+    <button type="button" id={id} className="k-link" title={title} onClick={onClick}>
       {children}
     </button>
   )

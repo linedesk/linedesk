@@ -78,17 +78,43 @@ test('a contact just added: a Remove next to Done, no status yet, a placeholder 
 
 const NO_NUMBER = 'Add a number, or turn this contact off.'
 
-test('switched on without a number: one quiet note at the contact, never an error or a badge', () => {
+test('switched on without a number: the closed row offers to add it in place, the open one a quiet note', () => {
   const missing = contact({ number: '' })
   // Open: under the number field, in the field-note look (not the red field message).
   const open = render(missing)
   expect(open).toContain(`<p class="k-field-desc tc-note">${NO_NUMBER}</p>`)
   expect(open).not.toContain('k-field-msg')
   expect(open.split(NO_NUMBER)).toHaveLength(2)
-  // Closed: one line in the row, no status chip.
+  // Closed: "Add a number" in the title line instead of "No number" and a note; no status chip, no move arrows alone.
   const closed = render(missing, false)
-  expect(closed).toContain(`<span class="tc-note">${NO_NUMBER}</span>`)
+  expect(closed).toContain('<button type="button" class="k-link">Add a number</button>')
+  expect(closed).not.toContain(NO_NUMBER)
+  expect(closed).not.toContain('No number')
   expect(closed).not.toContain('tc-status')
+  expect(closed).not.toContain('Move up')
+  // The owner's contact for the owner themself: their name, "You" and "Add your mobile number".
+  const mine = renderToStaticMarkup(
+    <ContactRow
+      contact={missing}
+      who={{ name: 'Mike Brennan', you: true }}
+      index={0}
+      count={1}
+      open={false}
+      problem={null}
+      hoursOn={false}
+      numberTip=""
+      defaultCountry="US"
+      onToggle={noop}
+      onClose={noop}
+      onLeave={noop}
+      onChange={noop}
+      onMove={noop}
+      onRemove={noop}
+    />,
+  )
+  expect(mine).toContain('<b>Mike Brennan</b>')
+  expect(mine).toContain('>You</span>')
+  expect(mine).toContain('Add your mobile number')
   // Switched off: the "Off" chip, no note.
   const off = render(contact({ number: '', enabled: false }), false)
   expect(off).toContain('>Off</span>')

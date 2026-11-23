@@ -8,6 +8,7 @@ import { i18n } from '../i18n/index.tsx'
 import type { SummarySentence } from '../ui/SummaryCard.tsx'
 import { type DayHours, timeOptionLabel, weekGroups } from './businessHoursModel.ts'
 import type { TransferDraft } from './assistantDraft.ts'
+import type { ContactWho } from './transferOwner.ts'
 import { addDays, closureState, shortDate, type UpcomingDay } from './closedDaysModel.ts'
 
 export type Summary = { sentences: SummarySentence[]; needsYou: SummarySentence | null }
@@ -136,12 +137,14 @@ type TransfersInput = {
   hoursOn: boolean
   /** Vacation mode is on today: nobody is put through. */
   vacationOn: boolean
+  /** The owner's contact: their name, and whether it is the signed-in member (useContactWho). */
+  who?: (c: TransferDraft) => ContactWho | null
 }
 
-const contactName = (c: TransferDraft) => c.name.trim() || i18n().t('settings.transfer.newContact')
-
 /** "Maya puts callers through to Mike Brennan and Office: the first one whose condition fits. …" */
-export function transfersSummary({ name, transfers, hoursOn, vacationOn }: TransfersInput): Summary {
+export function transfersSummary({ name, transfers, hoursOn, vacationOn, who }: TransfersInput): Summary {
+  const contactName = (c: TransferDraft) =>
+    who?.(c)?.name ?? (c.name.trim() || i18n().t('settings.transfer.newContact'))
   const live = transfers.filter(c => c.enabled && c.number.trim())
   // Switched on without a number: the assistant skips it and takes a message. Said plainly at the end, never as
   // "Needs you": calls are still answered; the contact itself says what to do.
@@ -149,6 +152,18 @@ export function transfersSummary({ name, transfers, hoursOn, vacationOn }: Trans
   const skipped: SummarySentence[] = noNumber.length
     ? [{ k: msg('settings.summary.transfers.noNumber'), values: { name, contacts: noNumber, count: noNumber.length } }]
     : []
+  // Only the owner's contact, still without a number: what happens until it has one, said to them.
+  const waiting = transfers.filter(c => c.enabled && !c.number.trim())
+  const owner = !live.length && waiting.length === 1 ? who?.(waiting[0]!) : null
+  if (owner)
+    return {
+      sentences: [
+        owner.you
+          ? { k: msg('settings.summary.transfers.waitingForYou'), values: { name } }
+          : { k: msg('settings.summary.transfers.waitingFor'), values: { name, contact: owner.name } },
+      ],
+      needsYou: null,
+    }
   if (!live.length)
     return { sentences: [{ k: msg('settings.summary.transfers.none'), values: { name } }, ...skipped], needsYou: null }
   const sentences: SummarySentence[] = [

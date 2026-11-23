@@ -142,6 +142,21 @@ test('transfers: none, switched off, or without a number', () => {
   )
 })
 
+test("transfers: only the owner's contact, still without a number, says what happens until it has one", () => {
+  const owner = contact('Owner', { id: 'person', number: '' })
+  const who = (you: boolean) => (c: TransferDraft) => (c.id === 'person' ? { name: 'Mike Brennan', you } : null)
+  expect(all(transfersSummary({ ...transfers, transfers: [owner], who: who(true) }))).toBe(
+    'Maya takes a message for now. Callers who ask for a person reach you once your mobile number is in.',
+  )
+  expect(all(transfersSummary({ ...transfers, transfers: [owner], who: who(false) }))).toBe(
+    'Maya takes a message for now. Callers who ask for a person reach Mike Brennan once their number is in.',
+  )
+  // With a number, the owner's name in place of "Owner".
+  expect(
+    all(transfersSummary({ ...transfers, transfers: [{ ...owner, number: '+15035550142' }], who: who(true) })),
+  ).toContain('Maya puts callers through to Mike Brennan when the condition fits.')
+})
+
 const notify = {
   email: true,
   assigned: false,

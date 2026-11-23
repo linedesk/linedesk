@@ -49,7 +49,7 @@ import { openGroupCount, questionsLabel, REVIEW_SECTION } from '../review/review
 import { useAssistants, useRows, useRun } from '../store.tsx'
 import { appLink } from '../ui/AppLink.tsx'
 import { RadioCard } from '../ui/controls.tsx'
-import { onSaveKey, SaveBar } from '../ui/form.tsx'
+import { FormMessage, Input, onSaveKey, SaveBar, Textarea } from '../ui/form.tsx'
 import { Button, Icon, Note } from '../ui/kit.tsx'
 import { Loading, LoadProblem, Skeleton, useLoading, useLoadState } from '../ui/LoadStates.tsx'
 import { type SearchOption, SearchSelect } from '../ui/SearchSelect.tsx'
@@ -65,7 +65,6 @@ import {
   type Draft,
   draftOf,
   draftProblem,
-  hangUpSummary,
   isDirty,
   keepDraft,
   keptDraft,
@@ -85,7 +84,6 @@ import {
   type SilenceField,
   silenceIssue,
   silenceProblem,
-  silenceSummary,
   silenceToSave,
   spokenLength,
   staleGreetingName,
@@ -871,11 +869,73 @@ function TalkingSpeedSection({ draft, set }: SectionProps) {
   )
 }
 
+/** A number in a settings sentence: a small field, labelled for screen readers by what it sets. */
+function SentenceNumber({ id, label, value, onChange, invalid }: SentenceFieldProps) {
+  return (
+    <Input
+      id={id}
+      size="sm"
+      className="as-inline as-inline-num"
+      inputMode="numeric"
+      aria-label={label}
+      invalid={invalid}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+    />
+  )
+}
+
+/** A short text in a settings sentence: as wide as what it says, up to the line. */
+function SentenceText({ id, label, value, onChange, invalid, placeholder }: SentenceFieldProps) {
+  const shown = value || placeholder || ''
+  return (
+    <Input
+      id={id}
+      size="sm"
+      className="as-inline as-inline-text"
+      style={{ width: `calc(${Math.max(6, shown.length)} * 0.5em + 24px)` }}
+      aria-label={label}
+      invalid={invalid}
+      value={value}
+      placeholder={placeholder}
+      onChange={e => onChange(e.target.value)}
+    />
+  )
+}
+
+type SentenceFieldProps = {
+  id: string
+  label: string
+  value: string
+  onChange: (value: string) => void
+  invalid?: boolean
+  placeholder?: string
+}
+
+/** Grows the closing text's box with what it says. */
+function growBox(el: HTMLTextAreaElement | null) {
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight + 2}px`
+}
+
+/**
+ * Silence on the line and Hanging up, as sentences with the values in them ("After [8] seconds of silence Maya asks
+ * […], up to [2] times."): what it does is read once, in the controls themselves (LIN-766).
+ */
 function Advanced({ draft, set }: SectionProps) {
   const t = useT()
   const problem = silenceIssue(draft)
   const errorFor = (field: SilenceField) => (problem?.field === field ? problem.message : null)
+  const errorsOf = (...fields: SilenceField[]) => {
+    const message = fields.map(errorFor).find(Boolean)
+    return message ? <FormMessage>{message}</FormMessage> : null
+  }
   const name = assistantName(draft, t)
+  const field = (key: keyof Draft & string) => ({
+    value: String(draft[key] ?? ''),
+    onChange: (v: string) => set(key, v as never),
+  })
   return (
     <>
       <Section
@@ -883,56 +943,111 @@ function Advanced({ draft, set }: SectionProps) {
         title={t('settings.assistant.silence.title')}
         help={t('settings.assistant.silence.help', { name })}
       >
-        <div className="as-silence-row">
-          <Field id="as-silence-gap" label={t('settings.assistant.silence.gap')} error={errorFor('gap')}>
-            <TextInput
-              id="as-silence-gap"
-              value={draft.silence_first_gap_s}
-              onChange={v => set('silence_first_gap_s', v)}
-            />
-          </Field>
-          <Field id="as-silence-times" label={t('settings.assistant.silence.times')} error={errorFor('times')}>
-            <TextInput
-              id="as-silence-times"
-              value={draft.silence_reminders}
-              onChange={v => set('silence_reminders', v)}
-            />
-          </Field>
-        </div>
-        <Field id="as-silence-reminder" label={t('settings.assistant.silence.reminder')} error={errorFor('reminder')}>
-          <TextInput
-            id="as-silence-reminder"
-            value={draft.silence_reminder}
-            onChange={v => set('silence_reminder', v)}
-            placeholder={DEFAULT_SILENCE_REMINDER}
+        <p className="as-sentence">
+          <T
+            k="settings.assistant.silence.sentence"
+            values={{
+              name,
+              gap: () => (
+                <SentenceNumber
+                  id="as-silence-gap"
+                  label={t('settings.assistant.silence.gap')}
+                  invalid={!!errorFor('gap')}
+                  {...field('silence_first_gap_s')}
+                />
+              ),
+              reminder: () => (
+                <SentenceText
+                  id="as-silence-reminder"
+                  label={t('settings.assistant.silence.reminder')}
+                  invalid={!!errorFor('reminder')}
+                  placeholder={DEFAULT_SILENCE_REMINDER}
+                  {...field('silence_reminder')}
+                />
+              ),
+              times: () => (
+                <SentenceNumber
+                  id="as-silence-times"
+                  label={t('settings.assistant.silence.times')}
+                  invalid={!!errorFor('times')}
+                  {...field('silence_reminders')}
+                />
+              ),
+            }}
           />
-        </Field>
-        <span className="help">{silenceSummary(draft)}</span>
+        </p>
+        {errorsOf('gap', 'reminder', 'times')}
       </Section>
       <Section
         id="as-hang-up"
         title={t('settings.assistant.hangUp.title')}
         help={t('settings.assistant.hangUp.help', { name })}
       >
-        <Field id="as-goodbye-line" label={t('settings.assistant.hangUp.goodbye')} error={errorFor('goodbye')}>
-          <TextInput id="as-goodbye-line" value={draft.goodbye_line} onChange={v => set('goodbye_line', v)} />
-        </Field>
-        <div className="as-silence-row">
-          <Field id="as-silence-hang-up" label={t('settings.assistant.hangUp.afterSilence')} error={errorFor('hangUp')}>
-            <TextInput
-              id="as-silence-hang-up"
-              value={draft.silence_hang_up_s}
-              onChange={v => set('silence_hang_up_s', v)}
+        <p className="as-sentence">
+          <T
+            k="settings.assistant.hangUp.goodbyeSentence"
+            values={{
+              name,
+              goodbye: () => (
+                <SentenceText
+                  id="as-goodbye-line"
+                  label={t('settings.assistant.hangUp.goodbye')}
+                  invalid={!!errorFor('goodbye')}
+                  {...field('goodbye_line')}
+                />
+              ),
+            }}
+          />
+        </p>
+        {errorsOf('goodbye')}
+        <div className="as-sentence-block">
+          <p className="as-sentence">
+            <T
+              k="settings.assistant.hangUp.silenceSentence"
+              values={{
+                name,
+                seconds: () => (
+                  <SentenceNumber
+                    id="as-silence-hang-up"
+                    label={t('settings.assistant.hangUp.afterSilence')}
+                    invalid={!!errorFor('hangUp')}
+                    {...field('silence_hang_up_s')}
+                  />
+                ),
+              }}
             />
-          </Field>
-          <Field id="as-max-call" label={t('settings.assistant.hangUp.longest')} error={errorFor('longest')}>
-            <TextInput id="as-max-call" value={draft.max_call_minutes} onChange={v => set('max_call_minutes', v)} />
-          </Field>
+          </p>
+          <Textarea
+            id="as-silence-closing"
+            ref={el => growBox(el)}
+            className="as-closing"
+            rows={1}
+            aria-label={t('settings.assistant.hangUp.closing')}
+            invalid={!!errorFor('closing')}
+            value={draft.silence_closing}
+            onChange={e => {
+              set('silence_closing', e.target.value)
+              growBox(e.target)
+            }}
+          />
         </div>
-        <Field id="as-silence-closing" label={t('settings.assistant.hangUp.closing')} error={errorFor('closing')}>
-          <TextArea id="as-silence-closing" value={draft.silence_closing} onChange={v => set('silence_closing', v)} />
-        </Field>
-        <span className="help">{hangUpSummary(draft)}</span>
+        {errorsOf('hangUp', 'closing')}
+        <p className="as-sentence">
+          <T
+            k="settings.assistant.hangUp.longestSentence"
+            values={{
+              minutes: () => (
+                <SentenceNumber
+                  id="as-max-call"
+                  label={t('settings.assistant.hangUp.longest')}
+                  invalid={!!errorFor('longest')}
+                  {...field('max_call_minutes')}
+                />
+              ),
+            }}
+          />
+        </p>
+        {errorsOf('longest')}
       </Section>
     </>
   )

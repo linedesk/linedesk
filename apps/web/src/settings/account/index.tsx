@@ -3,7 +3,7 @@
 // not go through the outbox; notifications are per workspace (settings/Notifications.tsx).
 import type { MessageKey } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
-import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { type FormEvent, type KeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { auth, fetchMe, passkeySupported } from '../../auth.ts'
 import { removeAuthenticator } from '../../authenticator-api.ts'
 import { ConfirmEmail } from '../../ConfirmEmail.tsx'
@@ -17,6 +17,7 @@ import { changedByLabel } from '../../team/team-model.ts'
 import { dateTimeLabel } from '../../time.ts'
 import { Input, onSaveKey, SaveBar } from '../../ui/form.tsx'
 import { Badge, Button, Note } from '../../ui/kit.tsx'
+import { HelpTip } from '../../ui/HelpTip.tsx'
 import { Loading, Skeleton, SkeletonText } from '../../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, useSection } from '../../ui/SettingsLayout.tsx'
 import { Field, Section, TextInput } from '../fields.tsx'
@@ -42,14 +43,7 @@ import {
   signOutOtherSessions,
   signOutSession,
 } from './account-api.ts'
-import {
-  hasPassword,
-  orderSessions,
-  passwordProblem,
-  SESSIONS_SHOWN,
-  type SessionRow,
-  signInMethodLabels,
-} from './account-model.ts'
+import { hasPassword, orderSessions, passwordProblem, SESSIONS_SHOWN, type SessionRow } from './account-model.ts'
 import { useAddPasskey } from './add-passkey.ts'
 import { AUTHENTICATOR_HOURS, AuthenticatorQr, useAuthenticatorSetup } from './authenticator.tsx'
 import { PersonalKeys } from './PersonalKeys.tsx'
@@ -180,11 +174,13 @@ function PasswordInput({
   value,
   onChange,
   autoComplete,
+  autoFocus,
 }: {
   id: string
   value: string
   onChange: (value: string) => void
   autoComplete: string
+  autoFocus?: boolean
 }) {
   return (
     <span className="k-input">
@@ -194,6 +190,7 @@ function PasswordInput({
         type="password"
         value={value}
         autoComplete={autoComplete}
+        autoFocus={autoFocus}
         onChange={e => onChange(e.target.value)}
       />
     </span>
@@ -444,13 +441,52 @@ function ChangeEmail({
   )
 }
 
+/**
+ * One sign-in method's header line: its name (a badge, the "?"), its state under it, and its one button at the right.
+ * Sign-in & security is a list of these, each with what it opens below it (LIN-766).
+ */
+function MethodHead({
+  title,
+  badge,
+  tip,
+  state,
+  action,
+}: {
+  title: string
+  badge?: ReactNode
+  tip?: string
+  state?: ReactNode
+  action?: ReactNode
+}) {
+  return (
+    <div className="ac-method-head">
+      <div className="ac-method-text">
+        <span className="ac-method-title">
+          <h3>{title}</h3>
+          {badge}
+          {tip && <HelpTip text={tip} />}
+        </span>
+        {state && <span className="help">{state}</span>}
+      </div>
+      {action && <div className="ac-actions">{action}</div>}
+    </div>
+  )
+}
+
+/** Password: Set or Not set, and Change (or Set password) opening the form in place; Esc or Cancel closes it. */
 function PasswordForm({ account, reload }: SectionProps) {
   const t = useT()
   const exists = hasPassword(account.accounts)
   const empty = { current: '', next: '', repeat: '' }
   const [form, setForm] = useState(empty)
+  const [open, setOpen] = useState(false)
   const request = useRequest()
   const set = (key: keyof typeof form) => (value: string) => setForm(f => ({ ...f, [key]: value }))
+  const close = () => {
+    setOpen(false)
+    setForm(empty)
+    request.dismiss()
+  }
   const save = (e: FormEvent) => {
     e.preventDefault()
     const problem = passwordProblem(form, exists)
@@ -459,70 +495,112 @@ function PasswordForm({ account, reload }: SectionProps) {
       async () => {
         await (exists ? changePassword(form.current, form.next) : setFirstPassword(form.next))
         setForm(empty)
+        setOpen(false)
         await reload()
       },
       exists ? t('account.password.changed') : t('account.password.set'),
     )
   }
   return (
-    <form className="ac-form ac-divided" onSubmit={save}>
-      {/* The account the password belongs to, for password managers: they update that login instead of saving a new one. */}
-      <input type="email" name="username" autoComplete="username" value={account.user.email} readOnly hidden />
-      <Field label={t('account.password.title')} help={exists ? undefined : t('account.password.none')}>
-        <div className="row2">
-          {exists && (
-            <Field id="ac-pw-current" label={t('account.password.current')}>
+    <div className="ac-form ac-divided">
+      <MethodHead
+        title={t('account.password.title')}
+        state={exists ? t('account.password.stateSet') : t('account.password.stateNotSet')}
+        action={
+          !open && (
+            <Button
+              title={exists ? t('account.password.changeTitle') : t('account.password.setTitle')}
+              onClick={() => {
+                request.dismiss()
+                setOpen(true)
+              }}
+            >
+              {exists ? t('account.password.changeShort') : t('account.password.setButton')}
+            </Button>
+          )
+        }
+      />
+      {open ? (
+        <form
+          className="ac-form"
+          onSubmit={save}
+          onKeyDown={e => {
+            if (e.key !== 'Escape' || e.defaultPrevented) return
+            e.preventDefault()
+            e.stopPropagation()
+            close()
+          }}
+        >
+          {/* The account the password belongs to, for password managers: they update that login instead of saving a new one. */}
+          <input type="email" name="username" autoComplete="username" value={account.user.email} readOnly hidden />
+          <div className="row2">
+            {exists && (
+              <Field id="ac-pw-current" label={t('account.password.current')}>
+                <PasswordInput
+                  id="ac-pw-current"
+                  value={form.current}
+                  onChange={set('current')}
+                  autoComplete="current-password"
+                  autoFocus
+                />
+              </Field>
+            )}
+            <Field id="ac-pw-new" label={t('account.password.new')}>
               <PasswordInput
-                id="ac-pw-current"
-                value={form.current}
-                onChange={set('current')}
-                autoComplete="current-password"
+                id="ac-pw-new"
+                value={form.next}
+                onChange={set('next')}
+                autoComplete="new-password"
+                autoFocus={!exists}
               />
             </Field>
-          )}
-          <Field id="ac-pw-new" label={t('account.password.new')}>
-            <PasswordInput id="ac-pw-new" value={form.next} onChange={set('next')} autoComplete="new-password" />
-          </Field>
-          <Field id="ac-pw-repeat" label={t('account.password.repeat')}>
-            <PasswordInput id="ac-pw-repeat" value={form.repeat} onChange={set('repeat')} autoComplete="new-password" />
-          </Field>
-        </div>
-      </Field>
-      <FormStatus request={request} />
-      <div className="ac-actions">
-        <Button
-          busy={request.busy}
-          type="submit"
-          variant="primary"
-          title={exists ? t('account.password.changeTitle') : t('account.password.setTitle')}
-          disabled={request.busy || !form.next}
-        >
-          {request.busy
-            ? t('common.action.saving')
-            : exists
-              ? t('account.password.change')
-              : t('account.password.setButton')}
-        </Button>
-      </div>
-    </form>
+            <Field id="ac-pw-repeat" label={t('account.password.repeat')}>
+              <PasswordInput
+                id="ac-pw-repeat"
+                value={form.repeat}
+                onChange={set('repeat')}
+                autoComplete="new-password"
+              />
+            </Field>
+          </div>
+          <FormStatus request={request} />
+          <div className="ac-actions" hidden={Boolean(request.confirmPasskey)}>
+            <Button variant="ghost" title={t('account.password.cancelTitle')} onClick={close}>
+              {t('common.action.cancel')}
+            </Button>
+            <Button
+              busy={request.busy}
+              type="submit"
+              variant="primary"
+              title={exists ? t('account.password.changeTitle') : t('account.password.setTitle')}
+              disabled={request.busy || !form.next}
+            >
+              {request.busy
+                ? t('common.action.saving')
+                : exists
+                  ? t('account.password.change')
+                  : t('account.password.setButton')}
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <FormStatus request={request} />
+      )}
+    </div>
   )
 }
 
+/** Sign-in & security: one block per way in, each with its button on its own header line. */
 function SignIn(props: SectionProps) {
   const t = useT()
-  const { accounts, methods } = props.account
+  const { methods } = props.account
   return (
     <Section id="ac-signin" title={t('account.nav.security.label')}>
-      <Field label={t('account.security.methods')}>
-        <div className="ac-badges">
-          {signInMethodLabels(accounts, methods).map(label => (
-            <Badge key={label}>{label}</Badge>
-          ))}
-        </div>
-      </Field>
-      {methods.passkey && passkeySupported() && <Passkeys />}
-      <Authenticator />
-      {methods.password && <PasswordForm {...props} />}
+      <div className="ac-methods">
+        {methods.passkey && passkeySupported() && <Passkeys />}
+        {methods.password && <PasswordForm {...props} />}
+        <Authenticator />
+      </div>
     </Section>
   )
 }
@@ -537,7 +615,7 @@ function Passkeys() {
   const { needsCode, enrolmentCode, setEnrolmentCode, addThisDevice } = useAddPasskey()
   const request = useRequest()
   const load = passkeys.reload
-  // None yet: the way in we recommend, so it says so and adding one is the main button here.
+  // None yet: the way in we recommend, so adding one is the main button here.
   const none = list?.length === 0
 
   const add = () => request.run(() => addThisDevice(load), t('account.passkeys.added'))
@@ -552,68 +630,80 @@ function Passkeys() {
   const waiting = Boolean(request.confirmPasskey)
 
   return (
-    <div className="ac-form ac-divided">
-      <Field
-        label={t('account.passkeys.title')}
+    <div className="ac-form">
+      <MethodHead
+        title={t('account.passkeys.title')}
         tip={t('account.passkeys.tip')}
-        labelAfter={none && <Badge>{t('account.passkeys.recommended')}</Badge>}
+        badge={<Badge>{t('account.passkeys.recommended')}</Badge>}
+        state={none ? t('auth.addPasskey.why') : undefined}
+        action={
+          !waiting && (
+            <Button
+              variant={none ? 'primary' : undefined}
+              title={t('account.passkeys.addTitle')}
+              disabled={request.busy}
+              onClick={() => void add()}
+            >
+              {request.busy ? t('account.passkeys.waiting') : t('account.passkeys.add')}
+            </Button>
+          )
+        }
+      />
+      <Loading
+        what={t('account.passkeys.title')}
+        loading={!list}
+        error={passkeys.error}
+        onRetry={() => void load()}
+        skeleton={<ListSkeleton rows={1} quiet />}
       >
-        <Loading
-          what={t('account.passkeys.title')}
-          loading={!list}
-          error={passkeys.error}
-          onRetry={() => void load()}
-          skeleton={<ListSkeleton rows={1} />}
-        >
-          {none && <span className="help">{t('auth.addPasskey.why')}</span>}
-          {list && list.length > 0 && (
-            <ul className="ac-list">
-              {list.map(p => (
-                <li key={p.id} className="ac-session">
-                  <div>
-                    <b>{p.name}</b>
-                    {p.added && (
-                      <span className="help">{t('account.passkeys.addedAt', { when: dateTimeLabel(p.added) })}</span>
-                    )}
-                  </div>
-                  <div className="ac-row-actions">
-                    {waiting ? null : confirming === p.id ? (
-                      <>
-                        <span className="help">{t('account.passkeys.removeQuestion')}</span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          title={t('account.passkeys.keep')}
-                          onClick={() => setConfirming(null)}
-                        >
-                          {t('common.action.cancel')}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="danger"
-                          title={t('account.passkeys.removeTitle')}
-                          disabled={request.busy}
-                          onClick={() => void remove(p.id)}
-                        >
-                          {t('account.passkeys.remove')}
-                        </Button>
-                      </>
-                    ) : (
+        {list && list.length > 0 && (
+          <ul className="ac-list ac-quiet-list">
+            {list.map(p => (
+              <li key={p.id} className="ac-session">
+                <div>
+                  <b>{p.name}</b>
+                  {p.added && (
+                    <span className="help">{t('account.passkeys.addedAt', { when: dateTimeLabel(p.added) })}</span>
+                  )}
+                </div>
+                <div className="ac-row-actions">
+                  {waiting ? null : confirming === p.id ? (
+                    <>
+                      <span className="help">{t('account.passkeys.removeQuestion')}</span>
                       <Button
                         size="sm"
-                        title={t('account.passkeys.removeNamed', { name: p.name })}
-                        onClick={() => setConfirming(p.id)}
+                        variant="ghost"
+                        title={t('account.passkeys.keep')}
+                        onClick={() => setConfirming(null)}
+                      >
+                        {t('common.action.cancel')}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        title={t('account.passkeys.removeTitle')}
+                        disabled={request.busy}
+                        onClick={() => void remove(p.id)}
                       >
                         {t('account.passkeys.remove')}
                       </Button>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Loading>
-      </Field>
+                    </>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      title={t('account.passkeys.removeNamed', { name: p.name })}
+                      onClick={() => setConfirming(p.id)}
+                    >
+                      {t('account.passkeys.remove')}
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Loading>
       {needsCode && (
         <Field label={t('account.passkeys.enrolmentCode')} tip={t('account.passkeys.enrolmentTip')}>
           <TextInput
@@ -625,16 +715,6 @@ function Passkeys() {
         </Field>
       )}
       <FormStatus request={request} />
-      <div className="ac-actions" hidden={waiting}>
-        <Button
-          variant={none ? 'primary' : undefined}
-          title={t('account.passkeys.addTitle')}
-          disabled={request.busy}
-          onClick={() => void add()}
-        >
-          {request.busy ? t('account.passkeys.waiting') : t('account.passkeys.add')}
-        </Button>
-      </div>
     </div>
   )
 }
@@ -677,18 +757,57 @@ function Authenticator() {
       setConfirming(false)
       await reload()
     }, t('account.authenticator.removed'))
+  const idle = !setup.started && !request.confirmPasskey
 
   return (
     <div className="ac-form ac-divided">
-      <Field label={t('account.authenticator.title')} tip={t('account.authenticator.tip')}>
-        <span className="help">
-          {data.hasAuthenticator
-            ? t('account.authenticator.on', { hours: AUTHENTICATOR_HOURS })
+      <MethodHead
+        title={t('account.authenticator.title')}
+        tip={t('account.authenticator.tip')}
+        state={
+          data.hasAuthenticator
+            ? t('account.authenticator.stateOn', { hours: AUTHENTICATOR_HOURS })
             : noPasskey
-              ? t('account.authenticator.needsPasskey')
-              : t('account.authenticator.none')}
-        </span>
-      </Field>
+              ? t('account.authenticator.stateNeedsPasskey')
+              : t('account.authenticator.stateNone')
+        }
+        action={
+          idle && (
+            <>
+              {!data.hasAuthenticator && !noPasskey && (
+                <Button
+                  title={t('account.authenticator.addTitle')}
+                  disabled={request.busy || setup.busy}
+                  onClick={() => void start()}
+                >
+                  {t('account.authenticator.setUp')}
+                </Button>
+              )}
+              {data.hasAuthenticator && !confirming && (
+                <Button title={t('account.authenticator.removeTitle')} onClick={() => setConfirming(true)}>
+                  {t('account.authenticator.remove')}
+                </Button>
+              )}
+              {data.hasAuthenticator && confirming && (
+                <>
+                  <span className="help">{t('account.authenticator.removeQuestion')}</span>
+                  <Button variant="ghost" title={t('account.authenticator.keep')} onClick={() => setConfirming(false)}>
+                    {t('common.action.cancel')}
+                  </Button>
+                  <Button
+                    variant="danger"
+                    title={t('account.authenticator.removeTitle')}
+                    disabled={request.busy}
+                    onClick={() => void remove()}
+                  >
+                    {t('account.authenticator.remove')}
+                  </Button>
+                </>
+              )}
+            </>
+          )
+        }
+      />
       {setup.started && (
         <form
           className="ac-form"
@@ -732,38 +851,6 @@ function Authenticator() {
           <FormStatus request={request} />
           {justAdded && data.hasAuthenticator && <Note tone="success">{t('account.authenticator.added')}</Note>}
           {setup.error && <Note tone="danger">{setup.error}</Note>}
-          <div className="ac-actions" hidden={Boolean(request.confirmPasskey)}>
-            {!data.hasAuthenticator && !noPasskey && (
-              <Button
-                title={t('account.authenticator.addTitle')}
-                disabled={request.busy || setup.busy}
-                onClick={() => void start()}
-              >
-                {t('account.authenticator.add')}
-              </Button>
-            )}
-            {data.hasAuthenticator && !confirming && (
-              <Button title={t('account.authenticator.removeTitle')} onClick={() => setConfirming(true)}>
-                {t('account.authenticator.remove')}
-              </Button>
-            )}
-            {data.hasAuthenticator && confirming && (
-              <>
-                <span className="help">{t('account.authenticator.removeQuestion')}</span>
-                <Button variant="ghost" title={t('account.authenticator.keep')} onClick={() => setConfirming(false)}>
-                  {t('common.action.cancel')}
-                </Button>
-                <Button
-                  variant="danger"
-                  title={t('account.authenticator.removeTitle')}
-                  disabled={request.busy}
-                  onClick={() => void remove()}
-                >
-                  {t('account.authenticator.remove')}
-                </Button>
-              </>
-            )}
-          </div>
         </>
       )}
     </div>
@@ -807,9 +894,9 @@ async function loadSessionList(): Promise<SessionRow[] | 'signInAgain'> {
 }
 
 /** Grey rows where a list of sessions or passkeys will be: the rows' own name, line under it and button. */
-function ListSkeleton({ rows = 3 }: { rows?: number }) {
+function ListSkeleton({ rows = 3, quiet = false }: { rows?: number; quiet?: boolean }) {
   return (
-    <ul className="ac-list" aria-hidden="true">
+    <ul className={quiet ? 'ac-list ac-quiet-list' : 'ac-list'} aria-hidden="true">
       {Array.from({ length: rows }, (_, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: placeholder rows never reorder
         <li key={i} className="ac-session">
@@ -839,12 +926,22 @@ function AccountSkeleton({
   const t = useT()
   const skeleton =
     current === 'security' ? (
-      <Field label={t('account.security.methods')}>
-        <span className="sk-inline">
-          <Skeleton width={64} height={20} />
-          <Skeleton width={72} height={20} />
-        </span>
-      </Field>
+      <div className="ac-methods">
+        <div className="ac-method-head">
+          <div className="ac-method-text">
+            <Skeleton shape="text" width={120} />
+            <Skeleton shape="text" width={220} />
+          </div>
+          <Skeleton width={96} height={32} />
+        </div>
+        <div className="ac-method-head ac-divided">
+          <div className="ac-method-text">
+            <Skeleton shape="text" width={80} />
+            <Skeleton shape="text" width={40} />
+          </div>
+          <Skeleton width={72} height={32} />
+        </div>
+      </div>
     ) : (
       <>
         {hasWorkspace && (

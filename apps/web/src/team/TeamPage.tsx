@@ -14,7 +14,7 @@ import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { ReadOnlyNote, Section } from '../settings/fields.tsx'
 import { useSupportAccess } from '../supportAccess.ts'
 import { NotificationDefaults } from '../settings/Notifications.tsx'
-import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
+import { Dialog, FormMessage, Input } from '../ui/form.tsx'
 import { NO_PASSWORD_MANAGER } from '../ui/passwordManager.ts'
 import { signInAgain, signOutAndForget } from '../localData.ts'
 import { markLeft } from '../session.ts'
@@ -24,7 +24,7 @@ import { Checkbox, Select } from '../ui/controls.tsx'
 import { appLink } from '../ui/AppLink.tsx'
 import { Avatar, Badge, Button, Note } from '../ui/kit.tsx'
 import { DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
-import { List, ListEmpty, ListRow, MenuButton, type MenuItem } from '../ui/list.tsx'
+import { List, ListRow, MenuButton, type MenuItem } from '../ui/list.tsx'
 import { Loading, SkeletonList } from '../ui/LoadStates.tsx'
 import { sectionParts } from '../ui/SettingsLayout.tsx'
 import { teamApi, useTeam } from './team-api.ts'
@@ -376,26 +376,24 @@ function InviteForm({ data, run, toast }: { data: TeamData; run: TeamRun; toast:
         void submit(e).finally(() => setSending(false))
       }}
     >
-      <FormField id="team-invite-email" label={t('team.invite.byEmail')} className="team-invite-email">
-        <Input
-          id="team-invite-email"
-          type="email"
-          value={email}
-          placeholder={t('team.invite.placeholder')}
-          {...NO_PASSWORD_MANAGER}
-          onChange={e => setEmail(e.target.value)}
-        />
-      </FormField>
-      <FormField id="team-invite-role" label={t('team.invite.role')}>
-        <RoleSelect
-          id="team-invite-role"
-          size="md"
-          value={role}
-          label={t('team.invite.roleLabel')}
-          roles={assignableRoles}
-          onChange={setRole}
-        />
-      </FormField>
+      <Input
+        id="team-invite-email"
+        className="team-invite-email"
+        type="email"
+        value={email}
+        aria-label={t('team.invite.byEmail')}
+        placeholder={t('team.invite.placeholder')}
+        {...NO_PASSWORD_MANAGER}
+        onChange={e => setEmail(e.target.value)}
+      />
+      <RoleSelect
+        id="team-invite-role"
+        size="md"
+        value={role}
+        label={t('team.invite.roleLabel')}
+        roles={assignableRoles}
+        onChange={setRole}
+      />
       <Button
         busy={sending}
         type="submit"
@@ -559,6 +557,8 @@ export function TeamSection({ toast }: { toast: (text: string) => void }) {
             </List>
           )}
         </Loading>
+        {/* Invite: one row at the bottom of the members, under a line (LIN-766). */}
+        {data?.canManage && <InviteForm data={data} run={run} toast={toast} />}
         {editing && (
           <MemberEditDialog
             memberId={editing.memberId}
@@ -568,17 +568,14 @@ export function TeamSection({ toast }: { toast: (text: string) => void }) {
           />
         )}
       </Section>
-      {data && (data.canManage || data.invitations.length > 0) && (
+      {/* Only while someone is invited: nothing pending needs no card. */}
+      {data && data.invitations.length > 0 && (
         <Section id="team-invites" title={t('team.invitations.title')} description={t('team.invitations.description')}>
-          {data.invitations.length === 0 && <ListEmpty>{t('team.invitations.none')}</ListEmpty>}
-          {data.invitations.length > 0 && (
-            <List label={t('team.invitations.title')}>
-              {data.invitations.map(i => (
-                <InvitationRow key={i.invitationId} invite={i} canManage={data.canManage} run={run} />
-              ))}
-            </List>
-          )}
-          {data.canManage && <InviteForm data={data} run={run} toast={toast} />}
+          <List label={t('team.invitations.title')}>
+            {data.invitations.map(i => (
+              <InvitationRow key={i.invitationId} invite={i} canManage={data.canManage} run={run} />
+            ))}
+          </List>
         </Section>
       )}
       <NotificationDefaults toast={toast} />

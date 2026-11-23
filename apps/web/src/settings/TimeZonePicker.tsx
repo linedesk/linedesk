@@ -17,7 +17,7 @@ import {
 } from './timeZones.ts'
 
 /** The time shown moves on while the page is open. */
-function useNow(everyMs = 30_000) {
+export function useNow(everyMs = 30_000) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), everyMs)

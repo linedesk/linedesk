@@ -3,7 +3,7 @@
 // edit it (Done or Esc closes it). Part of the assistant's draft: saved with the page's Save. A field's error
 // shows once the field was left or a save was tried, never on a row just added. A row just added stays out of the
 // draft until one of its fields is changed: Esc, Done, Remove or leaving the section drops it (no unsaved change).
-import { countryList, RING_SECONDS_MAX, RING_SECONDS_MIN } from '@linedesk/actions'
+import { countryList, type OutboundCountries, RING_SECONDS_MAX, RING_SECONDS_MIN } from '@linedesk/actions'
 import type { TransferFallback } from '@linedesk/db/types'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
@@ -12,7 +12,8 @@ import { Checkbox, Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { Input, Textarea } from '../ui/form.tsx'
 import { HelpTip } from '../ui/HelpTip.tsx'
 import { NO_PASSWORD_MANAGER } from '../ui/passwordManager.ts'
-import { Button, cx } from '../ui/kit.tsx'
+import { Badge, Button, cx } from '../ui/kit.tsx'
+import { LinkButton } from '../ui/AppLink.tsx'
 import { PhoneInput } from '../ui/PhoneInput.tsx'
 import { formatNumber, outboundE164 } from '../onboarding/flow.ts'
 import { useOutboundCountries } from '../onboarding/outbound-number.ts'
@@ -23,6 +24,7 @@ import {
   isPendingRow,
   moveTransfer,
   newTransferContact,
+  numberProblem,
   refusedForCountry,
   removeTransfer,
   type TransferDraft,
@@ -38,6 +40,7 @@ import { brandName } from '../brand.ts'
 import { i18n } from '../i18n/index.tsx'
 import { fmt, intlLocale } from '../i18n/format.ts'
 import { shortDuration } from '../time.ts'
+import { type ContactWho, useContactWho } from './transferOwner.ts'
 
 const FALLBACKS: { value: TransferFallback; label: MessageKey }[] = [
   { value: 'message', label: msg('settings.transfer.fallback.message') },
@@ -92,6 +95,7 @@ export function TransferContacts({ transfers, onChange, hoursOn, assistantName, 
   const [touched, setTouched] = useState<ReadonlySet<string>>(new Set())
   const countries = useOutboundCountries()
   const country = useDefaultPhoneCountry()
+  const whoOf = useContactWho()
   /** The contact just added while none of its fields was changed: shown, but not in the draft (no change yet). */
   const [pending, setPending] = useState<TransferDraft | null>(null)
   /** Contacts added during this visit: their open row keeps a Remove next to Done. */
@@ -153,6 +157,8 @@ export function TransferContacts({ transfers, onChange, hoursOn, assistantName, 
               <ContactRow
                 key={c.id}
                 contact={c}
+                who={whoOf(c)}
+                countries={countries}
                 index={i}
                 count={transfers.length}
                 isNew={isNew}
@@ -182,6 +188,10 @@ export function TransferContacts({ transfers, onChange, hoursOn, assistantName, 
 
 export type RowProps = {
   contact: TransferDraft
+  /** The owner's contact: their name instead of the saved one ("Owner"), "You" for the owner themself. */
+  who?: ContactWho | null
+  /** Where calls may be put through: the number typed in the row is checked against it. */
+  countries?: OutboundCountries
   index: number
   count: number
   /** The contact was just added and none of its fields changed yet: not moved, no status yet. */
@@ -224,9 +234,91 @@ function grow(el: HTMLTextAreaElement | null) {
   el.style.height = `${el.scrollHeight + 2}px`
 }
 
+type AddNumberProps = {
+  /** The phone field's id (its hidden label points at it). */
+  id: string
+  /** The contact is the signed-in member: "Add your mobile number". */
+  you: boolean
+  name: string
+  /** What is typed so far; null: the link shows. */
+  typing: string | null
+  problem: string | null
+  defaultCountry: string
+  onStart: () => void
+  onType: (number: string) => void
+  onCancel: () => void
+  /** Enter: `form` is the page's form, to save it. */
+  onSave: (form: HTMLFormElement | null) => void
+}
+
+/**
+ * "Add your mobile number" in a contact's line: a link that turns into the phone field right there (the transfer
+ * editor's field and checks). Enter saves, Esc cancels.
+ */
+function AddNumberHere({
+  id,
+  you,
+  name,
+  typing,
+  problem,
+  defaultCountry,
+  onStart,
+  onType,
+  onCancel,
+  onSave,
+}: AddNumberProps) {
+  const t = useT()
+  if (typing === null)
+    return (
+      <span className="tc-add-number">
+        <LinkButton onClick={onStart}>
+          {t(you ? 'settings.transfer.addYourNumber' : 'settings.transfer.addNumber')}
+        </LinkButton>
+      </span>
+    )
+  return (
+    <span className="tc-add-number is-typing">
+      <label className="sr-only" htmlFor={id}>
+        {t('settings.transfer.numberOf', { name })}
+      </label>
+      <PhoneInput
+        id={id}
+        size="sm"
+        value={typing}
+        defaultCountry={defaultCountry}
+        autoComplete={you ? 'tel' : 'off'}
+        autoFocus
+        invalid={!!problem}
+        onChange={onType}
+        onKeyDown={e => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            onSave(e.currentTarget.form)
+          }
+          if (e.key === 'Escape') {
+            e.preventDefault()
+            e.stopPropagation()
+            onCancel()
+          }
+        }}
+      />
+      <span className="tc-add-keys" aria-hidden>
+        {t('settings.transfer.addNumberKeys', { enter: '⏎', esc: 'esc' })}
+      </span>
+      {problem && (
+        <span className="k-field-msg tc-add-problem" role="alert">
+          {problem}
+        </span>
+      )}
+    </span>
+  )
+}
+
 export function ContactRow(props: RowProps) {
   const {
     contact: c,
+    who = null,
+    countries = 'any',
     index,
     count,
     isNew = false,
@@ -250,7 +342,12 @@ export function ContactRow(props: RowProps) {
   // summary: one quiet line at the contact (under the number while the row is open). A contact added during this visit
   // says it only once its number field was left, like a field's error.
   const noNumber = inactive === 'noNumber' && (!added || numberLeft)
-  const name = c.name.trim() || t('settings.transfer.newContact')
+  const name = who?.name ?? (c.name.trim() || t('settings.transfer.newContact'))
+  /** The number typed in the contact's line (null: the "Add a number" link shows). */
+  const [typing, setTyping] = useState<string | null>(null)
+  const [typedProblem, setTypedProblem] = useState<string | null>(null)
+  // Without a number and closed: the line offers to add it right there instead of saying it is missing.
+  const addHere = inactive === 'noNumber' && !open && !isNew
   const ringOptions: SelectOption<string>[] = RING_SECONDS.map(s => ({
     value: String(s),
     label: t('settings.transfer.ringSeconds', { count: s }),
@@ -274,42 +371,80 @@ export function ContactRow(props: RowProps) {
         <span className="tc-order" aria-hidden>
           {index + 1}
         </span>
-        <button
-          type="button"
-          id={transferFieldId(index, 'row')}
-          className="tc-main"
-          onClick={onToggle}
-          aria-expanded={open}
-          title={open ? t('common.action.close') : t('settings.transfer.edit')}
-        >
+        <div className={cx('tc-main', addHere && typing !== null && 'is-typing')}>
           <span className="tc-title">
-            <b>{name}</b>
-            <span className="tc-number">{numberLabel(c.number)}</span>
+            {/* The row's toggle: its area covers the whole line (CSS), the number link and field sit above it. */}
+            <button
+              type="button"
+              id={transferFieldId(index, 'row')}
+              className="tc-toggle"
+              onClick={onToggle}
+              aria-expanded={open}
+              title={open ? t('common.action.close') : t('settings.transfer.edit')}
+            >
+              <b>{name}</b>
+            </button>
+            {who?.you && <Badge>{t('settings.transfer.you')}</Badge>}
+            {addHere ? (
+              <AddNumberHere
+                id={`tc-${index}-quick`}
+                you={!!who?.you}
+                name={name}
+                typing={typing}
+                problem={typedProblem}
+                defaultCountry={defaultCountry}
+                onStart={() => setTyping('')}
+                onType={number => {
+                  setTyping(number)
+                  setTypedProblem(null)
+                }}
+                onCancel={() => {
+                  setTyping(null)
+                  setTypedProblem(null)
+                  setTimeout(() => document.getElementById(transferFieldId(index, 'row'))?.focus(), 0)
+                }}
+                onSave={form => {
+                  const number = typing ?? ''
+                  if (!number.trim()) return setTyping(null)
+                  const refused = numberProblem(number, countries)
+                  if (refused) return setTypedProblem(refused)
+                  onChange({ number })
+                  setTyping(null)
+                  // Saved like the page's Save, once the draft has the number (the form's handler reads the next render).
+                  setTimeout(() => form?.requestSubmit(), 0)
+                }}
+              />
+            ) : (
+              <span className="tc-number">{numberLabel(c.number)}</span>
+            )}
             {inactive === 'off' && <span className="tc-status">{t('settings.assistant.draft.transferOff')}</span>}
           </span>
           <span className="tc-cond">{c.condition.trim() || t('settings.transfer.noCondition')}</span>
           <span className="tc-meta">{summaryOf(c, hoursOn)}</span>
-          {noNumber && !open && <span className="tc-note">{t('settings.transfer.noNumberNote')}</span>}
-        </button>
+        </div>
         <span className="tc-actions">
-          <Button
-            size="sm"
-            variant="ghost"
-            icon="up"
-            title={t('settings.transfer.moveUp')}
-            aria-label={t('settings.transfer.moveUpName', { name })}
-            disabled={isNew || index === 0}
-            onClick={() => onMove(-1)}
-          />
-          <Button
-            size="sm"
-            variant="ghost"
-            icon="down"
-            title={t('settings.transfer.moveDown')}
-            aria-label={t('settings.transfer.moveDownName', { name })}
-            disabled={isNew || index === count - 1}
-            onClick={() => onMove(1)}
-          />
+          {count > 1 && (
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                icon="up"
+                title={t('settings.transfer.moveUp')}
+                aria-label={t('settings.transfer.moveUpName', { name })}
+                disabled={isNew || index === 0}
+                onClick={() => onMove(-1)}
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                icon="down"
+                title={t('settings.transfer.moveDown')}
+                aria-label={t('settings.transfer.moveDownName', { name })}
+                disabled={isNew || index === count - 1}
+                onClick={() => onMove(1)}
+              />
+            </>
+          )}
           <Button
             size="sm"
             variant="ghost"

@@ -5,9 +5,13 @@ import { parseTs, callDuration, timeLabel } from '../time.ts'
 import { Avatar, Badge, Button, Icon } from '../ui/kit.tsx'
 import { EditableFact } from './EditableFact.tsx'
 import { EmailedAfterCall } from './EmailedAfterCall.tsx'
+import { msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
 import { LinkButton } from '../ui/AppLink.tsx'
 import { i18n } from '../i18n/index.tsx'
+import { fmt, intlLocale } from '../i18n/format.ts'
+import { useState } from 'react'
+import { factSuggestions } from './factSuggestions.ts'
 
 type Props = {
   call: Call
@@ -51,63 +55,118 @@ export function ConfirmCallerName({ contact }: { contact: Contact }) {
   )
 }
 
-/** The contact's fields, edited in place through contact.update. Also used on the Contacts page. */
-export function Facts({ contact, toast }: { contact: Contact; toast: (text: string) => void }) {
+/** "From this call · Keep" under a field that shows a key fact of the call: Keep saves it to the contact. */
+function FromThisCall({ onKeep }: { onKeep: () => void }) {
+  const t = useT()
+  return (
+    <dd className="fact-hint">
+      <T
+        k="call.contact.fromThisCall"
+        values={{
+          keep: chunks => (
+            <LinkButton title={t('call.contact.keepTitle')} onClick={onKeep}>
+              {chunks}
+            </LinkButton>
+          ),
+        }}
+      />
+    </dd>
+  )
+}
+
+/** The fields that fold into one "+ Company, email, note" button while empty, in the order they show. */
+const FOLDABLE = ['company', 'email', 'address', 'note'] as const
+const FOLD_NAME = {
+  company: msg('call.contact.fold.company'),
+  email: msg('call.contact.fold.email'),
+  address: msg('call.contact.fold.address'),
+  note: msg('call.contact.fold.note'),
+}
+
+/**
+ * The caller's contact next to the call, edited in place through contact.update. A field the contact has empty shows
+ * the call's key fact for it as a suggestion (Keep saves it); the other empty fields fold into one quiet button.
+ */
+export function Facts({ contact, call, toast }: { contact: Contact; call: Call; toast: (text: string) => void }) {
   const t = useT()
   const run = useRun()
+  const [unfolded, setUnfolded] = useState(false)
   const save = (field: Editable) => (value: string | null) =>
     void run('contact.update', { contactId: contact.id, [field]: value })
   const phone = formatPhone(contact.phone)
+  const suggested = factSuggestions(call.fields, contact)
+  const folded = unfolded
+    ? []
+    : FOLDABLE.filter(field => !contact[field]?.trim() && !(field !== 'note' && suggested[field]))
+  const shows = (field: (typeof FOLDABLE)[number]) => !folded.includes(field)
+  const fact = (field: 'company' | 'email' | 'address', label: string, placeholder: string) => {
+    const suggestion = suggested[field]
+    return (
+      <>
+        <EditableFact
+          field={field}
+          label={label}
+          value={contact[field] ?? suggestion ?? null}
+          placeholder={placeholder}
+          onSave={save(field)}
+        />
+        {suggestion && !contact[field]?.trim() && <FromThisCall onKeep={() => save(field)(suggestion)} />}
+      </>
+    )
+  }
+  const foldedNames = folded.map(field => t(FOLD_NAME[field]))
+  const foldLabel = foldedNames.length ? fmt().list(foldedNames, { type: 'unit' }) : ''
   return (
-    <dl className="facts side-facts">
-      <EditableFact
-        field="name"
-        label={t('call.contact.name')}
-        value={contact.name}
-        placeholder={t('call.contact.addName')}
-        onSave={save('name')}
-      />
-      {nameFromCaller(contact) && (
-        <dd className="fact-hint">
-          <ConfirmCallerName contact={contact} />
+    <>
+      <dl className="facts side-facts">
+        <EditableFact
+          field="name"
+          label={t('call.contact.name')}
+          value={contact.name}
+          placeholder={t('call.contact.addName')}
+          onSave={save('name')}
+        />
+        {nameFromCaller(contact) && (
+          <dd className="fact-hint">
+            <ConfirmCallerName contact={contact} />
+          </dd>
+        )}
+        {shows('company') && fact('company', t('call.contact.company'), t('call.contact.addCompany'))}
+        <dt>{t('call.contact.phone')}</dt>
+        <dd>
+          <button type="button" className="fact-copy" title={t('call.contact.copy')} onClick={() => copy(phone, toast)}>
+            {phone}
+          </button>
         </dd>
-      )}
-      <EditableFact
-        field="company"
-        label={t('call.contact.company')}
-        value={contact.company}
-        placeholder={t('call.contact.addCompany')}
-        onSave={save('company')}
-      />
-      <dt>{t('call.contact.phone')}</dt>
-      <dd>
-        <button type="button" className="fact-copy" title={t('call.contact.copy')} onClick={() => copy(phone, toast)}>
-          {phone}
+        {shows('email') && fact('email', t('call.contact.email'), t('call.contact.addEmail'))}
+        {shows('address') && fact('address', t('call.contact.address'), t('call.contact.addAddress'))}
+        {shows('note') && (
+          <EditableFact
+            field="note"
+            label={t('call.contact.note')}
+            value={contact.note}
+            placeholder={t('call.contact.addNote')}
+            onSave={save('note')}
+            multiline
+          />
+        )}
+      </dl>
+      {foldLabel && (
+        <button
+          type="button"
+          className="side-more"
+          title={t('call.contact.showFieldsTitle')}
+          onClick={() => {
+            const first = folded[0]
+            setUnfolded(true)
+            setTimeout(() => document.querySelector<HTMLElement>(`.side-facts [data-field=${first}]`)?.focus(), 0)
+          }}
+        >
+          <Icon name="plus" size={12} />
+          <span>{foldLabel.charAt(0).toLocaleUpperCase(intlLocale()) + foldLabel.slice(1)}</span>
         </button>
-      </dd>
-      <EditableFact
-        field="email"
-        label={t('call.contact.email')}
-        value={contact.email}
-        placeholder={t('call.contact.addEmail')}
-        onSave={save('email')}
-      />
-      <EditableFact
-        field="address"
-        label={t('call.contact.address')}
-        value={contact.address}
-        placeholder={t('call.contact.addAddress')}
-        onSave={save('address')}
-      />
-      <EditableFact
-        field="note"
-        label={t('call.contact.note')}
-        value={contact.note}
-        placeholder={t('call.contact.addNote')}
-        onSave={save('note')}
-        multiline
-      />
-    </dl>
+      )}
+    </>
   )
 }
 
@@ -198,7 +257,7 @@ export function ContactSide({ call, onOpen, toast, onToggleBlock }: Props) {
         )}
       </div>
       {contact ? (
-        <Facts contact={contact} toast={toast} />
+        <Facts key={contact.id} contact={contact} call={call} toast={toast} />
       ) : (
         <span className="help">{t('call.contact.notLinked')}</span>
       )}

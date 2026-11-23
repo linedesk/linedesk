@@ -37,7 +37,7 @@ const render = (settings: Record<string, unknown>) => {
   )
 }
 
-test('following the country: no hint line, the picked time zone and currency say "(country default)"', () => {
+test('following the country: no hint line, the time zone reads as its value, the currency says "(country default)"', () => {
   const html = render({
     timeZone: 'America/New_York',
     timeZoneFollowsCountry: true,
@@ -48,7 +48,7 @@ test('following the country: no hint line, the picked time zone and currency say
   expect(html).not.toContain('workspace country')
   expect(html).not.toContain('Changes when the country changes')
   expect(html).not.toContain('Set by hand')
-  expect(html).toContain('<span>New York · Eastern Time (country default)</span>')
+  expect(html).toContain('<span class="ws-value-text" id="ws-time-zone">New York · Eastern Time</span>')
   expect(html).toContain('<span>USD · $ (country default)</span>')
 })
 
@@ -63,7 +63,7 @@ test("set by hand: the reset line, and only the country's own option is marked",
     /Set by hand.*<button type="button" class="k-link">Use country default \(New York · Eastern Time\)/,
   )
   expect(html).toMatch(/Currency set by hand.*<button type="button" class="k-link">Use country default \(USD\)/)
-  expect(html).toContain('<span>Chicago · Central Time</span>')
+  expect(html).toContain('<span class="ws-value-text" id="ws-time-zone">Chicago · Central Time</span>')
   expect(html).toContain('<span>EUR · €</span>')
   expect(html).not.toContain('(country default)</span>')
 })
