@@ -59,7 +59,8 @@ export const billingConfirmCheckout = defineAction({
 })
 /** `data` of `billing.confirmCheckout`. */
 export type CheckoutConfirmData =
-  | { status: 'trialing' | 'active'; heldForReview: boolean }
+  /** `restarted`: a plan that had ended started again (`billing.startAgain`, Checkout kind `restart`). */
+  | { status: 'trialing' | 'active'; heldForReview: boolean; restarted?: boolean }
   | { status: 'trial_refused'; reason: 'card_used' | 'prepaid' | 'account_used' }
   | { status: 'topup'; credited: boolean; amountCents: number }
 

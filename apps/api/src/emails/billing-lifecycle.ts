@@ -7,7 +7,7 @@
 import { getT } from '@linedesk/i18n/server'
 import { brandName } from '../branding.ts'
 import { type Block, type RenderedEmail, renderEmail, siteHost } from './layout.ts'
-import { appLink, deletedWhen, type EmailLocale, WEB_ORIGIN } from './templates.ts'
+import { appLink, deletedWhen, type EmailLocale, emailDate, WEB_ORIGIN } from './templates.ts'
 
 /** Settings › Billing in the web app (built by the billing UI PR): where the owner pays, cancels and sees the bill. */
 export const BILLING_PATH = 'workspace/billing'
@@ -50,15 +50,17 @@ const KEYS = {
   port_out_requested: 'portOutRequested',
 } as const satisfies Record<LifecycleEmail['kind'], string>
 
+/** `timeZone`: the workspace's (`timeZoneOf`), which every date is written in, as the app shows it. */
 export function billingLifecycleEmail(
   email: LifecycleEmail,
   workspaceId: string,
   origin = WEB_ORIGIN,
   locale?: EmailLocale,
+  timeZone?: string | null,
 ): RenderedEmail {
   const { t, format, locale: lang } = getT(locale)
   const usd = (cents: number) => format.currency(cents / 100, 'USD')
-  const day = (at: string) => format.dateTime(new Date(at), { dateStyle: 'long', timeZone: 'UTC' })
+  const day = (at: string) => emailDate(at, timeZone, locale)
   const key = KEYS[email.kind]
   const brand = brandName()
   const values: Record<string, string> = { brand }
@@ -181,7 +183,7 @@ export function managerChangedEmail(
   origin = WEB_ORIGIN,
   locale?: EmailLocale,
 ): RenderedEmail {
-  const { t, format, locale: lang } = getT(locale)
+  const { t, locale: lang } = getT(locale)
   const who = view.name || view.email || t('email.fallback.workspaceAdmin')
   const by = view.name && view.email ? `${view.name} (${view.email})` : who
   const workspace = view.workspace || t('email.fallback.workspace')
@@ -194,7 +196,7 @@ export function managerChangedEmail(
       kind: 'text',
       text: view.endsAt
         ? t('email.billing.managerChanged.cancel', {
-            date: format.dateTime(new Date(view.endsAt), { dateStyle: 'long', timeZone: 'UTC' }),
+            date: emailDate(view.endsAt, view.timeZone, locale),
           })
         : t('email.billing.managerChanged.cancelNoDate'),
     })

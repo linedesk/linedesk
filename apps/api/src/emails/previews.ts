@@ -10,7 +10,7 @@ import {
   spendingCapEmail,
 } from './alerts.ts'
 import { billingOwnerEmail } from './billing.ts'
-import { managerChangedEmail } from './billing-lifecycle.ts'
+import { billingLifecycleEmail, managerChangedEmail } from './billing-lifecycle.ts'
 import { partnerDomainAddedAlert, partnerDomainEmail } from './partner.ts'
 import { shopifySetupReadyEmail, shopifySetupRequestedAlert } from './shopify-setup.ts'
 import type { RenderedEmail } from './layout.ts'
@@ -56,6 +56,7 @@ const trial = {
   trialEnd: '2026-12-01T17:00:00.000Z',
   workspaceId: 'ws_demo',
   bufferMicros: 0,
+  timeZone: 'America/Los_Angeles',
 }
 
 /** The trial prompt's facts: $25 with a Visa ending in 4242, topped up below $5, free until Dec 1, $0.05 a minute. */
@@ -68,6 +69,7 @@ const trialMinutes = {
   standardMicrosPerMinute: 50_000,
   workspaceId: 'ws_demo',
   bufferMicros: 0,
+  timeZone: trial.timeZone,
 }
 
 const WORKSPACE_ID = 'ws_demo'
@@ -287,6 +289,7 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
           capUsd: 50,
           spentUsd: 40.2,
           resetsAt: '2026-12-01T00:00:00.000Z',
+          timeZone: trial.timeZone,
           reader: { kind: 'owner', support: null, billing: false },
         },
         origin,
@@ -302,6 +305,7 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
           capUsd: 50,
           spentUsd: 40.2,
           resetsAt: '2026-12-01T00:00:00.000Z',
+          timeZone: trial.timeZone,
           reader: { kind: 'admin', workspaceId: 'ws_brightwater', support: null },
         },
         origin,
@@ -317,6 +321,7 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
           capUsd: 50,
           spentUsd: 50.35,
           resetsAt: '2026-12-01T00:00:00.000Z',
+          timeZone: trial.timeZone,
           reader: { kind: 'owner', support: 'support@linedesk.example', billing: true },
         },
         origin,
@@ -332,6 +337,7 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
           capUsd: 50,
           spentUsd: 50.35,
           resetsAt: '2026-12-01T00:00:00.000Z',
+          timeZone: trial.timeZone,
           reader: { kind: 'owner', support: null, billing: false },
         },
         origin,
@@ -347,6 +353,7 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
           capUsd: 50,
           spentUsd: 50.35,
           resetsAt: '2026-12-01T00:00:00.000Z',
+          timeZone: trial.timeZone,
           reader: { kind: 'admin', workspaceId: 'ws_brightwater', support: null },
         },
         origin,
@@ -586,6 +593,7 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
           assistant: 'Maya',
           trialDays: 14,
           deleteOn: '2026-12-01T09:00:00Z',
+          timeZone: trial.timeZone,
         },
         origin,
         locale,
@@ -610,6 +618,22 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
         },
         origin,
         locale,
+      ),
+    },
+    // The plan ended at its period end, 03:00 UTC: the evening before in the workspace's zone, as the app says it.
+    {
+      name: 'plan-ended',
+      email: billingLifecycleEmail(
+        {
+          kind: 'canceled',
+          endedAt: '2026-11-24T03:00:00.000Z',
+          releaseAt: '2026-12-24T03:00:00.000Z',
+          dataUntil: '2027-02-22T03:00:00.000Z',
+        },
+        trial.workspaceId,
+        origin,
+        locale,
+        trial.timeZone,
       ),
     },
     // A workspace admin who manages the bill changed it: its owner hears of it (bill-manager.ts).

@@ -35,10 +35,10 @@ const brand: EmailBrand = {
 
 /**
  * Emails that are not a workspace's: they go to this install's admins (admin alerts, the install test) or to the
- * owner of a bill with this install (the trial's emails: a white-label client is on its partner's bill and never gets
- * them), so they keep the install's brand on purpose.
+ * owner of a bill with this install (the trial's emails and the plan's end: a white-label client is on its partner's
+ * bill and never gets them), so they keep the install's brand on purpose.
  */
-const INSTALL_ONLY = /^(admin-alert|install-test|trial-)/
+const INSTALL_ONLY = /^(admin-alert|install-test|trial-|plan-ended)/
 
 describe('partner brand in emails', () => {
   const previews = withEmailBrand(brand, () => previewEmails(ORIGIN))

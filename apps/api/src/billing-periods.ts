@@ -37,6 +37,7 @@ import { fromDrizzle, type PgBoss } from 'pg-boss'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { billingRules } from './billing-rules.ts'
 import { billingProvider, billingState } from './billing-settings.ts'
+import { DEFAULT_TIME_ZONE, timeZoneOf } from './bookings.ts'
 import { afterDebit } from './call-billing.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
@@ -711,12 +712,13 @@ export async function sendLifecycleEmail(sender: EmailSender, job: LifecycleEmai
   if (!to.size) return { sent: 'nobody' as const }
   const { email } = job
   const view = email.kind === 'manager_changed' ? await managerChangedView(email, workspace.id) : null
+  const timeZone = await timeZoneOf(db, workspace.id)
   for (const address of to) {
     const locale = await localeForEmail(db, address)
     const rendered =
       email.kind === 'manager_changed'
         ? managerChangedEmail(view!, workspace.id, undefined, locale)
-        : billingLifecycleEmail(email, workspace.id, undefined, locale)
+        : billingLifecycleEmail(email, workspace.id, undefined, locale, timeZone)
     await sender.send({ to: address, ...rendered })
   }
   return { sent: to.size > 1 ? ('owners' as const) : ('owner' as const) }
@@ -739,7 +741,7 @@ async function managerChangedView(email: ManagerChangedEmail, workspaceId: strin
     name: emailSafeName(actor?.name, '') || null,
     email: actor?.email ?? null,
     workspace: emailSafeName(workspace?.name, '') || null,
-    timeZone: workspace?.timezone ?? null,
+    timeZone: workspace?.timezone ?? DEFAULT_TIME_ZONE,
   }
 }
 

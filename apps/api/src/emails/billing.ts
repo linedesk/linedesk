@@ -6,7 +6,7 @@ import { brandName } from '../branding.ts'
 import { trialStartUrl } from '../trial-link.ts'
 import { BILLING_PATH } from './billing-lifecycle.ts'
 import { type Block, linkedText, type RenderedEmail, renderEmail, siteHost } from './layout.ts'
-import { appLink, type EmailLocale, emailSafeName, WEB_ORIGIN } from './templates.ts'
+import { appLink, type EmailLocale, emailDate, emailSafeName, WEB_ORIGIN } from './templates.ts'
 
 export type BillingOwnerEmail =
   /** `invoiceUrl`: the invoice's own page, where the owner confirms the payment (3DS); null when it was voided. */
@@ -66,6 +66,8 @@ export type BillingOwnerEmail =
   ) & {
     /** How far below zero calls go on (the install's rules). */
     bufferMicros: number
+    /** The zone every date is written in: the workspace's (`timeZoneOf`), as the app shows it; absent: UTC, named. */
+    timeZone?: string | null
   }
 
 /**
@@ -177,7 +179,7 @@ function trialEmail(
   const usd = (cents: number) => format.currency(cents / 100, 'USD')
   const values = {
     brand: brandName(),
-    date: format.dateTime(new Date(email.trialEnd), { dateStyle: 'long', timeZone: 'UTC' }),
+    date: emailDate(email.trialEnd, email.timeZone, locale),
   }
   const started = email.kind === 'trial_started'
   const reminders =
@@ -249,14 +251,14 @@ function activationNudgeEmail(
   origin: string,
   locale?: EmailLocale,
 ): RenderedEmail {
-  const { t, format, locale: lang } = getT(locale)
+  const { t, locale: lang } = getT(locale)
   const trial = email.trialDays !== null
   const values = {
     brand: brandName(),
     workspace: emailSafeName(email.workspace, t('email.fallback.yourBusiness')),
     assistant: emailSafeName(email.assistant, t('email.fallback.assistant')),
     days: email.trialDays ?? 0,
-    date: format.dateTime(new Date(email.deleteOn), { dateStyle: 'long', timeZone: 'UTC' }),
+    date: emailDate(email.deleteOn, email.timeZone, locale),
   }
   const subject = trial
     ? t('email.billing.activationNudge.subject', values)
@@ -314,7 +316,7 @@ function trialMinutesEmail(
     amount: usd(email.amountCents),
     card,
     threshold: usd(email.thresholdCents),
-    date: email.freeUntil ? format.dateTime(new Date(email.freeUntil), { dateStyle: 'long', timeZone: 'UTC' }) : '',
+    date: email.freeUntil ? emailDate(email.freeUntil, email.timeZone, locale) : '',
     rate: format.rate(email.standardMicrosPerMinute / 1_000_000, 'USD'),
   }
   const usedUp = email.kind === 'trial_minutes_used'
@@ -374,7 +376,7 @@ function busyLineEmail(
       email.stepCents % 100 === 0 ? { minimumFractionDigits: 0 } : {},
     ),
     // The workspace's own day, written as a date (noon UTC never crosses a day boundary).
-    date: format.dateTime(new Date(`${email.day}T12:00:00Z`), { dateStyle: 'long', timeZone: 'UTC' }),
+    date: emailDate(`${email.day}T12:00:00Z`, 'UTC', locale),
   }
   const subject = t('email.billing.busyLine.subject', values)
   const lead = t('email.billing.busyLine.text', values)

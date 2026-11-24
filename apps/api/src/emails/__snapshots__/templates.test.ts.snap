@@ -426,7 +426,7 @@ Brightwater Plumbing & Heating used 80% of its monthly spending cap
 
 Brightwater Plumbing & Heating used about $40.20 of its monthly spending cap of $50.00 (80%, estimated).
 
-Once it reaches the cap, your assistant stops answering calls until December 1: callers hear that you’ll call them back.
+Once it reaches the cap, your assistant stops answering calls until November 30: callers hear that you’ll call them back.
 
 To raise the cap, ask your server admin.
 
@@ -467,9 +467,9 @@ Linedesk · desk.example.com
 
 Brightwater Plumbing & Heating reached its monthly spending cap
 
-Until December 1, your assistant no longer answers calls. Callers hear that you’ll call them back, and each call shows up in your inbox as a missed call with “Call back”.
+Until November 30, your assistant no longer answers calls. Callers hear that you’ll call them back, and each call shows up in your inbox as a missed call with “Call back”.
 
-Your workspace has a spending cap of $50.00 a month (estimated cost this month: about $50.35). Buying minutes doesn’t lift it: write to support@linedesk.example if calls should be answered before December 1.
+Your workspace has a spending cap of $50.00 a month (estimated cost this month: about $50.35). Buying minutes doesn’t lift it: write to support@linedesk.example if calls should be answered before November 30.
 
 --
 
@@ -485,9 +485,9 @@ Linedesk · desk.example.com
 
 Brightwater Plumbing & Heating reached its monthly spending cap
 
-Until December 1, your assistant no longer answers calls. Callers hear that you’ll call them back, and each call shows up in your inbox as a missed call with “Call back”.
+Until November 30, your assistant no longer answers calls. Callers hear that you’ll call them back, and each call shows up in your inbox as a missed call with “Call back”.
 
-Your server admin set this cap at $50.00 a month (estimated cost this month: about $50.35). Ask them to raise it if calls should be answered before December 1.
+Your server admin set this cap at $50.00 a month (estimated cost this month: about $50.35). Ask them to raise it if calls should be answered before November 30.
 
 --
 
@@ -1233,6 +1233,29 @@ Linedesk · desk.example.com
 ",
   ],
   [
+    "plan-ended",
+    "Your Linedesk plan was canceled",
+    "PLAN CANCELED · Billing
+
+Your Linedesk plan was canceled
+
+Your plan ended on November 23, 2026. Calls are no longer answered.
+
+Your phone numbers are kept until December 23, 2026. To keep a number, port it to another carrier before then: Settings › Billing shows the port-out details. After that date the numbers are released.
+
+Your inbox stays readable and can be exported until February 21, 2027.
+
+Open Settings › Billing:
+https://desk.example.com/#workspace/billing?ws=ws_demo
+
+--
+
+You got this email because you pay for a bill on desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
     "bill-changed-by-admin-cancel",
     "Dana Lee canceled the plan for Brightwater Plumbing & Heating",
     "Billing
@@ -1795,7 +1818,7 @@ Brightwater Plumbing & Heating usó el 80 % de su límite de gasto mensual
 
 Brightwater Plumbing & Heating usó unos 40,20 US$ de su límite de gasto mensual de 50,00 US$ (80 %, estimado).
 
-Once it reaches the cap, your assistant stops answering calls until 1 de diciembre: callers hear that you’ll call them back.
+Once it reaches the cap, your assistant stops answering calls until 30 de noviembre: callers hear that you’ll call them back.
 
 To raise the cap, ask your server admin.
 
@@ -1836,9 +1859,9 @@ Linedesk · desk.example.com
 
 Brightwater Plumbing & Heating alcanzó su límite de gasto mensual
 
-Until 1 de diciembre, your assistant no longer answers calls. Callers hear that you’ll call them back, and each call shows up in your inbox as a missed call with “Call back”.
+Until 30 de noviembre, your assistant no longer answers calls. Callers hear that you’ll call them back, and each call shows up in your inbox as a missed call with “Call back”.
 
-Your workspace has a spending cap of 50,00 US$ a month (estimated cost this month: about 50,35 US$). Buying minutes doesn’t lift it: write to support@linedesk.example if calls should be answered before 1 de diciembre.
+Your workspace has a spending cap of 50,00 US$ a month (estimated cost this month: about 50,35 US$). Buying minutes doesn’t lift it: write to support@linedesk.example if calls should be answered before 30 de noviembre.
 
 --
 
@@ -1854,9 +1877,9 @@ Linedesk · desk.example.com
 
 Brightwater Plumbing & Heating alcanzó su límite de gasto mensual
 
-Until 1 de diciembre, your assistant no longer answers calls. Callers hear that you’ll call them back, and each call shows up in your inbox as a missed call with “Call back”.
+Until 30 de noviembre, your assistant no longer answers calls. Callers hear that you’ll call them back, and each call shows up in your inbox as a missed call with “Call back”.
 
-Your server admin set this cap at 50,00 US$ a month (estimated cost this month: about 50,35 US$). Ask them to raise it if calls should be answered before 1 de diciembre.
+Your server admin set this cap at 50,00 US$ a month (estimated cost this month: about 50,35 US$). Ask them to raise it if calls should be answered before 30 de noviembre.
 
 --
 
@@ -2593,6 +2616,29 @@ Agregar 5 líneas más por 5 US$ al mes:
 https://desk.example.com/#workspace/billing?addCalls=1&ws=ws_demo
 
 Enviamos este aviso como máximo una vez al día por espacio de trabajo.
+
+--
+
+Recibes este correo porque pagas una factura en desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "plan-ended",
+    "Se canceló tu plan de Linedesk",
+    "PLAN CANCELADO · Facturación
+
+Se canceló tu plan de Linedesk
+
+Your plan ended on 23 de noviembre de 2026. Calls are no longer answered.
+
+Tus números de teléfono se conservan hasta el 23 de diciembre de 2026. Para quedarte con un número, pórtalo a otro operador antes de esa fecha: en Configuración › Facturación están los datos para la portabilidad. Después de esa fecha, los números se liberan.
+
+Tu bandeja de entrada se puede leer y exportar hasta el 21 de febrero de 2027.
+
+Abrir Configuración › Facturación:
+https://desk.example.com/#workspace/billing?ws=ws_demo
 
 --
 

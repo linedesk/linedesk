@@ -61,6 +61,7 @@ import {
 import { BILLING_LIFECYCLE_EMAIL } from '../src/billing-periods.ts'
 import { chargeRecharge, sendBillingAlert } from '../src/billing-recharge.ts'
 import { setBillingFetch } from '../src/billing-settings.ts'
+import { timeZoneOf } from '../src/bookings.ts'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
@@ -1160,7 +1161,8 @@ describe('billing.startAgain: a plan that ended starts again through Checkout (L
       payload: { data: { object: { id: fresh.latest_invoice, object: 'invoice', customer } } },
     })
     const confirmed = await act(owner, 'billing.confirmCheckout', { sessionId })
-    expect(confirmed.body.data).toEqual({ status: 'active', heldForReview: false })
+    // A plan started again, not a first one: the return page says so (LIN-783).
+    expect(confirmed.body.data).toEqual({ status: 'active', heldForReview: false, restarted: true })
     const row = await billRow(bill.id)
     expect(row).toMatchObject({
       status: 'active',
@@ -1188,7 +1190,11 @@ describe('billing.startAgain: a plan that ended starts again through Checkout (L
       .orderBy(terms_acceptances.accepted_at)
     expect(consent).toBeDefined()
     // Confirmed again (the webhook after the return page): nothing runs twice; it is running now, so no second start.
-    expect((await act(owner, 'billing.confirmCheckout', { sessionId })).body.data).toMatchObject({ status: 'active' })
+    expect((await act(owner, 'billing.confirmCheckout', { sessionId })).body.data).toEqual({
+      status: 'active',
+      heldForReview: false,
+      restarted: true,
+    })
     expect((await act(owner, 'billing.startAgain', {})).status).toBe(409)
   })
 
@@ -1205,6 +1211,8 @@ describe('billing.startAgain: a plan that ended starts again through Checkout (L
       await processEvent('checkout.session.completed', { id: sessionId, object: 'checkout.session', customer }),
     ).toMatchObject({ detail: 'active' })
     expect((await billRow(bill.id)).status).toBe('active')
+    // The return page after the webhook: still a plan started again (LIN-783).
+    expect((await act(owner, 'billing.confirmCheckout', { sessionId })).body.data).toMatchObject({ restarted: true })
   })
 
   test('only who manages the bill, only a plan that ended, never a partner bill', async () => {
@@ -2451,10 +2459,10 @@ describe('"one step left": the day-3 email to a sign-up that has not started its
     expect(mail.text).toContain('Start your 14-day free trial')
     expect(mail.text).toContain('Nothing is charged when you start')
     expect(mail.text).toContain('Start my free trial')
-    // 14 days after sign-up (the sweep): 3 days ago plus 14.
+    // 14 days after sign-up (the sweep): 3 days ago plus 14, the day in the workspace's zone (LIN-783).
     const deleteOn = new Date(Date.now() + 10.95 * DAY_S * 1000).toLocaleDateString('en-US', {
       dateStyle: 'long',
-      timeZone: 'UTC',
+      timeZone: await timeZoneOf(db, ws.id),
     })
     expect(mail.text).toContain(`If you don't start by ${deleteOn}`)
     // The trial link (trial-link.ts): the app opens the Start your free trial dialog at once.

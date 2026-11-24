@@ -1,5 +1,6 @@
 // Where Stripe Checkout returns to (/billing/return?session_id=…): the app confirms the
-// session (`billing.confirmCheckout`) and says what came of it. The trial started: on to the phone number. No trial for
+// session (`billing.confirmCheckout`) and says what came of it. The trial started: on to the phone number. A plan that
+// had ended started again (`restarted`): it says so and opens the inbox. No trial for
 // this card (it had one, or it is prepaid): its subscription was canceled and nothing was charged; a partner can start
 // the plan now, a business goes back to the onboarding's last step, which shows the plan without a trial. Every answer
 // to a setup's Checkout shows in that setup's own shell: the owner's by-hand steps ("Step 5 of 7"), the owner's agent
@@ -106,37 +107,26 @@ export function CheckoutReturn({
       </SignedInAuthPage>
     )
 
-  const done = (title: string, text: string, extra?: string) => (
-    <SignedInAuthPage>
-      <div className="auth-card">
-        <h1>{title}</h1>
-        <p>{text}</p>
-        {extra && <p>{extra}</p>}
-        <button
-          type="button"
-          className={cx('k-btn k-btn-primary', busy && 'is-busy')}
-          disabled={busy}
-          aria-busy={busy || undefined}
-          onClick={() => void leave()}
-        >
-          {busy && <Spinner />}
-          {t('auth.checkout.continue')}
-        </button>
-      </div>
-    </SignedInAuthPage>
-  )
-
-  if (outcome.status === 'trialing') return done(t('auth.checkout.trialTitle'), t('auth.checkout.trialText'))
-  if (outcome.status === 'active')
-    return done(
-      t('auth.checkout.planTitle'),
-      t('auth.checkout.planText'),
-      outcome.heldForReview ? t('auth.checkout.heldForReview') : undefined,
-    )
-  if (outcome.status === 'topup')
-    return done(
-      t('auth.checkout.topupTitle'),
-      t('auth.checkout.topupText', { amount: format.currency(outcome.amountCents / 100, 'USD') }),
+  const copy = confirmedCopy(outcome, t, format)
+  if (copy)
+    return (
+      <SignedInAuthPage>
+        <div className="auth-card">
+          <h1>{copy.title}</h1>
+          <p>{copy.text}</p>
+          {copy.extra && <p>{copy.extra}</p>}
+          <button
+            type="button"
+            className={cx('k-btn k-btn-primary', busy && 'is-busy')}
+            disabled={busy}
+            aria-busy={busy || undefined}
+            onClick={() => void leave()}
+          >
+            {busy && <Spinner />}
+            {copy.button}
+          </button>
+        </div>
+      </SignedInAuthPage>
     )
   if (outcome.status === 'trial_refused')
     return (
@@ -174,6 +164,44 @@ export function CheckoutReturn({
 }
 
 type Refusal = Extract<ConfirmOutcome, { status: 'trial_refused' }>['reason']
+
+/** What the return page says outside a setup when the Checkout went through: its heading, text, a note, the button. */
+export type ConfirmedCopy = { title: string; text: string; extra?: string; button: string }
+
+/**
+ * The words for a Checkout that went through, outside a setup; null for any other answer. A plan that had ended and
+ * was started again from Settings › Billing (`restarted`) is not a new sign-up: no "Next: your phone number", the
+ * inbox is next. The trial, a first plan and minutes bought keep their words.
+ */
+export function confirmedCopy(
+  outcome: ConfirmOutcome,
+  t: ReturnType<typeof useT>,
+  format: ReturnType<typeof useFormat>,
+): ConfirmedCopy | null {
+  const button = t('auth.checkout.continue')
+  if (outcome.status === 'active' && outcome.restarted)
+    return {
+      title: t('auth.checkout.restartTitle'),
+      text: t('auth.checkout.restartText'),
+      button: t('auth.checkout.openInbox'),
+    }
+  if (outcome.status === 'trialing')
+    return { title: t('auth.checkout.trialTitle'), text: t('auth.checkout.trialText'), button }
+  if (outcome.status === 'active')
+    return {
+      title: t('auth.checkout.planTitle'),
+      text: t('auth.checkout.planText'),
+      ...(outcome.heldForReview ? { extra: t('auth.checkout.heldForReview') } : {}),
+      button,
+    }
+  if (outcome.status === 'topup')
+    return {
+      title: t('auth.checkout.topupTitle'),
+      text: t('auth.checkout.topupText', { amount: format.currency(outcome.amountCents / 100, 'USD') }),
+      button,
+    }
+  return null
+}
 
 /** Why the card got no free trial. */
 const refusedText = (reason: Refusal, t: ReturnType<typeof useT>) =>

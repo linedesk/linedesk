@@ -725,8 +725,11 @@ async function storeCustomer(tx: Tx, started: Started, now: string) {
 
 /** What `billing.confirmCheckout` answers. */
 export type ConfirmData =
-  /** The bill is in its trial or paid: the app opens onboarding. */
-  | { status: 'trialing' | 'active'; heldForReview: boolean }
+  /**
+   * The bill is in its trial or paid: the app opens onboarding. `restarted`: a plan that had ended started again
+   * (a `restart` session): the app says so and goes back to the inbox.
+   */
+  | { status: 'trialing' | 'active'; heldForReview: boolean; restarted?: boolean }
   /**
    * No trial (`card_used`: the card had one; `prepaid`; `account_used`: the account had one): its subscription was
    * canceled, start the plan now.
@@ -884,7 +887,14 @@ export async function confirmSession(
     if (own && own.id !== bill.stripe_subscription_id) await dropExtraCheckout(provider, bill, session, own)
     // Confirmed before (a reload of the return page, the webhook first): answered as it is, nothing runs again.
     return bill.status === 'trialing' || bill.status === 'active'
-      ? { status: bill.status, heldForReview: !!bill.held_for_review_at }
+      ? {
+          status: bill.status,
+          heldForReview: !!bill.held_for_review_at,
+          // The restart confirmed before (the webhook first, a reload): still a plan started again.
+          ...(session.kind === 'restart' && bill.stripe_subscription_id === session.subscription?.id
+            ? { restarted: true }
+            : {}),
+        }
       : (() => {
           throw Reject.t('server.api.checkout.notWaiting')
         })()
@@ -1067,7 +1077,7 @@ async function restartPlan(
   const monthEnd = addMonth(start)
   await openFirstPeriod(tx, bill, start, Date.parse(end) < Date.parse(monthEnd) ? end : monthEnd, 'month')
   await settleFirstInvoiceAgain(tx, bill, sub)
-  return { status: 'active', heldForReview: held || !!bill.held_for_review_at }
+  return { status: 'active', heldForReview: held || !!bill.held_for_review_at, restarted: true }
 }
 
 /**

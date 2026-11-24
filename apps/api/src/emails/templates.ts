@@ -341,25 +341,55 @@ export function memberAddedByAdminEmail(
   })
 }
 
+/** A day as emails write it: "November 23, 2026". */
+export const EMAIL_DAY = {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+} as const satisfies Intl.DateTimeFormatOptions
+
+/** A zone Intl knows, else null. */
+function knownZone(timeZone: string | null | undefined): string | null {
+  if (!timeZone) return null
+  try {
+    getT(null).format.dateTime(0, { timeZone })
+    return timeZone
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Every date and time an email writes goes through here: in the reader's language and in `timeZone`, the workspace's
+ * (`timeZoneOf`: the install's default when it has none), the zone the app's pages mean, so "Plan ended November 23"
+ * is the same day in the email and on Settings › Billing. An email about no workspace (account, security) passes the
+ * reader's zone when it is known. Without a zone (or one Intl does not know) it writes UTC and names it
+ * ("November 24, 2026 UTC", email.adminAlert.utc), so nobody reads it as their own day. Never `toISOString()` or a
+ * written zone in a template.
+ */
+export function emailDate(
+  at: Date | string,
+  timeZone: string | null | undefined,
+  locale?: EmailLocale,
+  options: Intl.DateTimeFormatOptions = EMAIL_DAY,
+): string {
+  const { t, format } = getT(locale)
+  const zone = knownZone(timeZone)
+  if (zone) return format.dateTime(new Date(at), { ...options, timeZone: zone })
+  return t('email.adminAlert.utc', { time: format.dateTime(new Date(at), { ...options, timeZone: 'UTC' }) })
+}
+
 /**
  * "November 14, 2026 at 9:05 AM PST" in the reader's language and the workspace's zone (UTC when unknown). Date and
  * time are formatted apart and joined by the catalog (email.dateAtTime): how ICU joins them in one format changes
  * between Node releases (Spanish "2026, 9:05" or "2026 a las 9:05"), the email must not.
  */
 export function deletedWhen(at: string, timeZone: string | null | undefined, locale?: EmailLocale): string {
-  const { t, format } = getT(locale)
-  const write = (zone: string) => {
-    const date = new Date(at)
-    return t('email.dateAtTime', {
-      date: format.dateTime(date, { month: 'long', day: 'numeric', year: 'numeric', timeZone: zone }),
-      time: format.dateTime(date, { hour: 'numeric', minute: '2-digit', timeZoneName: 'short', timeZone: zone }),
-    })
-  }
-  try {
-    return write(timeZone || 'UTC')
-  } catch {
-    return write('UTC')
-  }
+  const zone = knownZone(timeZone) ?? 'UTC'
+  return getT(locale).t('email.dateAtTime', {
+    date: emailDate(at, zone, locale),
+    time: emailDate(at, zone, locale, { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }),
+  })
 }
 
 /**
@@ -724,8 +754,7 @@ export function passkeyEnrolmentIssuedEmail(
 
 /** A booked slot for an email read anywhere, with the zone's short name: "Tuesday, November 17 at 9:00 AM PST". */
 export const slotInZone = (at: Date | string, timeZone: string, locale?: EmailLocale) =>
-  getT(locale).format.dateTime(new Date(at), {
-    timeZone,
+  emailDate(at, timeZone, locale, {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
@@ -806,18 +835,15 @@ const callerFacts = (callerName: string | null, number: string, locale: EmailLoc
 }
 
 function callContent(call: CallEmail, origin: string, locale: EmailLocale): EmailContent {
-  const { t, format, locale: lang } = getT(locale)
+  const { t, locale: lang } = getT(locale)
   const number = formatNumber(call.fromNumber)
   const callerName = call.callerName ? defuseLinks(call.callerName) : null
   const topic = call.title ? defuseLinks(call.title) : t('email.call.newCall')
-  const at = format
-    .dateTime(new Date(call.startedAt), {
-      timeZone: call.timeZone,
-      weekday: 'short',
-      hour: 'numeric',
-      minute: '2-digit',
-    })
-    .replace(/\s/g, ' ') // plain spaces: some mail apps show the narrow one as a box
+  const at = emailDate(call.startedAt, call.timeZone, locale, {
+    weekday: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).replace(/\s/g, ' ') // plain spaces: some mail apps show the narrow one as a box
   const eyebrow = [
     t('email.call.answeredBy', { assistant: call.assistantName }),
     at,

@@ -17,6 +17,7 @@ import {
   organization,
   phone_numbers,
   usage_counters,
+  workspace_settings,
 } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
@@ -34,6 +35,7 @@ import {
   sendLifecycleEmail,
 } from '../src/billing-periods.ts'
 import { billingNumberRefusal } from '../src/billing-checkout.ts'
+import { endedDates } from '../src/billing-lifecycle.ts'
 import { BILLING_RULES_KEY } from '../src/billing-rules.ts'
 import { db } from '../src/db.ts'
 import type { EmailSender } from '../src/email.ts'
@@ -748,7 +750,7 @@ describe('the yearly renewal reminder', () => {
       bill: b.billId,
       email: {
         kind: 'renewal_reminder',
-        renewsAt: '2027-03-01T00:00:00.000Z',
+        renewsAt: '2027-03-01T17:00:00.000Z',
         lines: [
           { item: 'seats', quantity: 2, unitCents: 10_800 },
           { item: 'partner', quantity: 1, unitCents: 16_800 },
@@ -762,5 +764,26 @@ describe('the yearly renewal reminder', () => {
     expect(sent[0]!.text).toContain('2 × $108.00 a year = $216.00')
     expect(sent[0]!.text).toContain('Auto-recharge is off')
     expect(sent[0]!.text).toContain('workspace/billing')
+  })
+
+  test("every date is the day in the workspace's zone, as Settings › Billing shows it (LIN-783)", async () => {
+    // A plan in Los Angeles that ended at its period end, 03:00 UTC: still the evening of November 23 there.
+    const b = await billed()
+    await db
+      .insert(workspace_settings)
+      .values({ workspace_id: b.ws.id, timezone: 'America/Los_Angeles' })
+      .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { timezone: 'America/Los_Angeles' } })
+    const endedAt = '2026-11-24T03:00:00.000Z'
+    const sent: { to: string; subject: string; text: string }[] = []
+    const sender = { kind: 'smtp', send: async (e: never) => void sent.push(e) } as unknown as EmailSender
+    const { numbersReleaseAt, dataUntil } = endedDates(endedAt)
+    await sendLifecycleEmail(sender, {
+      bill: b.billId,
+      email: { kind: 'canceled', endedAt, releaseAt: numbersReleaseAt, dataUntil },
+    })
+    expect(sent).toHaveLength(1)
+    expect(sent[0]!.text).toContain('Your plan ended on November 23, 2026.')
+    expect(sent[0]!.text).toContain('kept until December 23, 2026')
+    expect(sent[0]!.text).not.toContain('November 24')
   })
 })

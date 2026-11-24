@@ -9,7 +9,7 @@ import { emailBrandName, emailOrigin } from '../email-brand.ts'
 import type { LedgerDifference } from '../ledger.ts'
 import type { SignupRuleChange } from '../self-serve.ts'
 import { type Block, type RenderedEmail, renderEmail, siteHost } from './layout.ts'
-import type { EmailLocale } from './templates.ts'
+import { type EmailLocale, emailDate } from './templates.ts'
 
 /** An alert's own content; the frame (eyebrow, button, footer) is added by adminAlertEmail. */
 export type AdminAlert = { subject: string; blocks: Block[] }
@@ -43,11 +43,9 @@ export function adminAlertEmail(alert: AdminAlert, origin = emailOrigin(), local
 }
 
 /** A time for an alert read anywhere: the date and time in UTC, in the reader's language. */
-const utcTime = (at: Date | string, locale: EmailLocale) => {
-  const { t, format } = getT(locale)
-  const time = format.dateTime(new Date(at), { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })
-  return t('email.adminAlert.utc', { time })
-}
+// An instance alert belongs to no workspace and its readers may be anywhere: no zone, so UTC, named.
+const utcTime = (at: Date | string, locale: EmailLocale) =>
+  emailDate(at, null, locale, { dateStyle: 'medium', timeStyle: 'short' })
 
 /** The methods a sign-in alert names in words; a provider (Google, GitHub) is named by its brand. */
 const SIGN_IN_METHODS = new Set(['passkey', 'authenticator', 'password', 'email_code', 'email_link'])
@@ -650,12 +648,14 @@ export type SpendingCapEmail = {
   spentUsd: number
   /** When the cap starts over: the next UTC month's first day. */
   resetsAt: string
+  /** The workspace's zone (`timeZoneOf`): the owner's version writes `resetsAt` in it (the admin's says UTC). */
+  timeZone?: string | null
   reader: SpendingCapReader
 }
 
 /** A workspace used 80 % of its monthly spending cap, or reached it, in the version for its reader. */
 export function spendingCapEmail(
-  { workspace, level, capUsd, spentUsd, resetsAt, reader }: SpendingCapEmail,
+  { workspace, level, capUsd, spentUsd, resetsAt, timeZone, reader }: SpendingCapEmail,
   origin = emailOrigin(),
   locale?: EmailLocale,
 ): RenderedEmail {
@@ -666,7 +666,8 @@ export function spendingCapEmail(
     cap: format.currency(capUsd, 'USD'),
     spent: format.currency(spentUsd, 'USD'),
     percent: format.number(level / 100, { style: 'percent' }),
-    date: format.dateTime(new Date(resetsAt), { month: 'long', day: 'numeric', timeZone: 'UTC' }),
+    // The owner reads the day in the workspace's zone; the server admin's text names UTC, the cap's own month.
+    date: emailDate(resetsAt, reader.kind === 'admin' ? 'UTC' : timeZone, locale, { month: 'long', day: 'numeric' }),
     email: reader.support ?? '',
   }
   const reached = level >= 100

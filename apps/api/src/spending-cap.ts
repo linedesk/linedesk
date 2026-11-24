@@ -11,6 +11,7 @@ import { costEstimate } from './admin-overview.ts'
 import { WEB_ORIGIN } from './auth.ts'
 import { readLegalLinks } from './auth-methods.ts'
 import { billingState } from './billing-settings.ts'
+import { timeZoneOf } from './bookings.ts'
 import type { Email, EmailSender } from './email.ts'
 import { localeForEmail } from './email-locale.ts'
 import { type SpendingCapReader, spendingCapEmail } from './emails/alerts.ts'
@@ -103,11 +104,12 @@ export function spendingAlertEmail(
   reader: SpendingCapReader,
   now: string,
   locale?: EmailLocale,
+  timeZone?: string | null,
 ): Email {
   return {
     to,
     ...spendingCapEmail(
-      { workspace, level, capUsd: cap.capUsd, spentUsd: cap.spentUsd, resetsAt: capResetsAt(now), reader },
+      { workspace, level, capUsd: cap.capUsd, spentUsd: cap.spentUsd, resetsAt: capResetsAt(now), timeZone, reader },
       WEB_ORIGIN,
       locale,
     ),
@@ -181,12 +183,13 @@ export async function sendSpendingAlert(
     ]),
   ]
   const name = emailSafeName(workspace.name, '') || null
+  const timeZone = await timeZoneOf(tx, workspaceId)
   let sent = 0
   let failed = 0
   for (const [to, reader] of readers) {
     try {
       const locale = await localeForEmail(tx, to)
-      await sender.send(spendingAlertEmail(name, level, cap, to, reader, now, locale))
+      await sender.send(spendingAlertEmail(name, level, cap, to, reader, now, locale, timeZone))
       sent++
     } catch (e) {
       failed++

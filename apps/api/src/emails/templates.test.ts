@@ -1,5 +1,8 @@
+import { createFormatters } from '@linedesk/i18n'
 import { afterEach, describe, expect, it } from 'vitest'
 import { setBrandingInMemory } from '../branding.ts'
+import { billingOwnerEmail } from './billing.ts'
+import { billingLifecycleEmail } from './billing-lifecycle.ts'
 import { defuseLinks, escapeHtml, renderEmail } from './layout.ts'
 import { previewEmails } from './previews.ts'
 import {
@@ -15,6 +18,7 @@ import {
   emailChangeConfirmCurrentEmail,
   emailChangedEmail,
   emailChangeRefusedEmail,
+  emailDate,
   firstCallEmail,
   invitationEmail,
   memberAddedByAdminEmail,
@@ -679,5 +683,53 @@ describe('trial emails', () => {
   })
   it('the day-3 nudge is about the setup, not billing', () => {
     expect(byName('trial-setup-nudge').html).toContain('Your setup')
+  })
+})
+
+describe('dates in emails (LIN-783)', () => {
+  // A plan ended at its period end, 03:00 UTC: in Los Angeles that is still the evening before.
+  const endedAt = '2026-11-24T03:00:00.000Z'
+  const LA = 'America/Los_Angeles'
+
+  it("are written in the workspace's zone, the day the app shows", () => {
+    // The app writes the day with the reader's locale in its zone (useFormat().date); the email must say the same day.
+    const app = createFormatters('en').date(new Date(endedAt), { dateStyle: 'long', timeZone: LA })
+    expect(app).toBe('November 23, 2026')
+    expect(emailDate(endedAt, LA, 'en')).toBe(app)
+    expect(emailDate(endedAt, 'Europe/Berlin', 'de')).toBe('24. November 2026')
+  })
+
+  it('without a zone (or an unknown one) are UTC, and say so', () => {
+    expect(emailDate(endedAt, null, 'en')).toBe('November 24, 2026 UTC')
+    expect(emailDate(endedAt, 'Mars/Olympus', 'en')).toBe('November 24, 2026 UTC')
+  })
+
+  it('the plan-ended email and the trial email use the workspace zone for every date', () => {
+    const ended = billingLifecycleEmail(
+      { kind: 'canceled', endedAt, releaseAt: '2026-12-24T03:00:00.000Z', dataUntil: '2027-02-22T03:00:00.000Z' },
+      'ws_1',
+      ORIGIN,
+      'en',
+      LA,
+    )
+    expect(ended.text).toContain('Your plan ended on November 23, 2026.')
+    expect(ended.text).toContain('kept until December 23, 2026')
+    expect(ended.text).toContain('exported until February 21, 2027')
+    const trial = billingOwnerEmail(
+      {
+        kind: 'trial_will_end',
+        daysBefore: 7,
+        planCents: 900,
+        interval: 'month',
+        trialEnd: '2026-12-08T03:00:00.000Z',
+        workspaceId: 'ws_1',
+        bufferMicros: 0,
+        timeZone: LA,
+      },
+      ORIGIN,
+      'en',
+    )
+    expect(trial.text).toContain('December 7, 2026')
+    expect(trial.text).not.toContain('December 8')
   })
 })

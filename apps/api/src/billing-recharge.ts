@@ -33,6 +33,7 @@ import { alertInstanceAdmins, plainSnippet } from './admin-alerts.ts'
 import { billingRules, invoiceTax, rechargeLine, reminderDaysFor, topUpLine } from './billing-rules.ts'
 import { brandName } from './branding.ts'
 import { billingProvider } from './billing-settings.ts'
+import { DEFAULT_TIME_ZONE, timeZoneOf } from './bookings.ts'
 import type { EmailSender } from './email.ts'
 import { localeForEmail } from './email-locale.ts'
 import {
@@ -508,12 +509,14 @@ export async function sendBillingAlert(
     const workspaces = await workspacesOf(db, job.bill)
     const price = planPrice(bill.bill.interval === 'year' ? 'ws_yearly' : 'ws_monthly', rules)!
     const charged = await subscriptionCents(db, bill.bill.stripe_subscription_id, options.provider)
+    const workspaceId = await oldestWorkspace(db, job.bill)
     const trial = {
       ...base,
       planCents: charged ?? price.cents * Math.max(1, workspaces),
       interval: bill.bill.interval,
       trialEnd: job.ref,
-      workspaceId: await oldestWorkspace(db, job.bill),
+      workspaceId,
+      timeZone: await emailZone(db, workspaceId),
     }
     content =
       job.kind === 'trial_will_end'
@@ -527,6 +530,10 @@ export async function sendBillingAlert(
   await sender.send({ to: bill.email, ...billingOwnerEmail(content, undefined, locale) })
   return { sent: 'owner' as const }
 }
+
+/** The zone an owner email writes its dates in: its workspace's, else the install's default (no workspace left). */
+const emailZone = (db: Db, workspaceId: string | null) =>
+  workspaceId ? timeZoneOf(db, workspaceId) : Promise.resolve(DEFAULT_TIME_ZONE)
 
 /**
  * The "one step left" email, read when it is sent: nothing for a sign-up that started its trial meanwhile (or was
@@ -568,6 +575,7 @@ async function sendActivationNudge(
       assistant: assistant?.name ?? null,
       trialDays: bill.trial_refused ? null : rules.trialDays,
       deleteOn: new Date(Date.parse(bill.created_at) + pendingDays * 86_400_000).toISOString(),
+      timeZone: await timeZoneOf(db, workspace.id),
     },
     undefined,
     locale,
@@ -596,6 +604,7 @@ async function sendTrialMinutes(
   const rules = await billingRules(db)
   const used = await trialSecondsUsed(db, bill.id, job.ref)
   const locale = await localeForEmail(db, email)
+  const workspaceId = await oldestWorkspace(db, bill.id)
   const content = billingOwnerEmail(
     {
       kind: job.kind,
@@ -608,7 +617,8 @@ async function sendTrialMinutes(
       paid: prompt === 'plan',
       freeUntil: prompt === 'trial' ? bill.trial_ends_at : null,
       standardMicrosPerMinute: rules.levels.standard.microsPerMinute,
-      workspaceId: await oldestWorkspace(db, bill.id),
+      workspaceId,
+      timeZone: await emailZone(db, workspaceId),
     },
     undefined,
     locale,
