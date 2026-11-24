@@ -9,9 +9,9 @@ overrides:
   '@livekit/throws-transformer>glob': ^14.0.6
 
 patchedDependencies:
-  '@livekit/agents@1.10.0':
+  '@livekit/agents':
     hash: 31cc1a85d72dbb6841a3481b2e666714073f1a9fcc2a02372920867e7c191034
-    path: patches/@livekit__agents@1.10.0.patch
+    path: patches/@livekit__agents.patch
 
 importers:
 

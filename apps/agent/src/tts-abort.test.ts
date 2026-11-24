@@ -1,4 +1,4 @@
-// patches/@livekit__agents@*.patch (LIN-516): a chunked TTS request that fails because its stream was closed on purpose
+// patches/@livekit__agents.patch (LIN-516): a chunked TTS request that fails because its stream was closed on purpose
 // (an interrupted reply, a dropped preemptive generation) is no error. Without the patch the SDK reported it as an
 // unrecoverable TTS error, and the session closed: OpenAI's SDK throws APIUserAbortError, not an "AbortError".
 import { initializeLogger, tts } from '@livekit/agents'

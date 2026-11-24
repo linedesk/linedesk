@@ -26,7 +26,7 @@ LiveKit Agents
     are ported from LiveKit's Python ready-made tasks (GetPhoneNumberTask,
     GetNameTask, GetEmailTask, GetAddressTask); their prompts and checks are
     close to LiveKit's.
-  - patches/@livekit__agents@*.patch changes the LiveKit Agents package itself.
+  - patches/@livekit__agents.patch changes the LiveKit Agents package itself.
   Linedesk changed these parts. The changes are under the MIT license.
 
 LiveKit model weights

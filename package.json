@@ -43,8 +43,9 @@
         "GHSA-gcqx-w48m-w2h4"
       ]
     },
+    "ignorePatchFailures": false,
     "patchedDependencies": {
-      "@livekit/agents@1.10.0": "patches/@livekit__agents@1.10.0.patch"
+      "@livekit/agents": "patches/@livekit__agents.patch"
     }
   }
 }
