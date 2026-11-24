@@ -53,6 +53,11 @@ export interface StoreOptions {
   onLocalDbLost?: () => void
   retryMs?: number
   /**
+   * How often the server may fail on the same command (a 500: its handler threw) before the store gives the command
+   * up like a rejected one, so the changes behind it go out. Default 8, about 3 minutes with the waits doubling.
+   */
+  serverErrorLimit?: number
+  /**
    * The version of how this app keeps synced rows (`SYNC_VERSION`). When it changes, every table loads
    * afresh: read-sync cursors are dropped, pending writes kept. A deploy alone keeps them.
    */
@@ -462,10 +467,14 @@ export async function createStore(opts: StoreOptions) {
 
   let flushing = false
   let retry: ReturnType<typeof setTimeout> | undefined
-  const retryLater = () => {
+  const retryLater = (ms = opts.retryMs ?? 2000) => {
     clearTimeout(retry)
-    retry = setTimeout(() => void flush(), opts.retryMs ?? 2000)
+    retry = setTimeout(() => void flush(), ms)
   }
+  // The command the server itself keeps failing on (a 500, not a server that cannot be reached), and how often.
+  let failing: { id: string; times: number } | undefined
+  const SERVER_ERROR_LIMIT = opts.serverErrorLimit ?? 8
+  const MAX_RETRY_MS = 60_000
 
   /**
    * Send pending commands in order (the leading tab only). Stops at the first transient failure to keep order.
@@ -496,16 +505,30 @@ export async function createStore(opts: StoreOptions) {
           return retryLater()
         }
         if (stopped) return // answered after stop(): the next leader replays the command (same idempotency key)
-        if (res.status >= 500) {
+        // The server answered and failed on this command (its handler threw). It may pass later (a deploy, a short
+        // fault), so it is tried again with doubling waits; a command that fails every time is given up like a
+        // rejected one, or it would hold back every later change of this browser for good.
+        const serverFailed = res.status >= 500 && ![502, 503, 504].includes(res.status)
+        if (serverFailed) {
+          failing = { id: c.id, times: failing?.id === c.id ? failing.times + 1 : 1 }
+          if (failing.times < SERVER_ERROR_LIMIT) {
+            setOnline(false)
+            return retryLater(Math.min(MAX_RETRY_MS, (opts.retryMs ?? 2000) * 2 ** (failing.times - 1)))
+          }
+        } else if (res.status >= 500) {
+          // No server behind the proxy (502, 503, 504): nothing was decided about this command.
           setOnline(false)
           return retryLater()
         }
+        failing = undefined
         setOnline(true)
         const state = workspaceStateOf(res.headers)
         if (state) setWorkspaceState(state)
-        const body = (await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }))) as
-          | ActionResult
-          | { ok: false; error: string }
+        const body = serverFailed
+          ? { ok: false as const, error: `HTTP ${res.status}` }
+          : ((await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }))) as
+              | ActionResult
+              | { ok: false; error: string })
         if (stopped) return
         // Not a rejection of this command: signed out, or the tab's workspace is refused. Retrying cannot help.
         const refusal = refusalOf(res.status, body)
