@@ -13,8 +13,14 @@ vi.mock('../ui/kit.tsx', async importOriginal => ({
 }))
 vi.mock('../enrolment-code.ts', () => ({ readEnrolmentCode: () => null }))
 
-const { ADMIN_PASSKEY_HOURS, enrolmentCommand, passkeyNotVerifiedForAdmin, SECOND_FACTOR_BUTTON, SecondFactorPrompt } =
-  await import('./SecondFactorPrompt.tsx')
+const {
+  ADMIN_PASSKEY_HOURS,
+  EndAgentAccess,
+  enrolmentCommand,
+  passkeyNotVerifiedForAdmin,
+  SECOND_FACTOR_BUTTON,
+  SecondFactorPrompt,
+} = await import('./SecondFactorPrompt.tsx')
 
 const noop = () => {}
 
@@ -30,8 +36,12 @@ describe('the passkey check before Server admin', () => {
   })
 
   test('ending agent access is offered without the passkey: taking access away is never harder than granting it', () => {
+    expect(renderToStaticMarkup(<EndAgentAccess />)).toContain('End agent access')
+  })
+
+  test('"End agent access" waits for the server: never shown before it says a setup link is active', () => {
     for (const state of ['confirm', 'enrol'] as const)
-      expect(renderToStaticMarkup(<SecondFactorPrompt state={state} onExit={noop} />)).toContain('End agent access')
+      expect(renderToStaticMarkup(<SecondFactorPrompt state={state} onExit={noop} />)).not.toContain('End agent access')
   })
 
   test('a passkey sign-in the device did not verify says why it does not open Server admin', () => {

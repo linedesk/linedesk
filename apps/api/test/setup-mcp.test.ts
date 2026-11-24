@@ -1296,6 +1296,9 @@ describe('every key through the agent (LIN-182)', () => {
     await signedIn(ws.owner, true)
     await signedIn(fresh, true)
     try {
+      const active = async (who: User) => (await request(who, 'GET', '/v1/agent-setup/active')).body
+      await act(ws.owner, 'agentSetup.revoke', {})
+      expect(await active(ws.owner)).toEqual({ active: false })
       const own = await makeKey(ws.owner)
       const theirs = await makeKey(fresh)
       // The passkey check of this session has run out (or this is the phone without the passkey).
@@ -1307,8 +1310,12 @@ describe('every key through the agent (LIN-182)', () => {
         status: 403,
         body: { code: 'SECOND_FACTOR_REQUIRED' },
       })
+      // The prompt offers "End agent access" only while a link of theirs is active (GET /v1/agent-setup/active).
+      expect(await active(ws.owner)).toEqual({ active: true })
       expect(await act(ws.owner, 'agentSetup.revoke', {})).toMatchObject({ status: 200, body: { data: { ended: 1 } } })
       expect((await mcp(own.key, 'tools/list')).body).toMatchObject({ code: 'SETUP_KEY_ENDED', reason: 'ended' })
+      expect(await active(ws.owner)).toEqual({ active: false })
+      expect(await active(fresh)).toEqual({ active: true })
       // Only their own links: another admin's keeps working, and ending it (resetting that admin's passkeys) needs the check.
       expect((await mcp(theirs.key, 'tools/list')).status).toBe(200)
       expect(await act(ws.owner, 'user.resetPasskeys', { userId: fresh.userId })).toMatchObject({
@@ -1319,6 +1326,7 @@ describe('every key through the agent (LIN-182)', () => {
       // A workspace owner who is no instance admin, an API key or the setup link itself never may.
       const owner = (await createWorkspace('Not an admin')).owner
       expect((await act(owner, 'agentSetup.revoke', {})).status).toBe(403)
+      expect((await request(owner, 'GET', '/v1/agent-setup/active')).status).toBe(403)
       const asLink = (await setupKeyAccess(theirs.key, null)) as { kind: 'ok'; actor: Actor }
       expect((await runAction('agentSetup.revoke', {}, asLink.actor)).status).toBe(403)
       expect((await mcp(theirs.key, 'tools/list')).status).toBe(200)

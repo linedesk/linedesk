@@ -22,7 +22,13 @@ import { providerStatus, voiceProviderConfig } from './provider-settings.ts'
 import { partnerKeysForCall } from './partner-keys.ts'
 import { GREETINGS_CACHE_MS, greetingsToStore } from './greetings-to-store.ts'
 import { SecretsKeyError } from './secrets.ts'
-import { agentSetupState, partnerSetupActor, setupActor, workspaceSetupActor } from './agent-setup.ts'
+import {
+  agentSetupState,
+  hasActiveSetupLink,
+  partnerSetupActor,
+  setupActor,
+  workspaceSetupActor,
+} from './agent-setup.ts'
 import { PARTNER_OWNER_ONLY } from './partner-refusals.ts'
 import { installSetupState } from './install-setup.ts'
 import { setupProgress } from './setup-mcp.ts'
@@ -336,6 +342,24 @@ export function registerAdminRoutes(app: Hono<Env>) {
       (await setupActor(actor.actorId, 'page', { passkeyConfirmed: actor.passkeyConfirmed === true })) ?? actor
     const progress = await setupProgress(asAgent, c.req.query('workspace') ?? null, await readerWords(c))
     return c.json({ ...(await agentSetupState(actor.actorId)), progress })
+  })
+
+  // Whether the admin has a setup link to end (agent-setup.ts hasActiveSetupLink): the passkey prompt shows "End agent
+  // access" only then. Like agentSetup.revoke it needs no passkey check (setupLink:end), so it is outside /v1/admin/*;
+  // only the person signed in, never a key or a setup link.
+  app.get('/v1/agent-setup/active', requirePermission('setupLink:end'), async c => {
+    const actor = c.get('actor')
+    // As agentSetup.revoke's refuseNonPerson: no key of any kind, no agent, no call, no impersonation; a session.
+    const person =
+      !actor.personalKeyId &&
+      !actor.apiKeyId &&
+      !actor.setupKeyId &&
+      !actor.callId &&
+      actor.role !== 'agent' &&
+      !actor.impersonation &&
+      Boolean(actor.sessionId)
+    if (!person) return c.json({ ok: false, error: 'only the person signed in' }, 403)
+    return c.json({ active: await hasActiveSetupLink(actor.actorId) })
   })
 
   // A workspace's agent setup (agent-setup.ts, workspace keys): the caller's working setup link for the session's

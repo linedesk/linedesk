@@ -703,6 +703,26 @@ export async function agentSetupState(
   }
 }
 
+/**
+ * Whether the person has a setup link that still works or may: one not ended and not expired, of any kind (install,
+ * workspace or partner), the ones agentSetup.revoke ends. The passkey prompt offers "End agent access" only then
+ * (GET /v1/agent-setup/active), so it never offers to end what is not there.
+ */
+export async function hasActiveSetupLink(userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: agent_setup_keys.id })
+    .from(agent_setup_keys)
+    .where(
+      and(
+        eq(agent_setup_keys.created_by, userId),
+        isNull(agent_setup_keys.revoked_at),
+        gt(agent_setup_keys.expires_at, new Date().toISOString()),
+      ),
+    )
+    .limit(1)
+  return Boolean(row)
+}
+
 /** When the agent ended the admin's newest setup link itself, within a link's lifetime; null otherwise (agentSetupState). */
 async function endedByAgentAt(
   userId: string,

@@ -31,7 +31,7 @@ import { AuthError } from '../ui/AuthError.tsx'
 import { cx, Spinner } from '../ui/kit.tsx'
 import { SignedInAuthPage } from '../shell/SignedInAuthPage.tsx'
 import { NO_PASSWORD_MANAGER } from '../ui/passwordManager.ts'
-import { runAdminOnce } from './api.ts'
+import { loadAgentLinkActive, runAdminOnce } from './api.ts'
 
 type Props = { state: AdminSecondFactor; onExit: () => void }
 
@@ -193,7 +193,7 @@ function PasskeyGate({ state, onExit, hasAuthenticator }: GateProps) {
               {t('account.authenticator.usePasskey')}
             </button>
           )}
-          <EndAgentAccess />
+          <EndAgentAccessIfActive />
           <button type="button" className="auth-switch" title={t('account.authenticator.backTitle')} onClick={onExit}>
             {t('account.authenticator.back')}
           </button>
@@ -274,7 +274,7 @@ function PasskeyGate({ state, onExit, hasAuthenticator }: GateProps) {
             {t('account.authenticator.use')}
           </button>
         )}
-        <EndAgentAccess />
+        <EndAgentAccessIfActive />
         <button type="button" className="auth-switch" title={t('admin.secondFactor.backTip')} onClick={onExit}>
           {t('admin.secondFactor.back')}
         </button>
@@ -394,8 +394,35 @@ function AddPasskeyHere() {
   )
 }
 
-/** Ends the admin's own agent setup links without the passkey check (agentSetup.revoke, setupLink:end). */
-function EndAgentAccess() {
+/**
+ * Whether the admin has an agent setup link to end: unknown until the server says (the button waits), then active or
+ * not. A failed read counts as active: ending access must stay possible when the check itself does not answer.
+ */
+function useAgentLinkActive(): boolean | null {
+  const [active, setActive] = useState<boolean | null>(null)
+  useEffect(() => {
+    let live = true
+    loadAgentLinkActive().then(
+      next => live && setActive(next),
+      () => live && setActive(true),
+    )
+    return () => {
+      live = false
+    }
+  }, [])
+  return active
+}
+
+/**
+ * "End agent access", only while a setup link of the admin is active (never for one that is not there). Ends the
+ * admin's own agent setup links without the passkey check (agentSetup.revoke, setupLink:end).
+ */
+function EndAgentAccessIfActive() {
+  return useAgentLinkActive() ? <EndAgentAccess /> : null
+}
+
+/** The button itself; once ended it says so in its place. Exported for the tests. */
+export function EndAgentAccess() {
   const t = useT()
   const [state, setState] = useState<'idle' | 'busy' | 'done' | 'none' | 'failed'>('idle')
   const end = async () => {

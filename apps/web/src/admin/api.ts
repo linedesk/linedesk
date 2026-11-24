@@ -514,6 +514,8 @@ export const loadAgentSetup = (workspaceId?: string | null) =>
   get<AgentSetupState>(
     workspaceId ? `/v1/admin/agent-setup?workspace=${encodeURIComponent(workspaceId)}` : '/v1/admin/agent-setup',
   )
+/** GET /v1/agent-setup/active: whether the person has a setup link to end (no passkey check, SecondFactorPrompt). */
+export const loadAgentLinkActive = async () => (await get<{ active: boolean }>('/v1/agent-setup/active')).active
 /** Install setup by hand (InstallSetup.tsx): where it is, and whether a saved sign-in change waits for a restart. */
 export const loadInstallSetup = () => get<InstallSetupState>('/v1/admin/install-setup')
 
