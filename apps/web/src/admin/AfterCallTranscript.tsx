@@ -1,4 +1,4 @@
-// Server admin › Features › After-call transcription (apps/api/src/after-call-transcript.ts): once a call's recording
+// Server admin › Call quality › After-call transcription (apps/api/src/after-call-transcript.ts): once a call's recording
 // is saved, the picked service transcribes the recording file again and the caller's lines of the transcript are
 // corrected. A feature, not a provider: each service is connected once under Providers (speech to text,
 // language model or voice) and this only picks which connected one transcribes, with that key. A service that is not

@@ -342,7 +342,7 @@ export const billingRulesAlert =
     }
   }
 
-/** Self-serve sign-up turned on or off (Server admin › Billing, `signup.selfServe`). */
+/** Self-serve sign-up turned on or off (Server admin › Sign-up & access, `signup.selfServe`). */
 export const selfServeAlert =
   ({ actor, on, reason }: { actor: AlertActor; on: boolean; reason: string }): AdminAlertText =>
   locale => {
@@ -358,7 +358,7 @@ export const selfServeAlert =
   }
 
 /**
- * The install's sign-up limits changed (Server admin › Billing, `signup.rules`): every instance admin hears each rule
+ * The install's sign-up limits changed (Server admin › Sign-up & access, `signup.rules`): every instance admin hears each rule
  * with its old and new value, in plain words when a safeguard was loosened (the bot check off, no Radar level held for
  * review), and that sign-up is now open when this change opened it (security review of #1097, L-1).
  */

@@ -1590,8 +1590,6 @@
   "sections.billing.label": "Abrechnung & Registrierung",
   "sections.branding.description": "Dein Name, Logo und deine Farben statt Linedesk.",
   "sections.branding.label": "Branding",
-  "sections.callReviews.description": "Anrufe, die die Auswertung markiert hat, mit dem, was der Assistent falsch gemacht hat. Nur Server-Admins sehen das.",
-  "sections.callReviews.label": "Anrufprüfungen",
   "sections.features.description": "Was Workspaces auf diesem Server bekommen: Anrufqualität, Transkription, Weiterleitungen ins Ausland, deutsche Nummern, Stimmklonen, Kalender und Zapier.",
   "sections.features.label": "Funktionen",
   "sections.overview.label": "Übersicht",

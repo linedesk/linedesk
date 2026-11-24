@@ -1590,8 +1590,6 @@
   "sections.billing.label": "Facturation et inscription",
   "sections.branding.description": "Votre nom, votre logo et vos couleurs à la place de Linedesk.",
   "sections.branding.label": "Personnalisation",
-  "sections.callReviews.description": "Les appels signalés par l'évaluation, avec ce que l'assistant a mal fait. Seuls les administrateurs du serveur voient ceci.",
-  "sections.callReviews.label": "Revue des appels",
   "sections.features.description": "Ce que les espaces de travail obtiennent sur ce serveur : qualité d'appel, transcription, transferts vers l'étranger, numéros allemands, clonage de voix, calendriers et Zapier.",
   "sections.features.label": "Fonctionnalités",
   "sections.overview.label": "Vue d'ensemble",

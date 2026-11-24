@@ -1,5 +1,7 @@
 // Server admin › Features (LIN-747): what workspaces get on this server, the Calls, Phone numbers and Tools sections
-// before. Billing › Sign-up is in Billing.tsx. Services are connected under Providers; a setting that needs one links there.
+// before; and Server admin › Call quality (the nav groups, 2026-11-24): the quality levels, the reply delay, after-call
+// transcription and the call reviews. Sign-up & access is in Billing.tsx. Services are connected under Providers; a
+// setting that needs one links there.
 import { T, useT } from '@linedesk/i18n/react'
 import { appLink } from '../ui/AppLink.tsx'
 import { Card } from '../ui/form.tsx'
@@ -8,9 +10,11 @@ import { AfterCallTranscript } from './AfterCallTranscript.tsx'
 import type { AdminData } from './api.ts'
 import { CalendarTools } from './CalendarTools.tsx'
 import { CallQualityCard } from './CallQuality.tsx'
+import { CallReviews } from './CallReviews.tsx'
 import { InternationalTransfers } from './InternationalTransfers.tsx'
 import type { Notify } from './notify.ts'
 import type { ProviderStatusState } from './providerStatus.ts'
+import { ReplyDelay } from './ReplyDelay.tsx'
 import { ZAPIER_SETTING } from './route.ts'
 import { GermanNumbers, VoiceCloning, Zapier } from './SettingsCards.tsx'
 
@@ -46,14 +50,27 @@ function CalendarToolsCard() {
 }
 
 /**
- * Features: what workspaces get on this server, in one page: the call quality levels, after-call transcription,
- * transfers abroad, the German numbers they can buy, voice cloning, the calendar tools they may connect and the Zapier link.
+ * Call quality: how good calls are and how they went, in one page: the levels assistants can pick, the reply delay,
+ * after-call transcription and the calls the evaluation flagged.
  */
-export function Features({ focus, ...providers }: ProvidersProps & { focus?: string | null }) {
+export function CallQualityPage(providers: ProvidersProps) {
   return (
     <>
       <CallQualityCard notify={providers.notify} />
+      <ReplyDelay />
       <TranscriptCard data={providers.data} />
+      <CallReviews />
+    </>
+  )
+}
+
+/**
+ * Features: what workspaces get on this server, in one page: transfers abroad, the German numbers they can buy, voice
+ * cloning, the calendar tools they may connect and the Zapier link.
+ */
+export function Features({ focus }: { focus?: string | null }) {
+  return (
+    <>
       <InternationalTransfers />
       <GermanNumbers />
       <VoiceCloning />

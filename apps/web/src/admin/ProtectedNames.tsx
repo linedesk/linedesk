@@ -1,4 +1,4 @@
-// Server admin › Partners › Protected names (docs/white-label.md, S4): the names a white-label partner's brand may not
+// Server admin › Sign-up & access › Protected names (docs/white-label.md, S4): the names a white-label partner's brand may not
 // use or contain, so a partner cannot send this install's emails as a bank or as this product. One name per line;
 // "Use the built-in list" goes back to the list the server ships with.
 import type { ProtectedNamesData } from '@linedesk/actions'

@@ -19,7 +19,6 @@ import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { runAdmin } from './api.ts'
 import { errorText, type Notify } from './notify.ts'
 import { BRAND_REVIEWS, loadBrandReviews, PartnerBrands } from './PartnerBrands.tsx'
-import { ProtectedNames } from './ProtectedNames.tsx'
 import { offersKeysSwitch, waitingCount, waitingPartners } from './partnersModel.ts'
 import { day, EMPTY } from './parts.tsx'
 
@@ -422,7 +421,6 @@ export function Partners({ notify, waiting = false }: { notify: Notify; waiting?
         />
       )}
       <PartnerBrands notify={notify} waiting={waiting} />
-      {!waiting && <ProtectedNames notify={notify} />}
     </>
   )
 }

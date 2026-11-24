@@ -1,4 +1,4 @@
-// Server admin › Features › Call quality: which levels assistants can pick (Standard always,
+// Server admin › Call quality › levels: which levels assistants can pick (Standard always,
 // Premium and Ultra by switch; Ultra only with a realtime model), the level new assistants start on, and, collapsed,
 // the default models per level. Turning a level off moves its assistants to Standard at once, with Undo in the toast.
 import {

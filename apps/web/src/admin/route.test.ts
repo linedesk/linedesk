@@ -40,10 +40,10 @@ test('Providers: a group scrolls, a provider opens its dialog, old category and 
   expect(providersTarget(null)).toBeNull()
 })
 
-test('old addresses land where their things moved (LIN-693, LIN-747)', () => {
+test('old addresses land where their things moved (LIN-693, LIN-747, the nav groups)', () => {
   expect(movedHash('#admin/usage')).toBe('#admin/workspaces?view=usage')
   expect(movedHash('#admin/onboarding')).toBe('#admin/workspaces?view=at-risk')
-  expect(movedHash('#admin/signup')).toBe('#admin/billing/signup')
+  expect(movedHash('#admin/signup')).toBe('#admin/access')
   expect(movedHash('#admin/calls')).toBe('#admin/features')
   expect(movedHash('#admin/numbers')).toBe('#admin/features')
   expect(movedHash('#admin/tools')).toBe('#admin/features')
@@ -51,18 +51,19 @@ test('old addresses land where their things moved (LIN-693, LIN-747)', () => {
   expect(movedHash('#admin/system')).toBe('#admin/providers/call-audio')
   expect(movedHash('#admin/settings')).toBe('#admin/features')
   expect(movedHash('#admin/settings/integrations')).toBe('#admin/features')
-  expect(movedHash('#admin/settings/signup')).toBe('#admin/billing/signup')
+  expect(movedHash('#admin/settings/signup')).toBe('#admin/access')
+  expect(movedHash('#admin/billing/signup')).toBe('#admin/access')
+  expect(movedHash('#admin/call-reviews')).toBe('#admin/call-quality')
   expect(movedHash('#admin/billing/events')).toBe('#admin/audit?kind=stripe')
   expect(movedHash('#admin/billing/events?filter=failed')).toBe('#admin/audit?kind=stripe&filter=failed')
   // Everything that did not move stays.
-  expect(movedHash('#admin/billing/signup')).toBeNull()
   expect(movedHash('#admin/billing/bill_1')).toBeNull()
   expect(movedHash('#admin/providers/call-audio')).toBeNull()
   expect(movedHash('#admin/providers/stripe')).toBeNull()
   expect(movedHash('#admin/workspaces')).toBeNull()
   expect(movedHash('#settings/calls')).toBeNull()
   expect(billingTab('stripe')).toBe('stripe')
-  expect(billingTab('signup')).toBe('signup')
+  expect(billingTab('signup')).toBeNull()
   expect(billingTab('events')).toBeNull()
 })
 
@@ -79,7 +80,8 @@ test("Workspaces' views and the Audit log's Stripe events have their own address
 test('Tab and Shift-Tab go round the sections', () => {
   expect(nextSection('overview', false)).toBe('workspaces')
   expect(nextSection('overview', true)).toBe('audit')
-  expect(nextSection('providers', false)).toBe('partners')
+  expect(nextSection('providers', false)).toBe('access')
+  expect(nextSection('users', false)).toBe('partners')
   expect(nextSection('audit', false)).toBe('overview')
 })
 
@@ -100,26 +102,35 @@ test('section names and descriptions are message keys, so every language shows i
     if (section.description) expect(enMessages[section.description], section.id).toBeTruthy()
   }
   expect(enMessages[adminSections.find(s => s.id === 'audit')!.label]).toBe('Audit log')
-  // Eight for the daily work, then three quiet ones under a line.
-  expect(adminSections.filter(s => !('quiet' in s)).map(s => s.id)).toEqual([
+  // Overview, then three groups, each starting with its heading.
+  expect(adminSections.map(s => s.id)).toEqual([
     'overview',
     'workspaces',
     'users',
+    'partners',
     'billing',
     'prompt',
-    'call-reviews',
+    'call-quality',
     'features',
     'providers',
+    'access',
+    'branding',
+    'audit',
   ])
-  expect(adminSections.filter(s => 'quiet' in s).map(s => s.id)).toEqual(['partners', 'branding', 'audit'])
+  const heads = adminSections.flatMap(s => ('group' in s ? [[s.id, enMessages[s.group]]] : []))
+  expect(heads).toEqual([
+    ['workspaces', 'Customers'],
+    ['prompt', 'Assistant'],
+    ['providers', 'Server'],
+  ])
 })
 
-test('digits 1 to 9, then 0, open the first ten sections in order; the Audit log has none', () => {
+test('digits 1 to 9, then 0, open the first ten sections in order; Branding and the Audit log have none', () => {
   const keys = adminSections.slice(0, 10).map((_, i) => sectionKey(i))
   expect(keys).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'])
   for (const [i] of keys.entries()) expect(sectionIndexOfKey(sectionKey(i)!)).toBe(i)
-  expect(adminSections[9]!.id).toBe('branding')
-  expect(adminSections[10]!.id).toBe('audit')
+  expect(adminSections[9]!.id).toBe('access')
+  expect(adminSections[10]!.id).toBe('branding')
   expect(sectionKey(10)).toBeUndefined()
   expect(parseAdminHash('#admin/billing/bill_1')).toEqual({ section: 'billing', id: 'bill_1' })
 })
@@ -128,7 +139,7 @@ test('Billing sections have their own address; anything else under Billing is a 
   expect(billingTab(null)).toBe('overview')
   expect(billingTab('rules')).toBe('rules')
   expect(billingTab('bill_1')).toBeNull()
-  expect(isListPlace({ section: 'billing', id: 'signup' })).toBe(true)
+  expect(isListPlace({ section: 'billing', id: 'rules' })).toBe(true)
   expect(isListPlace({ section: 'billing', id: 'bill_1' })).toBe(false)
   // Esc and the crumb go one step up: a bill to the bills, a section to Billing, Billing nowhere.
   expect(placeUp({ section: 'billing', id: 'bill_1' })).toEqual({ section: 'billing', id: 'bills' })

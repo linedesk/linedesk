@@ -958,7 +958,7 @@ function redirectUris(provider: ProviderName): string[] {
  * their state and how to set them up through these tools, offered once the needed steps are done. Calendars themselves
  * are connected per business by signing in to Google or Microsoft in the browser (Assistant settings › Booking &
  * calendar), the one part an agent cannot do. After-call transcription is a feature, not a provider: the admin turns it
- * on in the app (Server admin › Features), with a service already connected for speech to text, model or voice.
+ * on in the app (Server admin › Call quality), with a service already connected for speech to text, model or voice.
  */
 function optionalSteps(groups: GroupStatus[]) {
   const how: Record<string, string[]> = {

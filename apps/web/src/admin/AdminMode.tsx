@@ -18,8 +18,7 @@ import type { AdminSecondFactor } from '../auth.ts'
 import { SecondFactorPrompt } from './SecondFactorPrompt.tsx'
 import { SecondPasskeyNote } from './SecondPasskeyNote.tsx'
 import { AuditLog } from './AuditLog.tsx'
-import { CallReviews } from './CallReviews.tsx'
-import { Billing, billingPartTitle, useBillTitle } from './Billing.tsx'
+import { Billing, billingPartTitle, SignupAccessPage, useBillTitle } from './Billing.tsx'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { errorText, type Notify } from './notify.ts'
 import { AtRisk } from './Onboarding.tsx'
@@ -41,7 +40,7 @@ import {
   tabSwitchesSection,
   useAdminPlace,
 } from './route.ts'
-import { Features } from './Settings.tsx'
+import { CallQualityPage, Features } from './Settings.tsx'
 import { SystemPrompt } from './SystemPrompt.tsx'
 import { BrandingSettings } from './Branding.tsx'
 import { Usage } from './Usage.tsx'
@@ -223,11 +222,12 @@ export function AdminMode({ currentUserId, onExit }: Props) {
       return <Billing id={place.id} onOpen={open} notify={notify} keysRef={listKeys} data={data} />
     // Pages that load their own data never wait for the lists or the providers.
     if (place.section === 'branding') return <BrandingSettings />
-    if (place.section === 'features')
-      return <Features data={data} status={status} reload={reload} notify={notify} focus={place.id} />
+    if (place.section === 'features') return <Features focus={place.id} />
     if (place.section === 'prompt') return <SystemPrompt />
     if (place.section === 'partners') return <Partners notify={notify} waiting={place.id === 'waiting'} />
-    if (place.section === 'call-reviews') return <CallReviews />
+    if (place.section === 'call-quality')
+      return <CallQualityPage data={data} status={status} reload={reload} notify={notify} />
+    if (place.section === 'access') return <SignupAccessPage notify={notify} />
     // Providers needs both parts; every other page only the lists, which come back first.
     const ready = place.section === 'providers' ? data : lists
     if (!ready)
@@ -306,7 +306,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   const sections = adminSections.map((s, i) => ({
     id: s.id,
     label: t(s.label),
-    quiet: 'quiet' in s,
+    group: 'group' in s ? t(s.group) : undefined,
     shortcut: sectionKey(i),
     mark:
       s.id === 'overview' && problems.length > 0 ? (

@@ -13,28 +13,40 @@ import {
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useEffect, useState } from 'react'
 
-// Eight sections for the daily work, then three quiet ones under a line (LIN-747): one place for each thing, no
-// group headings. Usage and Onboarding are views of Workspaces, Sign-up a part of Billing, Calls, Phone numbers and
-// Tools one Features page, Server status the call audio group of Providers, Stripe events and setup reports kinds of
-// the Audit log. The number keys follow this order (1 to 9, then 0); the last section has none.
+// Overview, then three groups with a heading each (Customers, Assistant, Server; Janik 2026-11-24, proposal 1 of the nav
+// round): one place for each thing. Usage and Onboarding are views of Workspaces; Calls, Phone numbers and Tools one
+// Features page; Server status the call audio group of Providers; Stripe events and setup reports kinds of the Audit
+// log (LIN-747). Call quality holds the quality levels, the reply delay, after-call transcription and the call reviews;
+// Sign-up & access who may sign up, its limits and emails, and the protected names. The number keys follow this order
+// (1 to 9, then 0); the sections past the tenth have none.
+const customers = msg('admin.sections.group.customers')
+const assistant = msg('admin.sections.group.assistant')
+const server = msg('admin.sections.group.server')
 export const adminSections = [
   { id: 'overview', label: msg('admin.sections.overview.label'), description: null },
   {
     id: 'workspaces',
+    group: customers,
     label: msg('admin.sections.workspaces.label'),
     description: msg('admin.sections.workspaces.description'),
   },
   { id: 'users', label: msg('admin.sections.users.label'), description: msg('admin.sections.users.description') },
+  {
+    id: 'partners',
+    label: msg('admin.sections.partners.label'),
+    description: msg('admin.sections.partners.description'),
+  },
   { id: 'billing', label: msg('admin.sections.billing.label'), description: msg('admin.sections.billing.description') },
   {
     id: 'prompt',
+    group: assistant,
     label: msg('admin.sections.prompt.label'),
     description: msg('admin.sections.prompt.description'),
   },
   {
-    id: 'call-reviews',
-    label: msg('admin.sections.callReviews.label'),
-    description: msg('admin.sections.callReviews.description'),
+    id: 'call-quality',
+    label: msg('admin.sections.callQuality.label'),
+    description: msg('admin.sections.callQuality.description'),
   },
   {
     id: 'features',
@@ -43,31 +55,29 @@ export const adminSections = [
   },
   {
     id: 'providers',
+    group: server,
     label: msg('admin.sections.providers.label'),
     description: msg('admin.sections.providers.description'),
   },
   {
-    id: 'partners',
-    quiet: true,
-    label: msg('admin.sections.partners.label'),
-    description: msg('admin.sections.partners.description'),
+    id: 'access',
+    label: msg('admin.sections.access.label'),
+    description: msg('admin.sections.access.description'),
   },
   {
     id: 'branding',
-    quiet: true,
     label: msg('admin.sections.branding.label'),
     description: msg('admin.sections.branding.description'),
   },
   {
     id: 'audit',
-    quiet: true,
     label: msg('admin.sections.audit.label'),
     description: msg('admin.sections.audit.description'),
   },
 ] as const satisfies readonly {
   id: string
-  /** Below the line, in a quieter type: set up once, rarely opened. */
-  quiet?: true
+  /** The heading above this section: it starts a group, which runs until the next heading. */
+  group?: MessageKey
   label: MessageKey
   description: MessageKey | null
 }[]
@@ -137,7 +147,7 @@ export function useAdminPlace() {
  * Server admin › Billing's sections: `#admin/billing` is its overview, `#admin/billing/<tab>` one section, anything else
  * after `billing/` a bill (`#admin/billing/<bill id>`).
  */
-export const BILLING_TABS = ['overview', 'bills', 'review', 'signup', 'rules', 'stripe'] as const
+export const BILLING_TABS = ['overview', 'bills', 'review', 'rules', 'stripe'] as const
 export type BillingTab = (typeof BILLING_TABS)[number]
 
 /** The section of Billing that `#admin/billing/<id>` shows; null when `id` is a bill. */
@@ -186,6 +196,7 @@ export const stripeEventsHref = (filter = 'all') =>
  * - LIN-747: Usage and Onboarding are views of Workspaces; Sign-up is a part of Billing; Calls, Phone numbers and Tools
  *   are Features; Server (and System before it) is the call audio group of Providers; Billing's Stripe events are in
  *   the Audit log.
+ * - The nav groups (2026-11-24): Call reviews is a part of Call quality; Billing's Sign-up is Sign-up & access.
  * - LIN-693: Settings' tabs (`#admin/settings/<tab>`) became sections, which LIN-747 moved again.
  */
 export function movedHash(hash: string): string | null {
@@ -198,7 +209,9 @@ export function movedHash(hash: string): string | null {
     case 'onboarding':
       return workspacesHref('at-risk')
     case 'signup':
-      return '#admin/billing/signup'
+      return '#admin/access'
+    case 'call-reviews':
+      return '#admin/call-quality'
     case 'calls':
     case 'numbers':
     case 'tools':
@@ -207,9 +220,10 @@ export function movedHash(hash: string): string | null {
     case 'system':
       return '#admin/providers/call-audio'
     case 'settings':
-      return id === 'signup' ? '#admin/billing/signup' : '#admin/features'
+      return id === 'signup' ? '#admin/access' : '#admin/features'
     case 'billing':
       if (id === 'events') return stripeEventsHref(queryOf(hash).get('filter') ?? 'all')
+      if (id === 'signup') return '#admin/access'
       return null
     default:
       return null

@@ -1590,8 +1590,6 @@
   "sections.billing.label": "請求とサインアップ",
   "sections.branding.description": "Linedesk の代わりにあなたの名前、ロゴ、色。",
   "sections.branding.label": "ブランド",
-  "sections.callReviews.description": "評価でフラグが付いた通話と、アシスタントの誤りです。サーバー管理者だけが表示できます。",
-  "sections.callReviews.label": "通話レビュー",
   "sections.features.description": "このサーバーでワークスペースが使える機能：通話品質、文字起こし、海外への転送、ドイツの番号、音声クローン、カレンダー、Zapier。",
   "sections.features.label": "機能",
   "sections.overview.label": "概要",

@@ -84,6 +84,7 @@ import { type BillingTab, billingTab } from './route.ts'
 import { type Row, StatusRow } from './StatusCard.tsx'
 import { Fact } from './WorkspacesPage.tsx'
 import { FounderEmail, SetupEmails } from './Onboarding.tsx'
+import { ProtectedNames } from './ProtectedNames.tsx'
 import { SignupAccess } from './SignupAccess.tsx'
 
 type Translate = ReturnType<typeof useT>
@@ -215,8 +216,6 @@ export function Billing({ id, onOpen, notify, keysRef, data }: Props) {
       return <BillsList onOpen={onOpen} keysRef={keysRef} />
     case 'review':
       return <ReviewCard onOpen={onOpen} notify={notify} />
-    case 'signup':
-      return <SignupSettings notify={notify} />
     case 'rules':
       return <RulesCard notify={notify} />
     case 'stripe':
@@ -233,7 +232,6 @@ const TAB_LABELS: Record<BillingTab, MessageKey> = {
   overview: msg('admin.bills.tab.overview'),
   bills: msg('admin.bills.tab.bills'),
   review: msg('admin.bills.tab.review'),
-  signup: msg('admin.bills.tab.signup'),
   rules: msg('admin.bills.tab.rules'),
   stripe: msg('admin.bills.tab.stripe'),
 }
@@ -247,7 +245,7 @@ export function billingPartTitle(t: Translate, id: string | null): string | null
 // ---- Billing's own page: one row per part ----
 
 /** One part's row: its state in a word, a muted line under it, and the page it opens. */
-type PartRow = Row & { id: BillingTab | 'events' }
+type PartRow = Row & { id: BillingTab | 'events' | 'signup' }
 
 /** Whether billing through Stripe runs, in which mode, or what stops it. */
 function stripeRow(t: Translate, s: AdminBillingSummary): PartRow {
@@ -280,19 +278,22 @@ const CLOSED_BECAUSE: Record<NonNullable<AdminBillingSummary['selfServe']['close
   bot_check_missing: msg('admin.bills.summary.signup.botCheck'),
 }
 
-/** Self-serve sign-up: open, or closed and why (switched on but closed is a problem; switched off is a choice). */
+/**
+ * Self-serve sign-up: open, or closed and why (switched on but closed is a problem; switched off is a choice). It is set
+ * on Sign-up & access; the row stays here because closed sign-up stops new trials.
+ */
 function signupRow(t: Translate, s: AdminBillingSummary): PartRow {
   const { on, open, closedBecause } = s.selfServe
   const value = t(open ? 'admin.bills.selfServe.state.open' : 'admin.bills.selfServe.state.closed')
   return {
     id: 'signup',
-    label: t(TAB_LABELS.signup),
+    label: t('admin.bills.tab.signup'),
     state: open ? 'works' : on ? 'failing' : 'off',
     mark: value,
     value,
     problem: closedBecause ? t(CLOSED_BECAUSE[closedBecause]) : t('admin.bills.selfServe.openNow'),
     help: null,
-    href: '#admin/billing/signup',
+    href: '#admin/access',
   }
 }
 
@@ -399,8 +400,11 @@ function BillingHome() {
   )
 }
 
-/** Billing › Sign-up: self-serve sign-up, who may sign up and from where, its limits, and the emails new workspaces get. */
-function SignupSettings({ notify }: { notify: Notify }) {
+/**
+ * Server admin › Sign-up & access (was Billing › Sign-up): self-serve sign-up, who may sign up and from where, its
+ * limits, the emails new workspaces get, and the names no partner brand may use.
+ */
+export function SignupAccessPage({ notify }: { notify: Notify }) {
   return (
     <>
       <SelfServeCard notify={notify} />
@@ -408,6 +412,7 @@ function SignupSettings({ notify }: { notify: Notify }) {
       <SignupRulesCard notify={notify} />
       <SetupEmails />
       <FounderEmail />
+      <ProtectedNames notify={notify} />
     </>
   )
 }
@@ -543,7 +548,7 @@ function BillsList({ onOpen, keysRef }: { onOpen: (id: string) => void; keysRef:
       empty={
         bills.length === 0 ? (
           <>
-            {t('admin.bills.empty')} <T k="admin.bills.emptyHint" values={{ link: appLink('#admin/billing/signup') }} />
+            {t('admin.bills.empty')} <T k="admin.bills.emptyHint" values={{ link: appLink('#admin/access') }} />
           </>
         ) : (
           <>

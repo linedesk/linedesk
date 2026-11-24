@@ -1,7 +1,7 @@
 // Onboarding's parts (LIN-747: no section of its own any more). The workspaces at risk, a view of Server admin ›
 // Workspaces: added a while ago and no real call has reached their assistant yet. Each shows the setup milestones it
 // reached and when, so we see where it stopped, and the owner to write to. Read-only: hands-on help comes from
-// partners, not from us. The setup emails and the founder's email are set under Billing › Sign-up. The funnel is on the
+// partners, not from us. The setup emails and the founder's email are set under Sign-up & access. The funnel is on the
 // Overview (Funnel.tsx), the setup reports in the Audit log.
 import type { FounderEmailData, SetupEmailsData } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
