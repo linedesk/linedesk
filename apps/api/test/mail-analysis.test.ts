@@ -292,12 +292,44 @@ describe('asking the model', () => {
         return model.complete(system, user)
       },
     }
-    const { topics } = await analyzeConversations(slow, big)
+    const { topics } = await analyzeConversations(slow, big, undefined, 40_000)
     expect(calls.length - 1).toBeGreaterThan(4)
     expect(most).toBe(4)
     const merge = calls.at(-1)!.user
     expect(merge.indexOf('<topic key="1-1">')).toBeLessThan(merge.indexOf('<topic key="2-1">'))
     expect(topics.map(t => t.title)).toEqual(['Service area', 'Water heater leaking or no hot water'])
+  })
+
+  test('more than twice the topics kept after a merge: one more merge round over the merged list', async () => {
+    const conversations = Array.from({ length: 40 }, (_, i) => ({
+      subject: `s${i}`,
+      turns: [{ support: false, text: `Question ${i} `.padEnd(1500, '.') }],
+    }))
+    const calls: string[] = []
+    let merges = 0
+    const model: EvaluationModel = {
+      model: 'm',
+      complete: async (system, user) => {
+        calls.push(system)
+        if (system === mergeSystem('English')) {
+          merges++
+          const keys = [...user.matchAll(/<topic key="([^"]+)">/g)].map(m => m[1]!)
+          // The first merge joins nothing (one kind per key); the second joins everything.
+          return JSON.stringify({
+            topics:
+              merges === 1
+                ? keys.map(k => ({ title: `T ${k}`, question: 'q', answer: 'a', from: [k] }))
+                : [{ title: 'All', question: 'q', answer: 'a', from: keys }],
+          })
+        }
+        const ids = [...user.matchAll(/<conversation id="(\d+)">/g)].map(m => Number(m[1]))
+        return JSON.stringify({ topics: ids.map(id => ({ title: `T${id}`, question: 'q', answer: 'a', ids: [id] })) })
+      },
+    }
+    const { topics, covered } = await analyzeConversations(model, conversations, undefined, 20_000)
+    expect(merges).toBe(2)
+    expect(topics.map(t => [t.title, t.conversations])).toEqual([['All', 40]])
+    expect(covered).toBe(40)
   })
 
   test('preliminary topics join the same title across batches and unite their conversations', () => {
