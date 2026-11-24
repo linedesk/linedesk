@@ -4,13 +4,16 @@
 // opens the provider's dialog in place and never navigates away) and the footer. The dialog has Test again and Try it, a real
 // round trip (`provider.tryOut`). Welcome and Done list the four parts in the agent page's rows (a mark where a part
 // works; on Done a way back to each part that does not). Only the four parts are counted ("Step n of 4"); Welcome and
-// Done say "By hand" in the top bar. Where the admin got to is kept on
+// Done say "By hand" in the top bar. After the four, an intro (`optional`) says the rest is optional and offers it: one
+// screen per optional group (sign-in, calendars, apps, recording, business lookup, partner domains), each with Skip
+// and "Skip the rest", counted on their own ("Optional 2 of 6"). Where the admin got to is kept on
 // the server (`install.setProgress`), so it resumes there. It opens only after the passkey check of Server admin
 // (SecondFactorPrompt), so the admin has a passkey here already (LIN-248).
 import {
   groupSpec,
   type InstallSetupState,
   type InstallStep,
+  installOptionalParts,
   installStepGroups,
   installSteps,
   type ProviderName,
@@ -29,7 +32,7 @@ import { TryOut } from '../admin/TryOut.tsx'
 import { useAdminData } from '../admin/useAdminData.ts'
 import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
-import { Button, cx, Note } from '../ui/kit.tsx'
+import { Badge, Button, cx, Note } from '../ui/kit.tsx'
 import { Loading, problemText, SkeletonFields } from '../ui/LoadStates.tsx'
 import { MarkGlyph } from '../ui/StatusMark.tsx'
 import { HostingNote } from './AgentSetup.tsx'
@@ -70,6 +73,13 @@ const stepLabelKeys: Record<InstallStep, MessageKey> = {
   answering: msg('onboarding.install.step.answering'),
   telephony: msg('onboarding.install.step.telephony'),
   'call-audio': msg('onboarding.install.step.callAudio'),
+  optional: msg('onboarding.install.step.optional'),
+  'sign-in': msg('admin.provider.group.signIn.label'),
+  calendar: msg('admin.provider.group.calendar.label'),
+  apps: msg('admin.provider.group.apps.label'),
+  recording: msg('admin.provider.group.recording.label'),
+  business: msg('admin.provider.group.business.label'),
+  domains: msg('admin.provider.group.domains.label'),
   done: msg('onboarding.install.step.done'),
 }
 
@@ -87,19 +97,29 @@ export function openingStep(progress: InstallSetupState['progress'], from: Insta
   return progress.finishedAt ? 'done' : progress.step
 }
 
-/** The steps that set up a group, in order (the welcome and done screens around them). */
-type PartStepId = Exclude<InstallStep, 'welcome' | 'done'>
-const partSteps = installSteps.filter(s => installStepGroups[s]) as PartStepId[]
+/** The steps that set up a group, in order (the welcome, optional and done screens around them). */
+type PartStepId = Exclude<InstallStep, 'welcome' | 'optional' | 'done'>
+const optionalSteps: readonly PartStepId[] = installOptionalParts
+const isOptional = (step: InstallStep) => (optionalSteps as readonly string[]).includes(step)
+/** The four a first call needs. */
+const partSteps = installSteps.filter(s => installStepGroups[s] && !isOptional(s)) as PartStepId[]
 const RESTART_POLL_MS = 2500
 
 /**
- * The top bar of a walkthrough screen: only the four parts are counted (`part`: "Step 2 of 4 · Answering calls"),
- * Welcome and Done have none (the bar says "By hand"); the line runs from the welcome (empty) to Done (full).
+ * The top bar of a walkthrough screen: the four parts are counted (`part`: "Step 2 of 4 · Answering calls"), the
+ * optional ones on their own (`optional`: "Optional 2 of 6 · Calendar"); Welcome, the optional intro and Done have
+ * none (the bar says "By hand"); the line runs from the welcome (empty) to Done (full).
  */
-export function installTopBar(step: InstallStep): { part: { n: number; m: number } | null; progress: number } {
+export function installTopBar(step: InstallStep): {
+  part: { n: number; m: number } | null
+  optional: { n: number; m: number } | null
+  progress: number
+} {
   const at = partSteps.indexOf(step as PartStepId)
+  const optionalAt = optionalSteps.indexOf(step as PartStepId)
   return {
     part: at >= 0 ? { n: at + 1, m: partSteps.length } : null,
+    optional: optionalAt >= 0 ? { n: optionalAt + 1, m: optionalSteps.length } : null,
     progress: Math.round((installSteps.indexOf(step) / (installSteps.length - 1)) * 100),
   }
 }
@@ -195,7 +215,15 @@ export function InstallSetup({ onExit, onAgentSetup }: Props) {
 
   const index = step ? installSteps.indexOf(step) : 0
   const groups = status.status?.groups ?? null
-  const bar = step ? installTopBar(step) : { part: null, progress: 0 }
+  const bar = step ? installTopBar(step) : { part: null, optional: null, progress: 0 }
+  const barLabel =
+    bar.optional && step
+      ? t('onboarding.install.optionalCount', {
+          step: bar.optional.n,
+          total: bar.optional.m,
+          label: t(stepLabelKeys[step]),
+        })
+      : t('onboarding.install.count')
   return (
     <SetupPage
       className="is"
@@ -204,7 +232,7 @@ export function InstallSetup({ onExit, onAgentSetup }: Props) {
       bar={
         <SetupTopBar
           step={bar.part && step ? { ...bar.part, name: t(stepLabelKeys[step]) } : undefined}
-          label={bar.part ? undefined : t('onboarding.install.count')}
+          label={bar.part ? undefined : barLabel}
           progress={bar.progress}
           agentPath={step === 'done' ? undefined : (onAgentSetup ?? backToInstallAgent)}
           // Done is the end of the walkthrough: its own button goes on, there is nothing to finish later.
@@ -229,6 +257,13 @@ export function InstallSetup({ onExit, onAgentSetup }: Props) {
         />
       ) : step === 'welcome' ? (
         <Welcome status={status} onStart={() => go('email')} onAgent={onAgentSetup ?? backToInstallAgent} />
+      ) : step === 'optional' ? (
+        <OptionalIntro
+          status={status}
+          onBack={() => go(installSteps[index - 1]!)}
+          onStart={() => go(installSteps[index + 1]!)}
+          onSkipAll={() => go('done')}
+        />
       ) : step === 'done' ? (
         <Done
           status={status}
@@ -248,6 +283,7 @@ export function InstallSetup({ onExit, onAgentSetup }: Props) {
           onBack={() => go(installSteps[index - 1]!)}
           onNext={() => go(installSteps[index + 1]!)}
           onSkip={() => go(installSteps[index + 1]!, step)}
+          onSkipRest={isOptional(step) ? () => go('done') : undefined}
         />
       )}
     </SetupPage>
@@ -288,15 +324,26 @@ function Welcome({
  * The four parts in the agent page's rows (agent-setup.css `.as-list`): a filled mark and the provider in use where a
  * part works. `onOpen` (Done): each part that does not work says what is missing without it and has a way back to it.
  */
-function Parts({ status, onOpen }: { status: ProviderStatusState; onOpen?: (step: PartStepId) => void }) {
+function Parts({
+  status,
+  onOpen,
+  steps = partSteps,
+}: {
+  status: ProviderStatusState
+  onOpen?: (step: PartStepId) => void
+  /** The four (default), or the optional ones: each says what it is for instead of what is missing. */
+  steps?: readonly PartStepId[]
+}) {
   const t = useT()
   return (
     <ul className="as-list">
-      {partSteps.map(s => {
+      {steps.map(s => {
         const group = groupOfStep(status, s)
         const works = group.state === 'works'
         const failing = group.state === 'failing'
         const effect = !works && onOpen && skipEffectKeys[s] ? t(skipEffectKeys[s]) : null
+        // The optional intro says what each is for; Done only names them (its list is long enough).
+        const why = !works && !onOpen && isOptional(s) ? t(groupSpec(group.id).whyKey) : null
         return (
           <li key={s} className={cx('as-item', works && 'done', failing && 'failing')}>
             <span className="as-mark" aria-hidden>
@@ -306,6 +353,7 @@ function Parts({ status, onOpen }: { status: ProviderStatusState; onOpen?: (step
               {t(stepLabelKeys[s])}
               {works && group.providerLabel && <span className="as-hint"> · {group.providerLabel}</span>}
               {effect && <span className="as-hint as-hint-line">{effect}</span>}
+              {why && <span className="as-hint as-hint-line">{why}</span>}
             </span>
             {!works && onOpen && (
               <span className="as-item-action">
@@ -330,17 +378,26 @@ type PartProps = {
   onBack: () => void
   onNext: () => void
   onSkip: () => void
+  /** An optional step: straight to Done, past the optional ones left. */
+  onSkipRest?: () => void
 }
 
-/** One group: its heading, the same panel as Server admin › Providers, and the footer. */
-function PartStep({ step, data, status, setup, reloadAll, onBack, onNext, onSkip }: PartProps) {
+/**
+ * One group: its heading, the same panel as Server admin › Providers, and the footer. An optional group says so next to
+ * its heading; until it works, its primary is Skip (it stays off), with "Skip the rest" beside it.
+ */
+function PartStep({ step, data, status, setup, reloadAll, onBack, onNext, onSkip, onSkipRest }: PartProps) {
   const t = useT()
   const group = groupOfStep(status, step)
+  const optional = isOptional(step)
   const [dialog, setDialog] = useState<ProviderName | null>(null)
   const [note, setNote] = useState<string | null>(null)
   const emailByLog = step === 'email' && setup.emailDelivery === 'log'
-  const ready = group.state !== 'missing' || emailByLog
-  useSetupKeys({ onEnter: ready ? onNext : null, onEscape: onBack }, { fields: 'ignore' })
+  const ready = optional || group.state !== 'missing' || emailByLog
+  // An optional group not set up yet: going on skips it (it stays off), so the primary says Skip.
+  const skipping = optional && group.state !== 'works'
+  const next = skipping ? onSkip : onNext
+  useSetupKeys({ onEnter: ready ? next : null, onEscape: onBack }, { fields: 'ignore' })
   const skipTitle = t('onboarding.install.skipTip', {
     part: group.label,
     effect: skipEffectKeys[step] ? t(skipEffectKeys[step]) : '',
@@ -349,8 +406,16 @@ function PartStep({ step, data, status, setup, reloadAll, onBack, onNext, onSkip
   return (
     <>
       <div className="ob-body">
+        {optional && (
+          <div className="is-tag">
+            <Badge tone="outline">{t('onboarding.install.optionalTag')}</Badge>
+          </div>
+        )}
         <h1>{group.label}</h1>
-        <p className="ob-lede">{t(groupSpec(group.id).whyKey)}</p>
+        <p className="ob-lede">
+          {t(groupSpec(group.id).whyKey)}
+          {optional && ` ${t('onboarding.install.optionalLede')}`}
+        </p>
       </div>
 
       <ProviderGroup
@@ -375,15 +440,29 @@ function PartStep({ step, data, status, setup, reloadAll, onBack, onNext, onSkip
         </p>
       )}
 
-      {/* Not set up yet: the quiet "Later" goes on, Continue (and Enter) waits for the part to work. */}
-      <SetupFoot
-        onBack={onBack}
-        backTitle={t('onboarding.action.backTip')}
-        onSkipStep={group.state !== 'works' ? onSkip : undefined}
-        laterTitle={skipTitle}
-        onContinue={onNext}
-        canContinue={ready}
-      />
+      {/* Not set up yet: the quiet "Later" goes on, Continue (and Enter) waits for the part to work. An optional part
+          never waits: Skip is its primary until it works, and "Skip the rest" goes on to Done. */}
+      {optional ? (
+        <SetupFoot
+          onBack={onBack}
+          backTitle={t('onboarding.action.backTip')}
+          onSkipStep={onSkipRest}
+          laterLabel={t('onboarding.install.skipRest')}
+          laterTitle={t('onboarding.install.skipRestTip')}
+          onContinue={next}
+          label={skipping ? t('onboarding.install.skip') : undefined}
+          variant={skipping ? 'secondary' : 'primary'}
+        />
+      ) : (
+        <SetupFoot
+          onBack={onBack}
+          backTitle={t('onboarding.action.backTip')}
+          onSkipStep={group.state !== 'works' ? onSkip : undefined}
+          laterTitle={skipTitle}
+          onContinue={onNext}
+          canContinue={ready}
+        />
+      )}
 
       {dialog && (
         <ProviderDialogFor
@@ -395,6 +474,45 @@ function PartStep({ step, data, status, setup, reloadAll, onBack, onNext, onSkip
           onClose={() => setDialog(null)}
         />
       )}
+    </>
+  )
+}
+
+/** Between the four and the optional groups: what follows is optional, go through it or skip it all. */
+function OptionalIntro({
+  status,
+  onBack,
+  onStart,
+  onSkipAll,
+}: {
+  status: ProviderStatusState
+  onBack: () => void
+  onStart: () => void
+  onSkipAll: () => void
+}) {
+  const t = useT()
+  useSetupKeys({ onEnter: onStart, onEscape: onBack }, { fields: 'ignore' })
+  return (
+    <>
+      <div className="ob-body">
+        <div className="is-tag">
+          <Badge tone="outline">{t('onboarding.install.optionalTag')}</Badge>
+        </div>
+        <h1>{t('onboarding.install.optional.title')}</h1>
+        <p className="ob-lede">{t('onboarding.install.optional.lede')}</p>
+      </div>
+      <section className="as-card">
+        <Parts status={status} steps={optionalSteps} />
+      </section>
+      <SetupFoot
+        onBack={onBack}
+        backTitle={t('onboarding.action.backTip')}
+        onSkipStep={onSkipAll}
+        laterLabel={t('onboarding.install.optional.skipAll')}
+        laterTitle={t('onboarding.install.optional.skipAllTip')}
+        onContinue={onStart}
+        label={t('onboarding.install.optional.start')}
+      />
     </>
   )
 }
@@ -432,6 +550,8 @@ function Done({
       </div>
       <section className="as-card">
         <Parts status={status} onOpen={onOpen} />
+        <h2 className="is-subhead">{t('onboarding.install.done.optional')}</h2>
+        <Parts status={status} onOpen={onOpen} steps={optionalSteps} />
       </section>
       {/* A hint, not a link: the walkthrough never leaves itself (Server admin has no way back to this step). */}
       <Note tone="info">{t('onboarding.install.done.later')}</Note>

@@ -385,3 +385,16 @@
 .as-optional-lede {
   margin: 0;
 }
+/* The install by hand's optional parts (InstallSetup.tsx): "Optional" above the heading, and on Done the heading
+   between the four and the optional ones, in the same card. */
+.is-tag {
+  margin-bottom: 8px;
+}
+.is-subhead {
+  margin: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
