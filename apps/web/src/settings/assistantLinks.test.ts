@@ -7,6 +7,8 @@ test('the old Webhook section opens Advanced at the webhook', () => {
   expect(canonicalAssistantHash('#assistant/as_2/webhooks', ids)).toBe('#assistant/as_2/advanced/webhook')
   expect(canonicalAssistantHash('#assistant/webhooks', ids)).toBe('#assistant/as_1/advanced/webhook')
   expect(canonicalAssistantHash('#assistant/as_1/webhooks?ws=w1', ids)).toBe('#assistant/as_1/advanced/webhook?ws=w1')
+  // Open questions moved into Business info (LIN-797): its old address opens Business info.
+  expect(canonicalAssistantHash('#assistant/as_2/review', ids)).toBe('#assistant/as_2/business')
 })
 
 test('a link without an assistant keeps what follows the section', () => {

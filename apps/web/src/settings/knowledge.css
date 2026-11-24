@@ -407,3 +407,8 @@ a.kn-sub:hover {
 .kn-qa {
   margin-top: var(--space-4);
 }
+
+/* Open questions as the first rows of the list (LIN-797): an amber edge while one is open to answer. */
+.kn-qedit.kn-open-edit {
+  box-shadow: inset 2px 0 0 var(--warning);
+}

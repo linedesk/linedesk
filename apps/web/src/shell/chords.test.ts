@@ -23,8 +23,8 @@ describe('G chords', () => {
   it('offers Server admin, How <assistant> did and the assignee views only to who can use them', () => {
     expect(chordTarget('d', all)).toEqual({ kind: 'page', route: 'admin' })
     expect(chordTarget('d', member)).toBeNull()
-    // G R: the assistant review in the Assistant area, no longer an inbox view.
-    expect(chordTarget('r', all)).toEqual({ kind: 'page', route: 'assistant', section: 'review' })
+    // G R: the open questions, now the first rows of Business info's questions and answers (LIN-797).
+    expect(chordTarget('r', all)).toEqual({ kind: 'page', route: 'assistant', section: 'business' })
     expect(chordTarget('r', member)).toBeNull()
     expect(chordTarget('m', all)).toEqual({ kind: 'tab', tab: 'mine' })
     expect(chordTarget('u', all)).toEqual({ kind: 'tab', tab: 'unassigned' })
