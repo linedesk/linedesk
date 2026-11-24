@@ -30,15 +30,15 @@ import {
   resetExtraCallsLimit,
   resetIntervalLimit,
 } from '../src/billing-page.ts'
+import { BILLING_LIFECYCLE_EMAIL } from '../src/billing-periods.ts'
 import { DEFAULT_TIME_ZONE } from '../src/bookings.ts'
-import { liveCallLimit } from '../src/handlers.ts'
-import { todayIn } from '../src/public-holidays.ts'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import type { HandlerCtx } from '../src/handler-context.ts'
-import { BILLING_LIFECYCLE_EMAIL } from '../src/billing-periods.ts'
+import { liveCallLimit } from '../src/handlers.ts'
 import { BILLING_RECHARGE, setJobQueue } from '../src/jobs.ts'
 import { lockBalance, postEntry } from '../src/ledger.ts'
+import { todayIn } from '../src/public-holidays.ts'
 import { runAction } from '../src/run-action.ts'
 import { act, addMember, type Caller, createWorkspace, type Workspace } from './helpers.ts'
 
@@ -363,6 +363,8 @@ describe('billing.overview', () => {
       cancelAtPeriodEnd: false,
       balanceMicros: (2500 - 80) * 10_000,
       availableMicros: (2500 - 80) * 10_000,
+      // Where new calls stop: the $5 buffer below zero on a paid plan (LIN-780).
+      callsStopAtMicros: -5_000_000,
       autoRecharge: { on: true, thresholdCents: 500, amountCents: 2500 },
       cap: { baseCents: 5000, effectiveCents: 5000, usedThisMonthCents: 0, ownerMaxBaseCents: 100_000 },
       rechargeFailure: null,

@@ -30,12 +30,13 @@ import type {
 import { RECHARGE_RETRIES_PER_DAY } from '@linedesk/actions'
 import { BillingSetupError } from '@linedesk/billing'
 import {
+  type ActivationFacts,
+  type BillingRules,
   billing_accounts,
   billing_balances,
   billing_invoices,
   billing_recharges,
-  type ActivationFacts,
-  type BillingRules,
+  callsStopAtMicros,
   EXTRA_CALLS_STEP,
   ledger_entries,
   maxExtraCalls,
@@ -53,8 +54,8 @@ import { getT } from '@linedesk/i18n/server'
 import { and, desc, eq, gte, inArray, isNotNull, not, sql } from 'drizzle-orm'
 import { SIGN_IN_AGAIN } from './account.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
-import { syncBillingCatalog, syncedPrices } from './billing-catalog.ts'
 import { managesBill, tellBillOwner } from './bill-manager.ts'
+import { syncBillingCatalog, syncedPrices } from './billing-catalog.ts'
 import {
   activationFacts,
   BUYS_MINUTES,
@@ -64,16 +65,15 @@ import {
   stillManages,
   trialOffered,
 } from './billing-checkout.ts'
-import { PARTNER_BILLING_URL, partnerBillOf } from './partner-billing.ts'
+import { busyCallersByWorkspace } from './billing-recharge.ts'
 import { billingRules } from './billing-rules.ts'
 import { billingProvider, billingState } from './billing-settings.ts'
-import { busyCallersByWorkspace } from './billing-recharge.ts'
 import { afterDebit } from './call-billing.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { localeForUserId } from './email-locale.ts'
-import { appLink, WEB_ORIGIN } from './emails/templates.ts'
 import { BILLING_PATH } from './emails/billing-lifecycle.ts'
+import { appLink, WEB_ORIGIN } from './emails/templates.ts'
 import {
   extraCallsPriceId,
   lockExtraCalls,
@@ -86,6 +86,7 @@ import { Forbidden, type Handler, type HandlerCtx, type Preparer, Reject } from 
 import { decideRecharge, includedMinutesLeft, periodAt } from './ledger.ts'
 import { type LegalTerms, legalTerms, recordAcceptance } from './legal-terms.ts'
 import { ownerStepUpNeeded } from './owner-step-up.ts'
+import { PARTNER_BILLING_URL, partnerBillOf } from './partner-billing.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { refuseBillingActor } from './usage-levels.ts'
 
@@ -440,6 +441,7 @@ async function overview(
     intervalSwitch: switchesInterval(bill) ? intervalSwitchOf(bill, rules) : null,
     balanceMicros,
     availableMicros: balanceMicros - reservedMicros,
+    callsStopAtMicros: callsStopAtMicros(bill.status, rules),
     autoRecharge: {
       on: bill.auto_recharge,
       thresholdCents: bill.recharge_threshold_cents,

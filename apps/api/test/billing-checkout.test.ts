@@ -6,6 +6,8 @@
 // cancel and resume, Buy minutes, and the webhook paths (the same confirmation, the trial's end email, the first
 // recharge on the conversion invoice). Stripe is a fake behind the real provider. Instance-wide (Stripe keys, the
 // billing switch): its own database.
+
+import { actions, rolePermissions } from '@linedesk/actions'
 import {
   type ActivationDisclosure,
   billing_accounts,
@@ -27,13 +29,12 @@ import {
   phone_numbers,
   session,
   stripe_events,
-  terms_acceptances,
   type Tx,
+  terms_acceptances,
   usage_counters,
   user,
   workspace_settings,
 } from '@linedesk/db'
-import { actions, rolePermissions } from '@linedesk/actions'
 import { devProvider, type TelephonyProvider } from '@linedesk/telephony'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
@@ -61,10 +62,9 @@ import { chargeRecharge, sendBillingAlert } from '../src/billing-recharge.ts'
 import { setBillingFetch } from '../src/billing-settings.ts'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
-import { Forbidden, Reject, runHandler } from '../src/handlers.ts'
-import { INSTALL_NUMBER_ADMIN_ONLY } from '../src/workspace-carrier.ts'
 import { emailSender } from '../src/email.ts'
 import { sayIn, wordsOf } from '../src/handler-context.ts'
+import { Forbidden, Reject, runHandler } from '../src/handlers.ts'
 import { setJobQueue } from '../src/jobs.ts'
 import { postEntry } from '../src/ledger.ts'
 import { checkLedgerGuards } from '../src/ledger-guards.ts'
@@ -72,6 +72,7 @@ import { BY_AREA_CODE_ONLY } from '../src/number-purchases.ts'
 import { SIGNUP_RULES_KEY } from '../src/self-serve.ts'
 import { COUNTRY_NOT_SERVED } from '../src/served-countries.ts'
 import { processStripeEventJob } from '../src/stripe-events.ts'
+import { INSTALL_NUMBER_ADMIN_ONLY } from '../src/workspace-carrier.ts'
 import {
   act,
   addMember,
@@ -2039,11 +2040,16 @@ describe('the trial ends (customer.subscription.trial_will_end, invoice.created)
     const mail = mails.at(-1)!
     expect(mail.subject).toMatch(/free trial ends in 7 days/)
     expect(mail.text).toContain('First charge')
-    expect(mail.text).toContain('$11.00 a month, plus tax where it applies')
-    // The plan only: no call credit with the first charge (2026-11-17).
-    expect(mail.text).toContain('That is your plan only.')
+    // The amount once, in the facts (LIN-780): no lede that repeats it.
+    expect(mail.text).toContain('Amount: $11.00, then every month. Plus tax where it applies.')
+    expect(mail.text?.split('$11.00').length).toBe(2)
+    // The plan only: no call credit with the first charge (2026-11-17); Settings › Billing is a link.
+    expect(mail.text).toContain('paid from your balance')
+    expect(mail.html).toMatch(/<a [^>]*href="[^"]*#workspace\/billing\?ws=[^"]*"[^>]*>Settings › Billing<\/a>/)
     expect(mail.text).not.toContain('$25')
-    expect(mail.text).toContain('you pay nothing')
+    expect(mail.text).toContain('Cancel before')
+    expect(mail.text).toContain('you pay nothing.')
+    expect(mail.text).not.toContain('two clicks')
     expect(mail.text).toContain('because we promised to remind you')
     // Manage, and Cancel: the cancel dialog of the bill's workspace's Settings › Billing.
     expect(mail.html).toContain(`#workspace/billing?ws=${encodeURIComponent(ws.id)}`)

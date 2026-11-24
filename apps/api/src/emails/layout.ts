@@ -7,11 +7,16 @@
 // footer ends in a quiet "Powered by Linedesk" unless the admin hid it; never with a partner's brand.
 
 import { DEFAULT_PRODUCT_NAME, poweredByUrl, readableOn, showsPoweredBy } from '@linedesk/actions'
+import type { MessageKey, MessageValues, Translator } from '@linedesk/i18n'
 import { getT } from '@linedesk/i18n/server'
 import { emailBranding, emailBrandName } from '../email-brand.ts'
 
 export type Block =
-  | { kind: 'text'; text: string; tone?: 'muted' }
+  /**
+   * A paragraph. `link`: the address of the part the message tags `<link>…</link>` (made with `linkTag`), a link in
+   * the HTML and "words (address)" in the plain text. Text without `link` is never read for tags.
+   */
+  | { kind: 'text'; text: string; tone?: 'muted'; link?: string }
   /**
    * A one-time code, monospaced: large when it is the email's only way in, and smaller in a quiet outline under a
    * button (the sign-in link), so the button reads as the way to go and the code as "or enter this code".
@@ -108,6 +113,27 @@ export function siteHost(origin: string): string {
 
 const paragraphs = (text: string) => escapeHtml(text).replace(/\r?\n/g, '<br>')
 
+/** The value of a message's `<link>` tag: keeps the tag around its words for the text block's `link`. */
+const linkTag = (chunks: unknown[]) => `<link>${chunks.join('')}</link>`
+/** The value of the tag when its words stay plain (nothing to link to). */
+const plainTag = (chunks: unknown[]) => chunks.join('')
+
+/**
+ * A paragraph whose message tags a place in the app `<link>…</link>` ("in <link>Settings › Billing</link>"): a link to
+ * `url` in the HTML, the address after the words in the plain text; without `url` the words alone.
+ */
+export function linkedText(
+  translator: Translator,
+  key: MessageKey,
+  url: string | null,
+  values: MessageValues = {},
+): Block {
+  const text = String(translator.intl.formatMessage({ id: key }, { ...values, link: url ? linkTag : plainTag }))
+  return url ? { kind: 'text', text, link: url } : { kind: 'text', text }
+}
+const LINK_TAG = /<link>(.*?)<\/link>/g
+const ESCAPED_LINK_TAG = /&lt;link&gt;(.*?)&lt;\/link&gt;/g
+
 // ---------------------------------------------------------------- HTML
 
 /** How a block renders depends on the email: a code under a button is the fallback, not the main action. */
@@ -117,7 +143,15 @@ function blockHtml(block: Block, { hasButton }: BlockContext): string {
   switch (block.kind) {
     case 'text': {
       const muted = block.tone === 'muted'
-      return `<p class="${muted ? 'ld-muted' : 'ld-ink'}" style="margin:0 0 16px;font-size:${muted ? 14 : 16}px;line-height:1.55;color:${muted ? MUTED : INK};">${paragraphs(block.text)}</p>`
+      const link = block.link ? escapeHtml(checkedUrl(block.link)) : null
+      const text = link
+        ? paragraphs(block.text).replace(
+            ESCAPED_LINK_TAG,
+            (_, words: string) =>
+              `<a class="${muted ? 'ld-muted' : 'ld-ink'}" href="${link}" target="_blank" style="color:${muted ? MUTED : INK};text-decoration:underline;">${words}</a>`,
+          )
+        : paragraphs(block.text)
+      return `<p class="${muted ? 'ld-muted' : 'ld-ink'}" style="margin:0 0 16px;font-size:${muted ? 14 : 16}px;line-height:1.55;color:${muted ? MUTED : INK};">${text}</p>`
     }
     case 'code':
       if (hasButton)
@@ -273,8 +307,10 @@ ${content.blocks.map(block => blockHtml(block, context)).join('\n')}
 
 function blockText(block: Block): string {
   switch (block.kind) {
-    case 'text':
-      return block.text
+    case 'text': {
+      const link = block.link ? checkedUrl(block.link) : null
+      return link ? block.text.replace(LINK_TAG, (_, words: string) => `${words} (${link})`) : block.text
+    }
     case 'code':
       return `    ${block.code}`
     case 'button':

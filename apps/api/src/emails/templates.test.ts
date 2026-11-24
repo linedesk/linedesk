@@ -19,10 +19,10 @@ import {
   invitationEmail,
   memberAddedByAdminEmail,
   passkeyChangedEmail,
-  personalKeyCreatedEmail,
   passkeyEnrolmentIssuedEmail,
   passwordChangedEmail,
   passwordResetCodeEmail,
+  personalKeyCreatedEmail,
   readPartnerDirectoryUrl,
   type SetupEmail,
   setupDay0Email,
@@ -656,6 +656,26 @@ describe('trial emails', () => {
     expect(byName('trial-minutes-low').text).toContain(
       'Your plan stays free until December 1, 2026. Minutes beyond the included ones cost $0.05 each.',
     )
+  })
+  it('the trial reminders and the confirmation say each fact once (LIN-780)', () => {
+    for (const name of ['trial-reminder-1-day', 'trial-reminder-7-days', 'trial-started']) {
+      const email = byName(name)
+      // The amount once, in the facts; no lede that repeats it, in the HTML and the plain text.
+      expect(email.text.split('$11.00').length, name).toBe(2)
+      expect(email.html.split('$11.00').length, name).toBe(2)
+      expect(email.text, name).toContain('Amount: $11.00, then every month. Plus tax where it applies.')
+      // Settings › Billing is a link to the billing page, also in the plain text.
+      expect(email.html, name).toMatch(
+        /<a [^>]*href="[^"]*#workspace\/billing\?ws=ws_demo"[^>]*>Settings › Billing<\/a>/,
+      )
+      expect(email.text, name).toContain('Settings › Billing (http')
+      expect(email.text, name).not.toContain('<link>')
+      // The cancel line once, without repeating the Cancel button.
+      expect(email.text, name).toContain('Not for you? Cancel before December 1, 2026 and you pay nothing.')
+      expect(email.text, name).not.toContain('two clicks')
+    }
+    expect(byName('trial-reminder-1-day').text).not.toContain('Your free trial ends on')
+    expect(byName('trial-started').text).toContain('Nothing is charged today.')
   })
   it('the day-3 nudge is about the setup, not billing', () => {
     expect(byName('trial-setup-nudge').html).toContain('Your setup')

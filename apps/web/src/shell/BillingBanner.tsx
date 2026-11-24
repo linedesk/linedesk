@@ -82,19 +82,20 @@ async function buy(input: object, idempotencyKey: string): Promise<TopUpData> {
   }
 }
 
+type LineKey = Parameters<ReturnType<typeof useT>>[0]
+
 /**
- * The minutes prompt's line and its one button (the trial, or a paid plan with auto-recharge off). The card shown is the card charged: when the server reads another card
- * than the one on screen (or none was readable), the line names it and nothing is charged until the next press.
+ * "Keep calls answered" (the banner's minutes prompt, and Settings › Billing's Balance card, LIN-780): buys the
+ * recharge amount with the saved card it names, then auto-recharge runs. The card shown is the card charged: when the
+ * server reads another card than the one on screen (or none was readable), the line names it and nothing is charged
+ * until the next press. `buyWith` and `after`: the page's own write and reload (a partner's bill names the partner).
  */
-function TrialPrompt({
-  prompt,
-  lineKey,
-  toast,
-}: {
-  prompt: TrialMinutesPrompt
-  lineKey: Parameters<ReturnType<typeof useT>>[0]
-  toast: (text: string) => void
-}) {
+export function useKeepAnswered(
+  prompt: TrialMinutesPrompt,
+  toast: (text: string) => void,
+  buyWith: (input: object, idempotencyKey: string) => Promise<TopUpData> = buy,
+  after: () => Promise<unknown> = () => Promise.all([refreshQuery(STATE), refreshQuery(OVERVIEW)]),
+) {
   const t = useT()
   const format = useFormat()
   const [card, setCard] = useState<Card | null>(prompt.card)
@@ -118,6 +119,10 @@ function TrialPrompt({
     date: prompt.freeUntil ? format.date(new Date(prompt.freeUntil), { dateStyle: 'long' }) : '',
     rate: format.rate(prompt.standardMicrosPerMinute / 1_000_000, 'USD'),
   }
+  const tip = t(
+    prompt.paid ? 'settings.billing.banner.keepAnsweredTipPlan' : 'settings.billing.banner.keepAnsweredTip',
+    values,
+  )
 
   async function keep() {
     setBusy(true)
@@ -130,7 +135,7 @@ function TrialPrompt({
         if (attempt++ > 0 && workspaceId) await auth.organization.setActive({ organizationId: workspaceId })
         const idempotencyKey = keys.keyFor(`${prompt.amountCents}:${card?.id ?? ''}`)
         try {
-          const answer = await buy(input, idempotencyKey)
+          const answer = await buyWith(input, idempotencyKey)
           keys.settle()
           return answer
         } catch (err) {
@@ -157,7 +162,7 @@ function TrialPrompt({
           : t('settings.billing.topUp.processing', { amount }),
       )
       // Auto-recharge is on now: the line goes, and the billing page shows the new balance.
-      await Promise.all([refreshQuery(STATE), refreshQuery(OVERVIEW)])
+      await after()
     } catch (err) {
       const key = refusalKey((err as { code?: string }).code)
       toast(key ? t(key) : err instanceof Error && err.message ? err.message : t('settings.billing.error.generic'))
@@ -165,21 +170,27 @@ function TrialPrompt({
     }
   }
 
+  return { busy, keep, values, tip }
+}
+
+/** The minutes prompt's line and its one button (the trial, or a paid plan with auto-recharge off). */
+function TrialPrompt({
+  prompt,
+  lineKey,
+  toast,
+}: {
+  prompt: TrialMinutesPrompt
+  lineKey: LineKey
+  toast: (text: string) => void
+}) {
+  const t = useT()
+  const { busy, keep, values, tip } = useKeepAnswered(prompt, toast)
   return (
     <>
       <span>
         <b>{t(lineKey, values)}</b>
       </span>
-      <Button
-        size="sm"
-        variant="primary"
-        busy={busy}
-        title={t(
-          prompt.paid ? 'settings.billing.banner.keepAnsweredTipPlan' : 'settings.billing.banner.keepAnsweredTip',
-          values,
-        )}
-        onClick={() => void keep()}
-      >
+      <Button size="sm" variant="primary" busy={busy} title={tip} onClick={() => void keep()}>
         {t('settings.billing.banner.keepAnswered')}
       </Button>
     </>

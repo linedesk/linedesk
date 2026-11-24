@@ -20,36 +20,42 @@ import type {
   RechargeCapData,
   RetryRechargeData,
   TopUpData,
+  TrialMinutesPrompt,
 } from '@linedesk/actions'
 import { BUSY_WINDOW_DAYS, TOPUP_CENTS } from '@linedesk/actions'
 import type { MessageKey } from '@linedesk/i18n'
-import { useFormat, useT } from '@linedesk/i18n/react'
+import { T, useFormat, useT } from '@linedesk/i18n/react'
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { PASSKEY_STEP_UP_REQUIRED, StepUpRequired, withPasskeyStepUp } from '../admin/PasskeyStepUp.tsx'
 import { auth } from '../auth.ts'
 import { refreshQuery, setQueryData, useQuery } from '../cachedQuery.ts'
 import { i18n } from '../i18n/index.tsx'
 import { signInAgain } from '../localData.ts'
+import { useKeepAnswered } from '../shell/BillingBanner.tsx'
+import { useLegalLinks } from '../shell/WorkspaceMenu.tsx'
 import { tabWorkspace } from '../tabWorkspace.ts'
+import { readTrialLink, takeAlreadyRunning } from '../trialLink.ts'
 import { ExternalLink, LinkButton } from '../ui/AppLink.tsx'
 import { Select } from '../ui/controls.tsx'
 import { DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
 import { Dialog, FormField, Input } from '../ui/form.tsx'
 import { Badge, Button, Note } from '../ui/kit.tsx'
-import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
+import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { PlanCard, usePlanPrice } from '../ui/PlanCard.tsx'
 import { PriceLine, usePrice } from '../ui/price.tsx'
-import { readTrialLink, takeAlreadyRunning } from '../trialLink.ts'
 import {
+  ADD_CALLS_PARAM,
   AMOUNT_CHOICES,
   amountFits,
+  type BalanceNote,
+  balanceNote,
+  balanceProblem,
   canCancel,
   canResume,
   centsToDollars,
   changesRecharge,
   dollarsToCents,
-  ADD_CALLS_PARAM,
   extraCallChoices,
   freeExtraCalls,
   microsToDollars,
@@ -61,13 +67,13 @@ import {
   statusBadge,
   THRESHOLD_CHOICES,
   TOP_UP_CHOICES,
+  trialBadge,
   usageLine,
   yearlyRefundLine,
 } from './billingModel.ts'
-import { Section, SwitchRow } from './fields.tsx'
 import { loadOverview, loadState, loadWorkspaceUsage, OVERVIEW, STATE, WORKSPACE_USAGE } from './billingQueries.ts'
+import { Section, SwitchRow } from './fields.tsx'
 import { callAction } from './settings-api.ts'
-import { useLegalLinks } from '../shell/WorkspaceMenu.tsx'
 import './billing.css'
 
 /** The page's text for a refusal: by its code when the page has one, else the server's sentence. */
@@ -253,7 +259,9 @@ function BillingPage({
   return (
     <>
       <BillPlan bill={bill} state={state} toPay={toPay} toast={toast} />
-      {(pays || bill.balanceMicros !== 0) && <BalanceCard bill={bill} payFirst={toPay.length > 0} toast={toast} />}
+      {(pays || bill.balanceMicros !== 0) && (
+        <BalanceCard bill={bill} state={state} payFirst={toPay.length > 0} toast={toast} />
+      )}
       {pays && <AutoRechargeCard bill={bill} toast={toast} />}
       <UsageCard bill={bill} />
       <InvoicesCard bill={bill} toast={toast} />
@@ -286,8 +294,19 @@ function invoicesToPay(state: BillingStateData['bill'], invoices: BillingInvoice
   return invoices.filter(inv => inv.status === 'open' && isStripeInvoicePage(inv.url))
 }
 
-/** The warning's pay links: one per open invoice (the first two), then "See all open invoices" when there are more. */
-function PayLinks({ invoices, primary }: { invoices: BillingInvoiceRow[]; primary: boolean }) {
+/**
+ * The warning's pay links: one per open invoice (the first two), then "See all open invoices" when there are more, and
+ * Update card (the Stripe portal) when the warning asks for a new card too (LIN-780).
+ */
+function PayLinks({
+  invoices,
+  primary,
+  portal,
+}: {
+  invoices: BillingInvoiceRow[]
+  primary: boolean
+  portal: ReturnType<typeof usePortal> | null
+}) {
   const t = useT()
   const format = useFormat()
   const showAll = () => document.getElementById('billing-invoices')?.scrollIntoView({ behavior: 'smooth' })
@@ -305,6 +324,17 @@ function PayLinks({ invoices, primary }: { invoices: BillingInvoiceRow[]; primar
           {t('settings.billing.state.payInvoice', { amount: format.currency(centsToDollars(inv.totalCents), 'USD') })}
         </a>
       ))}
+      {portal && (
+        <Button
+          size="sm"
+          variant="secondary"
+          busy={portal.opening}
+          title={t('settings.billing.portal.buttonTip')}
+          onClick={() => void portal.open()}
+        >
+          {t('settings.billing.retry.updateCard')}
+        </Button>
+      )}
       {invoices.length > PAY_LINKS_SHOWN && (
         <LinkButton onClick={showAll}>{t('settings.billing.state.allInvoices')}</LinkButton>
       )}
@@ -343,35 +373,60 @@ function takeHashFlag(name: string): boolean {
 }
 
 /**
- * The bill's own facts under its price (Settings › Billing only): how many workspaces are on it, the renewal or the
- * trial's end, the trial's balance note, a missing tax address and what an extra number costs.
+ * The bill's own facts under its price (Settings › Billing only), each said once (LIN-780): in the trial the one line
+ * with the first charge (the days left are in the badge, the balance and auto-recharge in their own cards), how it is
+ * billed; else the renewal or the end. How many workspaces are on it when more than one ("per workspace" says one), a
+ * missing tax address.
  */
 function BillFacts({
   bill,
   line,
   date,
+  onSwitch,
 }: {
   bill: BillingOverviewBill
   line: ReturnType<typeof planLine>
   date: (iso: string) => string
+  /** Opens the switch to monthly: a yearly plan in the trial says so in its billing line. */
+  onSwitch: (() => void) | null
 }) {
   const t = useT()
+  const format = useFormat()
   const partner = bill.kind === 'partner'
+  const trial = bill.status === 'trialing'
   return (
     <div className="billing-plan">
-      {!partner && <span className="help">{t('settings.billing.plan.workspaces', { count: bill.workspaces })}</span>}
       {line && (
         <span className="help">
-          {line.days !== undefined
-            ? t(line.key, { date: date(line.date), count: line.days })
-            : t(line.key, { date: date(line.date) })}
+          {line.cents !== undefined ? (
+            <T
+              k={line.key}
+              values={{
+                date: date(line.date),
+                amount: format.currency(centsToDollars(line.cents), 'USD'),
+                b: chunks => <b>{chunks}</b>,
+              }}
+            />
+          ) : (
+            t(line.key, { date: date(line.date) })
+          )}
         </span>
       )}
-      {bill.status === 'trialing' && (
+      {trial && (
         <span className="help">
-          {t('settings.billing.plan.trialNote')}
-          {!bill.autoRecharge.on && ` ${t('settings.billing.plan.trialAutoOff')}`}
+          {bill.interval === 'year' ? t('settings.billing.plan.billedYearly') : t('common.price.billedMonthly')}
+          {bill.interval === 'year' && onSwitch && (
+            <>
+              {' · '}
+              <LinkButton title={t('settings.billing.interval.buttonTip')} onClick={onSwitch}>
+                {t('settings.billing.interval.toMonth')}
+              </LinkButton>
+            </>
+          )}
         </span>
+      )}
+      {!partner && bill.workspaces > 1 && (
+        <span className="help">{t('settings.billing.plan.workspaces', { count: bill.workspaces })}</span>
       )}
       {bill.taxAddressMissing && <span className="help">{t('settings.billing.plan.taxAddressMissing')}</span>}
     </div>
@@ -402,10 +457,17 @@ function BillPlan({
   const [switching, setSwitching] = useState(false)
   const intervalSwitch = !bill.cancelAtPeriodEnd ? (bill.intervalSwitch ?? null) : null
   const [resuming, setResuming] = useState(false)
+  const portal = usePortal(toast)
   const supportEmail = useLegalLinks()?.supportEmail ?? null
   const date = (iso: string) => format.date(new Date(iso))
   const badge = statusBadge(bill.status, bill.heldForReview)
+  // In the trial the badge carries the days left ("Free trial · 10 days left"); held for review says so instead.
+  const trialDays = bill.heldForReview ? null : trialBadge(bill)
   const line = planLine(bill)
+  const trial = bill.status === 'trialing'
+  // Yearly to monthly is the small link in the billing line; monthly to yearly stays a button next to Cancel.
+  const toMonthly = intervalSwitch?.interval === 'month' ? () => setSwitching(true) : null
+  const toYearly = intervalSwitch?.interval === 'year' ? intervalSwitch : null
   // A partner bill: the partner base fee, then its client workspaces on their own line (docs/white-label.md).
   const partner = bill.kind === 'partner'
   const note = stateNote(state, date, partner)
@@ -451,7 +513,7 @@ function BillPlan({
         // Before the first Checkout there is no plan to report on: no "Waiting for a card" before activation started.
         bill.status === 'pending_payment' ? undefined : (
           <Badge tone={badge.tone} dot>
-            {t(badge.key)}
+            {trialDays ? t(trialDays.key, { count: trialDays.count }) : t(badge.key)}
           </Badge>
         )
       }
@@ -465,15 +527,16 @@ function BillPlan({
           prices={bill.prices}
           each={partner ? 'client' : bill.workspaces > 1 ? 'workspace' : null}
           calls={partner ? null : bill.calls}
-          tax={bill.taxed}
+          // In the trial the first-charge line says the tax.
+          tax={bill.taxed && !trial}
           autoRecharge={bill.autoRecharge.on}
         >
-          <BillFacts bill={bill} line={line} date={date} />
+          <BillFacts bill={bill} line={line} date={date} onSwitch={toMonthly} />
         </PlanCard>
       ) : (
         <div className="billing-plan">
           <PriceLine note={null}>{comped}</PriceLine>
-          <BillFacts bill={bill} line={line} date={date} />
+          <BillFacts bill={bill} line={line} date={date} onSwitch={toMonthly} />
         </div>
       )}
       {held && (
@@ -486,7 +549,9 @@ function BillPlan({
       {note && (
         <Note tone={note.tone} title={t(note.title)}>
           {t(note.text, note.values)}
-          {toPay.length > 0 && <PayLinks invoices={toPay} primary={!bill.rechargeFailure} />}
+          {toPay.length > 0 && (
+            <PayLinks invoices={toPay} primary={!bill.rechargeFailure} portal={bill.hasPortal ? portal : null} />
+          )}
         </Note>
       )}
       {state && state.unpaidNumbers.length > 0 && (
@@ -505,26 +570,24 @@ function BillPlan({
             : t('settings.billing.plan.trialLinkPlan')}
         </Note>
       )}
-      {(canCancel(bill) || canResume(bill) || intervalSwitch) && (
+      {(canCancel(bill) || canResume(bill) || toYearly) && (
         <div className="billing-actions">
-          {intervalSwitch && (
+          {toYearly && (
             <Button
               variant="secondary"
               title={t('settings.billing.interval.buttonTip')}
               onClick={() => setSwitching(true)}
             >
-              {intervalSwitch.interval === 'month'
-                ? t('settings.billing.interval.toMonth')
-                : t('settings.billing.interval.toYear')}
+              {t('settings.billing.interval.toYear')}
             </Button>
           )}
           {canCancel(bill) && (
             <Button
               variant="danger-outline"
-              title={t('settings.billing.cancel.buttonTip')}
+              title={trial ? t('settings.billing.cancel.trialButtonTip') : t('settings.billing.cancel.buttonTip')}
               onClick={() => setCancelOpen(true)}
             >
-              {t('settings.billing.cancel.button')}
+              {trial ? t('settings.billing.cancel.trialButton') : t('settings.billing.cancel.button')}
             </Button>
           )}
           {canResume(bill) && (
@@ -932,24 +995,36 @@ function openBlankTab(): Window | null {
   return tab
 }
 
-/** `payFirst`: the plan's warning shows pay links, so paying the open invoice is the primary button, not Buy minutes. */
+/**
+ * `payFirst`: the plan's warning shows pay links, so paying the open invoice is the primary button, not Buy minutes.
+ * `state`: a balance that will stop calls (balanceProblem, the banner's reason, which settings pages do not show) is
+ * said here with its fix in place (LIN-780).
+ */
 function BalanceCard({
   bill,
+  state,
   payFirst,
   toast,
 }: {
   bill: BillingOverviewBill
+  state: BillingStateData['bill']
   payFirst: boolean
   toast: (text: string) => void
 }) {
   const t = useT()
   const calls = useBillCalls()
   const format = useFormat()
+  const portal = usePortal(toast)
   const [buying, setBuying] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const failure = bill.rechargeFailure
   const money = (micros: number) => format.currency(microsToDollars(micros), 'USD')
   const reserved = bill.balanceMicros - bill.availableMicros
+  const floor = money(bill.callsStopAtMicros)
+  // A failed recharge or a payment to make has its own note and button; the balance problem waits behind them.
+  const problem = !failure && !payFirst && paysCharges(bill) ? balanceProblem(state) : null
+  const note = problem ? balanceNote(bill, problem) : null
+  const fixed = !!note && note.fix !== 'buy'
 
   async function retry() {
     setRetrying(true)
@@ -1003,15 +1078,32 @@ function BalanceCard({
           tone="danger"
           title={t('settings.billing.retry.title')}
           action={
-            <Button
-              variant="primary"
-              busy={retrying}
-              disabled={!failure.needsAction && (failure.retriesLeft === 0 || !bill.autoRecharge.on)}
-              title={t('settings.billing.retry.buttonTip')}
-              onClick={() => void retry()}
-            >
-              {failure.needsAction ? t('settings.billing.retry.confirmButton') : t('settings.billing.retry.button')}
-            </Button>
+            <span className="billing-actions">
+              {/* A new card is the fix for a decline: the Stripe portal, as Card and invoices opens it (LIN-780). */}
+              {!failure.needsAction && bill.hasPortal && (
+                <Button
+                  variant="secondary"
+                  busy={portal.opening}
+                  title={t('settings.billing.portal.buttonTip')}
+                  onClick={() => void portal.open()}
+                >
+                  {t('settings.billing.retry.updateCard')}
+                </Button>
+              )}
+              <Button
+                variant="primary"
+                busy={retrying}
+                disabled={!failure.needsAction && (failure.retriesLeft === 0 || !bill.autoRecharge.on)}
+                title={
+                  !failure.needsAction && failure.retriesLeft === 0
+                    ? t('settings.billing.retry.noTriesTip')
+                    : t('settings.billing.retry.buttonTip')
+                }
+                onClick={() => void retry()}
+              >
+                {failure.needsAction ? t('settings.billing.retry.confirmButton') : t('settings.billing.retry.button')}
+              </Button>
+            </span>
           }
         >
           {failure.needsAction
@@ -1019,15 +1111,17 @@ function BalanceCard({
             : failure.code === TAX_ADDRESS_MISSING
               ? t('settings.billing.retry.noTaxAddress')
               : bill.autoRecharge.on
-                ? t('settings.billing.retry.declined', { count: failure.retriesLeft })
-                : t('settings.billing.retry.declinedAutoOff')}
+                ? t('settings.billing.retry.declinedShort', { floor })
+                : t('settings.billing.retry.declinedAutoOffShort', { floor })}
         </Note>
       )}
+      {problem && note && <BalanceProblemNote bill={bill} problem={problem} note={note} floor={floor} toast={toast} />}
       {bill.canBuyMinutes && paysCharges(bill) && (
         <div className="billing-actions">
           <Button
-            // One primary button per screen: Retry takes it while a recharge failed, a pay link while one is shown.
-            variant={failure || payFirst ? 'secondary' : 'primary'}
+            // One primary button per screen: Retry takes it while a recharge failed, a pay link while one is shown, the
+            // balance problem's fix while it shows one.
+            variant={failure || payFirst || fixed ? 'secondary' : 'primary'}
             icon="plus"
             title={t('settings.billing.topUp.buttonTip')}
             onClick={() => setBuying(true)}
@@ -1038,6 +1132,109 @@ function BalanceCard({
       )}
       {buying && <TopUpDialog taxed={bill.taxed} onClose={() => setBuying(false)} toast={toast} />}
     </Section>
+  )
+}
+
+/**
+ * A balance that will stop calls, in the Balance card (LIN-780): the consequence as the title, the reason with about
+ * how many minutes are left, and the state's own fix as the card's one primary button.
+ */
+function BalanceProblemNote({
+  bill,
+  problem,
+  note,
+  floor,
+  toast,
+}: {
+  bill: BillingOverviewBill
+  problem: NonNullable<ReturnType<typeof balanceProblem>>
+  note: BalanceNote
+  floor: string
+  toast: (text: string) => void
+}) {
+  const t = useT()
+  const format = useFormat()
+  const values = {
+    count: note.count,
+    floor,
+    cap: format.currency(centsToDollars(bill.cap.effectiveCents), 'USD', { maximumFractionDigits: 0 }),
+    used: problem.kind === 'minutes' ? problem.prompt.usedMinutes : 0,
+    included: problem.kind === 'minutes' ? problem.prompt.includedMinutes : 0,
+  }
+  return (
+    <Note
+      tone={note.tone}
+      title={t(note.title, values)}
+      action={
+        problem.kind === 'minutes' ? (
+          <KeepAnsweredButton prompt={problem.prompt} toast={toast} />
+        ) : note.fix === 'auto' ? (
+          <TurnOnAutoButton bill={bill} toast={toast} />
+        ) : note.fix === 'cap' ? (
+          <RaiseCapButton bill={bill} toast={toast} />
+        ) : undefined
+      }
+    >
+      {t(note.text, values)}
+    </Note>
+  )
+}
+
+/** "Keep calls answered": the banner's purchase (useKeepAnswered), through this page's bill. */
+function KeepAnsweredButton({ prompt, toast }: { prompt: TrialMinutesPrompt; toast: (text: string) => void }) {
+  const t = useT()
+  const calls = useBillCalls()
+  const { busy, keep, tip } = useKeepAnswered(
+    prompt,
+    toast,
+    (input, idempotencyKey) => calls.write<TopUpData>('billing.startTopUp', input, { idempotencyKey }),
+    calls.reload,
+  )
+  return (
+    <Button variant="primary" busy={busy} title={tip} onClick={() => void keep()}>
+      {t('settings.billing.banner.keepAnswered')}
+    </Button>
+  )
+}
+
+/** Auto-recharge on with its amounts as they are; the tooltip is what turning it on agrees to (the switch's words). */
+function TurnOnAutoButton({ bill, toast }: { bill: BillingOverviewBill; toast: (text: string) => void }) {
+  const t = useT()
+  const save = useSaveAutoRecharge(bill, toast)
+  const terms = useAutoTerms(bill)
+  const [busy, setBusy] = useState(false)
+  return (
+    <Button
+      variant="primary"
+      busy={busy}
+      disabled={!changesRecharge(bill)}
+      title={terms}
+      onClick={() => {
+        setBusy(true)
+        void save({ ...bill.autoRecharge, on: true }).finally(() => setBusy(false))
+      }}
+    >
+      {t('settings.billing.balance.problem.turnOnAuto')}
+    </Button>
+  )
+}
+
+/** "Raise the cap": the monthly cap's dialog, as Change under Auto-recharge opens it. */
+function RaiseCapButton({ bill, toast }: { bill: BillingOverviewBill; toast: (text: string) => void }) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button
+        variant="primary"
+        disabled={!changesRecharge(bill)}
+        title={t('settings.billing.cap.buttonTip')}
+        onClick={() => setOpen(true)}
+      >
+        {t('settings.billing.balance.problem.raiseCap')}
+      </Button>
+      {open && <CapDialog bill={bill} onClose={() => setOpen(false)} toast={toast} />}
+    </>
   )
 }
 
@@ -1224,18 +1421,11 @@ function savedCardLabel(card: { brand: string | null; last4: string | null }, t:
 
 // ---- Auto-recharge and the cap ---------------------------------------------------------------------------------
 
-function AutoRechargeCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: string) => void }) {
+/** Saves auto-recharge: shown at once, back as it was when the server refuses; the page reads the bill again. */
+function useSaveAutoRecharge(bill: BillingOverviewBill, toast: (text: string) => void) {
   const t = useT()
   const calls = useBillCalls()
-  const format = useFormat()
-  const [capOpen, setCapOpen] = useState(false)
-  const money = (cents: number) => format.currency(centsToDollars(cents), 'USD', { maximumFractionDigits: 0 })
-  const auto = bill.autoRecharge
-  const editable = changesRecharge(bill)
-  const options = (choices: readonly number[], fits: (c: number) => boolean) =>
-    choices.map(c => ({ value: String(c), label: money(c), disabled: !fits(c) }))
-
-  async function save(next: AutoRechargeData | Omit<AutoRechargeData, 'recharging'>) {
+  return async function save(next: AutoRechargeData | Omit<AutoRechargeData, 'recharging'>) {
     const before = bill.autoRecharge
     const input = { on: next.on, thresholdCents: next.thresholdCents, amountCents: next.amountCents }
     setQueryData<BillingOverviewData | undefined>(calls.overview, d =>
@@ -1253,6 +1443,31 @@ function AutoRechargeCard({ bill, toast }: { bill: BillingOverviewBill; toast: (
       void calls.reload()
     }
   }
+}
+
+/** What turning auto-recharge on agrees to, word for word what billing.setAutoRecharge records (source auto_recharge). */
+function useAutoTerms(bill: BillingOverviewBill) {
+  const t = useT()
+  const format = useFormat()
+  const money = (cents: number) => format.currency(centsToDollars(cents), 'USD', { maximumFractionDigits: 0 })
+  return t(bill.taxed ? 'settings.billing.auto.offTermsTaxed' : 'settings.billing.auto.offTerms', {
+    amount: money(bill.autoRecharge.amountCents),
+    threshold: money(bill.autoRecharge.thresholdCents),
+    cap: money(bill.cap.effectiveCents),
+  })
+}
+
+function AutoRechargeCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: string) => void }) {
+  const t = useT()
+  const format = useFormat()
+  const [capOpen, setCapOpen] = useState(false)
+  const money = (cents: number) => format.currency(centsToDollars(cents), 'USD', { maximumFractionDigits: 0 })
+  const auto = bill.autoRecharge
+  const editable = changesRecharge(bill)
+  const save = useSaveAutoRecharge(bill, toast)
+  const terms = useAutoTerms(bill)
+  const options = (choices: readonly number[], fits: (c: number) => boolean) =>
+    choices.map(c => ({ value: String(c), label: money(c), disabled: !fits(c) }))
 
   return (
     <Section id="billing-auto" title={t('settings.billing.auto.title')}>
@@ -1264,12 +1479,7 @@ function AutoRechargeCard({ bill, toast }: { bill: BillingOverviewBill; toast: (
                 threshold: money(auto.thresholdCents),
                 amount: money(auto.amountCents),
               })
-            : // What turning it on agrees to, word for word what billing.setAutoRecharge records (source auto_recharge).
-              t(bill.taxed ? 'settings.billing.auto.offTermsTaxed' : 'settings.billing.auto.offTerms', {
-                amount: money(auto.amountCents),
-                threshold: money(auto.thresholdCents),
-                cap: money(bill.cap.effectiveCents),
-              })
+            : terms
         }
         on={auto.on}
         disabled={!editable}
@@ -1522,13 +1732,11 @@ function UsageRows({ rows, minutesOnly = false }: { rows: BillingUsageRow[]; min
 
 // ---- Invoices and the portal -----------------------------------------------------------------------------------
 
-function InvoicesCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: string) => void }) {
-  const t = useT()
+/** The Stripe portal (card, billing address, every invoice): Card and invoices, and Update card on a decline. */
+function usePortal(toast: (text: string) => void) {
   const calls = useBillCalls()
-  const format = useFormat()
   const [opening, setOpening] = useState(false)
-
-  async function portal() {
+  async function open() {
     setOpening(true)
     try {
       const { url } = await calls.write<PortalData>('billing.openPortal')
@@ -1538,6 +1746,13 @@ function InvoicesCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text
       setOpening(false)
     }
   }
+  return { opening, open }
+}
+
+function InvoicesCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: string) => void }) {
+  const t = useT()
+  const format = useFormat()
+  const portal = usePortal(toast)
 
   return (
     <Section
@@ -1546,7 +1761,12 @@ function InvoicesCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text
       description={t('settings.billing.invoices.description')}
       actions={
         bill.hasPortal && (
-          <Button size="sm" busy={opening} title={t('settings.billing.portal.buttonTip')} onClick={() => void portal()}>
+          <Button
+            size="sm"
+            busy={portal.opening}
+            title={t('settings.billing.portal.buttonTip')}
+            onClick={() => void portal.open()}
+          >
             {t('settings.billing.portal.button')}
           </Button>
         )

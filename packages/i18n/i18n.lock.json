@@ -15800,11 +15800,6 @@
       "out": "7c4a0a45b41b375907debfaeee48f8bdefd8e3ce7d616b3a5d09209f9a2e515b",
       "src": "49e96d7cdf58069cc793555324e2226642f2f7f8bfff4cebe0c11a61eecef60a"
     },
-    "email.billing.trial.amountValue": {
-      "by": "ai",
-      "out": "4a130cca036d22ce6a9e724a464289fc73fd396aa9f79f8fba1f9b4fbc17c65b",
-      "src": "7e6d8b717373ae3ed36167845ec71b315559fefc46bcd15d168eab96e3dd3e77"
-    },
     "email.billing.trial.cancel": {
       "by": "ai",
       "out": "c367b76ccda8819433b25900158052239f4baee3567a06b1b99820642f0025e2",
@@ -15819,16 +15814,6 @@
       "by": "ai",
       "out": "57a0b4b6f194aec1e1ae2abdcee0d591ad94056e119813886983b46843b0cba1",
       "src": "de828f90278dcf10be2e7bac6904b9eb0aece6886e3b7443c28f23c1877d5312"
-    },
-    "email.billing.trial.planMonthly": {
-      "by": "ai",
-      "out": "3942158e105fb2808b23dc2217d84cab652bd4da06ed80e14e038c1f3ecc112f",
-      "src": "abab8490f00beebbb00fa7e13ea3b9a9275b22ff4093aff2f7616c679f6bdb56"
-    },
-    "email.billing.trial.planYearly": {
-      "by": "ai",
-      "out": "c0871de48828c660fa428146608517a436f6dbd4453fca440049a65257664745",
-      "src": "8abf5961f33e6bd1d88ccfcb7b017d53b5c3f20fcf9a09f699e308dafeb94bea"
     },
     "email.billing.trial.reminderDay": {
       "by": "ai",
@@ -15900,20 +15885,10 @@
       "out": "8a89b0c3f6ed5eb7894fe60a5c547a5c8135dd495945acdc6bb45827c4af10e3",
       "src": "770e7e2e5ae8b7b37450c089b6185f27d0a35a7e9a55b78a0801561b9e395dc0"
     },
-    "email.billing.trialStarted.text": {
-      "by": "ai",
-      "out": "d282773c8bdbbfb0e1fda9869f709083b93e0b196d3323e4ccecb308cda83ba9",
-      "src": "e9b498ba6fdb2d211e26d09845f4b36f631414b165365450adc421b293082919"
-    },
     "email.billing.trialWillEnd.cancel": {
       "by": "ai",
       "out": "861a8159f17173568dda0f7c1af2ad6ed68facbf2ee269933f79865693ca49b8",
       "src": "ea7453c584796ef0c352a38a0c85173e3f6641b9d71c3fc2671b2ee66efdffe1"
-    },
-    "email.billing.trialWillEnd.planOnly": {
-      "by": "ai",
-      "out": "5fc6c3a02175ff34212203a0897197589b8040ffb69411c63285a71cf58f7352",
-      "src": "e9a756e847406ea3df5579ebf44ec8f9eeca001078298e3c43e2b2bfb59f3b70"
     },
     "email.billing.trialWillEnd.reason": {
       "by": "ai",
@@ -15924,11 +15899,6 @@
       "by": "ai",
       "out": "cbc8a90e9eafe31bccbaf6b954ea78c245f6f9927c602bc11878d4e781d9f28b",
       "src": "2a56c78f989710571155b25ec032670a385659245f43d1c10b71646bd56c737a"
-    },
-    "email.billing.trialWillEnd.text": {
-      "by": "ai",
-      "out": "9dda468b92d2c64001023e09e0a012e7342801626b455bb339a153b801294c40",
-      "src": "2d89938f42db1c3daf4adf842a9644302f5214ad70ef913f32bd87408d7f6fe5"
     },
     "email.booking.change": {
       "by": "ai",
@@ -27410,21 +27380,6 @@
       "out": "09d23a2f0211e24ce1f4ada015ed60dc915ed4ae597e37d6c7ded644cde93208",
       "src": "fa8ed0bdabdd6bcb1c0746f1d3e15212f7f3439d74339fbaaf16c60c0a80fb8e"
     },
-    "settings.billing.plan.trialAutoOff": {
-      "by": "ai",
-      "out": "ec8ad64a8ca8f0329b47ee03f0d1f412874ff57f0c3b242942c58a0b70d9f865",
-      "src": "6e176b012855b12371c5fdc098e892cae089c7a644e278ccebd824f163f7a1af"
-    },
-    "settings.billing.plan.trialEnds": {
-      "by": "ai",
-      "out": "a1820b260626db4475ad5043a6936e9fcdb457a3179bacbca47013bafc40e763",
-      "src": "547c02a7f544d2d8e8309171fc0825bdf680f06910da3232286592d2a44a5e29"
-    },
-    "settings.billing.plan.trialEndsCanceled": {
-      "by": "ai",
-      "out": "2ce6897a211757c02fd8801372dd09e17329296f0066c872084cabf5d610a998",
-      "src": "1655c7ec8be4d8a47019607c64cd50432aa0cd24b54fc1dfb79efbd0c70ad8fc"
-    },
     "settings.billing.plan.trialLinkPlan": {
       "by": "human",
       "out": "f14fb8e1813452ec8bafcbe804bb615d50d10d55a19b8c5d7733f732e3dbc563",
@@ -27434,11 +27389,6 @@
       "by": "human",
       "out": "e214da0bbe1d92e2cd1f4771803db508676caad4c54dd86a6ee21ecae3e70bea",
       "src": "e0cd5ea9fb2b73713ed485e36eafe04977333cc68123fd44dd0e23fa3b7020d4"
-    },
-    "settings.billing.plan.trialNote": {
-      "by": "ai",
-      "out": "3c46539dcc1548799ddd906a92493dc214aabf5505f01b9812a5d107058ec3c6",
-      "src": "a9c6703e3edcf15fb347a76c05512d0e77cc01adf4fb1d9e926feebb5f80b25f"
     },
     "settings.billing.plan.workspaces": {
       "by": "ai",
@@ -27484,16 +27434,6 @@
       "by": "ai",
       "out": "c7ee10d628c82e837b8106dee462961da2e2e0382c168344fe94a1477779b01f",
       "src": "fb6858a2c91d9349304d9c3b2714d11fe9e368ebd980c867bcb24962dac9bda6"
-    },
-    "settings.billing.retry.declined": {
-      "by": "ai",
-      "out": "925019838bb380f719a9f1e275fddc35505912e07cd7ac54e70feca2cbf4c23e",
-      "src": "f56965871fdae9231037b404c2567e22fdea539c1911f300229997d6a9c7f36e"
-    },
-    "settings.billing.retry.declinedAutoOff": {
-      "by": "ai",
-      "out": "6947254fb7666f3b164f3bf9316f6ab63c92e31dcf45ef717d395f5c567a6e71",
-      "src": "23d44c74ac5b03f126b88e529782e883d9ea63cec08a000ee50d41b7837b526b"
     },
     "settings.billing.retry.done.cap_reached": {
       "by": "ai",
@@ -55007,11 +54947,6 @@
       "out": "572a3acfd983df5cac01183af387763699ac76855dc3b22dca06325a5665cb17",
       "src": "49e96d7cdf58069cc793555324e2226642f2f7f8bfff4cebe0c11a61eecef60a"
     },
-    "email.billing.trial.amountValue": {
-      "by": "ai",
-      "out": "629669f28a89b64291ab3e0617d5d96a19696a03b94a636f7812e67ec7d50a26",
-      "src": "7e6d8b717373ae3ed36167845ec71b315559fefc46bcd15d168eab96e3dd3e77"
-    },
     "email.billing.trial.cancel": {
       "by": "ai",
       "out": "25c1f7fa310715ad8da73cece4e1e631432a72f622001943947dad6302d77d64",
@@ -55026,16 +54961,6 @@
       "by": "ai",
       "out": "c7230dbc244ee4072409b7bd12fcb5c6c9dde81954e57260e2541eec4f657b29",
       "src": "de828f90278dcf10be2e7bac6904b9eb0aece6886e3b7443c28f23c1877d5312"
-    },
-    "email.billing.trial.planMonthly": {
-      "by": "ai",
-      "out": "46531b20aa4477233fdb61ad468742007e3e37496ffc534fae4d923f236446c0",
-      "src": "abab8490f00beebbb00fa7e13ea3b9a9275b22ff4093aff2f7616c679f6bdb56"
-    },
-    "email.billing.trial.planYearly": {
-      "by": "ai",
-      "out": "e85f84c60fa6206f6fb21c9f40ea09fb567111e68040d4b18318027cc8f0caf4",
-      "src": "8abf5961f33e6bd1d88ccfcb7b017d53b5c3f20fcf9a09f699e308dafeb94bea"
     },
     "email.billing.trial.reminderDay": {
       "by": "ai",
@@ -55107,20 +55032,10 @@
       "out": "bc3d718ef4d141d2bd9d2c9708779192536a8fedebf30a98d452df74d41c19ed",
       "src": "770e7e2e5ae8b7b37450c089b6185f27d0a35a7e9a55b78a0801561b9e395dc0"
     },
-    "email.billing.trialStarted.text": {
-      "by": "ai",
-      "out": "e156eb989e2738beb23a682ffcc4410fda1c2661ca0604da33b0eea685d3202f",
-      "src": "e9b498ba6fdb2d211e26d09845f4b36f631414b165365450adc421b293082919"
-    },
     "email.billing.trialWillEnd.cancel": {
       "by": "ai",
       "out": "dc4de0728032f60629296d1e7aad4c8f7fd6435eead44217f4b945fdfc1b5a98",
       "src": "ea7453c584796ef0c352a38a0c85173e3f6641b9d71c3fc2671b2ee66efdffe1"
-    },
-    "email.billing.trialWillEnd.planOnly": {
-      "by": "ai",
-      "out": "da5008d17407897a1d811db271cea74b97f2615bbe5b31e2220fd02ca9e00ccb",
-      "src": "e9a756e847406ea3df5579ebf44ec8f9eeca001078298e3c43e2b2bfb59f3b70"
     },
     "email.billing.trialWillEnd.reason": {
       "by": "ai",
@@ -55131,11 +55046,6 @@
       "by": "ai",
       "out": "dc1974406c658e4e60d07ab63c8d8b826268592721272a6756ba62cf1b8fa30b",
       "src": "2a56c78f989710571155b25ec032670a385659245f43d1c10b71646bd56c737a"
-    },
-    "email.billing.trialWillEnd.text": {
-      "by": "ai",
-      "out": "9d0c6977964ea2999dc562eb19d98200b677f150147a04ec0da8720c331c81c3",
-      "src": "2d89938f42db1c3daf4adf842a9644302f5214ad70ef913f32bd87408d7f6fe5"
     },
     "email.booking.change": {
       "by": "ai",
@@ -66617,21 +66527,6 @@
       "out": "fa8ed0bdabdd6bcb1c0746f1d3e15212f7f3439d74339fbaaf16c60c0a80fb8e",
       "src": "fa8ed0bdabdd6bcb1c0746f1d3e15212f7f3439d74339fbaaf16c60c0a80fb8e"
     },
-    "settings.billing.plan.trialAutoOff": {
-      "by": "ai",
-      "out": "c001495e23daf17cd39a7400fbd2cfa18ea1680b3987b7a31765e51b6f3c8751",
-      "src": "6e176b012855b12371c5fdc098e892cae089c7a644e278ccebd824f163f7a1af"
-    },
-    "settings.billing.plan.trialEnds": {
-      "by": "ai",
-      "out": "14cd09c019632708f713b5c5c74209249333a9032777f7412ae82a381d9719c6",
-      "src": "547c02a7f544d2d8e8309171fc0825bdf680f06910da3232286592d2a44a5e29"
-    },
-    "settings.billing.plan.trialEndsCanceled": {
-      "by": "ai",
-      "out": "9efb010e2c12a3dffcaa7a9148fe88be339a1ba6cc06800a8e578ed5f69da1b6",
-      "src": "1655c7ec8be4d8a47019607c64cd50432aa0cd24b54fc1dfb79efbd0c70ad8fc"
-    },
     "settings.billing.plan.trialLinkPlan": {
       "by": "ai",
       "out": "7e2345c70189fe8563cbea5e598c45002dfaba5e3d51449af4fd49ce352f7876",
@@ -66641,11 +66536,6 @@
       "by": "ai",
       "out": "1871376ec7a4dfb960205b612cdfd7f00fa242b198be92451c49e8f9f9ae2060",
       "src": "e0cd5ea9fb2b73713ed485e36eafe04977333cc68123fd44dd0e23fa3b7020d4"
-    },
-    "settings.billing.plan.trialNote": {
-      "by": "ai",
-      "out": "058195225ca15fef3a7511b7fd171cf5978475251c1a0d5b92e32836bae1e81d",
-      "src": "a9c6703e3edcf15fb347a76c05512d0e77cc01adf4fb1d9e926feebb5f80b25f"
     },
     "settings.billing.plan.workspaces": {
       "by": "ai",
@@ -66691,16 +66581,6 @@
       "by": "ai",
       "out": "66aadbfddcf586bfd7ca28c55d4d3ad341b4c625fc70b49e56fed4e37f1d5be9",
       "src": "fb6858a2c91d9349304d9c3b2714d11fe9e368ebd980c867bcb24962dac9bda6"
-    },
-    "settings.billing.retry.declined": {
-      "by": "ai",
-      "out": "576ccf590ca2141c2b7d18b8e686097f5fd455c837de7ae104f925b01e4258bd",
-      "src": "f56965871fdae9231037b404c2567e22fdea539c1911f300229997d6a9c7f36e"
-    },
-    "settings.billing.retry.declinedAutoOff": {
-      "by": "ai",
-      "out": "240ee07e8465541e79b4f37d3d8cd8d94200a6febce13a7ae38e1d23ea30cbc9",
-      "src": "23d44c74ac5b03f126b88e529782e883d9ea63cec08a000ee50d41b7837b526b"
     },
     "settings.billing.retry.done.cap_reached": {
       "by": "ai",
@@ -94214,11 +94094,6 @@
       "out": "947cc07e2b3e8a73881117acbc8a07af0ea0d703cc9b0b627330aeab1b299a60",
       "src": "49e96d7cdf58069cc793555324e2226642f2f7f8bfff4cebe0c11a61eecef60a"
     },
-    "email.billing.trial.amountValue": {
-      "by": "ai",
-      "out": "21380695bdfcce708219aec813670fa2423bbc50c1b8f4169c31fb39c30ccae5",
-      "src": "7e6d8b717373ae3ed36167845ec71b315559fefc46bcd15d168eab96e3dd3e77"
-    },
     "email.billing.trial.cancel": {
       "by": "ai",
       "out": "decbb98ec99ed25cb1d29767a4a2dff1671c4e0be6210d40c796ac716596c66c",
@@ -94233,16 +94108,6 @@
       "by": "ai",
       "out": "15cfeeebf4fe45cd0b3dedf9d64f8b26913d88d58548737fdc6b793b46f25c56",
       "src": "de828f90278dcf10be2e7bac6904b9eb0aece6886e3b7443c28f23c1877d5312"
-    },
-    "email.billing.trial.planMonthly": {
-      "by": "ai",
-      "out": "eb5d85aff2dfa7a5ea85fb3cd207e437bffefe1cff6905b8f4c61767249b027d",
-      "src": "abab8490f00beebbb00fa7e13ea3b9a9275b22ff4093aff2f7616c679f6bdb56"
-    },
-    "email.billing.trial.planYearly": {
-      "by": "ai",
-      "out": "72ac055599d689ade04938671d6d63067e490071bb682a1d019b1165cd6b6db9",
-      "src": "8abf5961f33e6bd1d88ccfcb7b017d53b5c3f20fcf9a09f699e308dafeb94bea"
     },
     "email.billing.trial.reminderDay": {
       "by": "ai",
@@ -94314,20 +94179,10 @@
       "out": "ca2accf7d29b0a5e80f3efe093827fee3f004020c334e5a976f84f82f862f45e",
       "src": "770e7e2e5ae8b7b37450c089b6185f27d0a35a7e9a55b78a0801561b9e395dc0"
     },
-    "email.billing.trialStarted.text": {
-      "by": "ai",
-      "out": "ce17308469b6269b3eed14faa3a9b39133e110bbb260724c0f48ee98e17ffd52",
-      "src": "e9b498ba6fdb2d211e26d09845f4b36f631414b165365450adc421b293082919"
-    },
     "email.billing.trialWillEnd.cancel": {
       "by": "ai",
       "out": "80d403d3f2dfaf455ec3acac431827b33744d8ef82d590e524a2cffc11d49f29",
       "src": "ea7453c584796ef0c352a38a0c85173e3f6641b9d71c3fc2671b2ee66efdffe1"
-    },
-    "email.billing.trialWillEnd.planOnly": {
-      "by": "ai",
-      "out": "2e77699fdc5d23e6e799b91d04d1474b5e5d747b0485c313c1e29674ac154475",
-      "src": "e9a756e847406ea3df5579ebf44ec8f9eeca001078298e3c43e2b2bfb59f3b70"
     },
     "email.billing.trialWillEnd.reason": {
       "by": "ai",
@@ -94338,11 +94193,6 @@
       "by": "ai",
       "out": "c09cbe57fc1a5371e409a649f51d8e582cd4b834df0d550cd710f46c1c048644",
       "src": "2a56c78f989710571155b25ec032670a385659245f43d1c10b71646bd56c737a"
-    },
-    "email.billing.trialWillEnd.text": {
-      "by": "ai",
-      "out": "b5ec5834a787bb0124d4803ce3e9d09752801d9fdc0080fa1ffcb855a7b08ce6",
-      "src": "2d89938f42db1c3daf4adf842a9644302f5214ad70ef913f32bd87408d7f6fe5"
     },
     "email.booking.change": {
       "by": "ai",
@@ -105824,21 +105674,6 @@
       "out": "c1d3af52424f62b71e31b981b91fcdf8f35b0c1a7e363a2e27514559ed8a3244",
       "src": "fa8ed0bdabdd6bcb1c0746f1d3e15212f7f3439d74339fbaaf16c60c0a80fb8e"
     },
-    "settings.billing.plan.trialAutoOff": {
-      "by": "ai",
-      "out": "7bba93c262421a1b8c730d8add3018768970a4067f336188737d1aff0c71c06b",
-      "src": "6e176b012855b12371c5fdc098e892cae089c7a644e278ccebd824f163f7a1af"
-    },
-    "settings.billing.plan.trialEnds": {
-      "by": "ai",
-      "out": "7bfc2bdc57079031403e236914e8e9ed14a185c02e8af0969131104954bb2f92",
-      "src": "547c02a7f544d2d8e8309171fc0825bdf680f06910da3232286592d2a44a5e29"
-    },
-    "settings.billing.plan.trialEndsCanceled": {
-      "by": "ai",
-      "out": "b4e43148ddf171f7596ae9712ea14a2f54569bdd7c5ba060bb51c8e699a14f54",
-      "src": "1655c7ec8be4d8a47019607c64cd50432aa0cd24b54fc1dfb79efbd0c70ad8fc"
-    },
     "settings.billing.plan.trialLinkPlan": {
       "by": "ai",
       "out": "3c7dbd380e1d4a1c704334dacd8d43535c5eb5005b35759b197b0c83841df350",
@@ -105848,11 +105683,6 @@
       "by": "ai",
       "out": "5365de26ca6eb0a4b5a351b1dec6c346f1dd1a177b6c317999a7f3f065ab6e38",
       "src": "e0cd5ea9fb2b73713ed485e36eafe04977333cc68123fd44dd0e23fa3b7020d4"
-    },
-    "settings.billing.plan.trialNote": {
-      "by": "ai",
-      "out": "b66214688a21001c56e294f16bf60c35b0a28d1a715fbf68048a4dbcce2a7bb8",
-      "src": "a9c6703e3edcf15fb347a76c05512d0e77cc01adf4fb1d9e926feebb5f80b25f"
     },
     "settings.billing.plan.workspaces": {
       "by": "ai",
@@ -105898,16 +105728,6 @@
       "by": "ai",
       "out": "1363a41796c3a9d1f5356becc337423d6c8214494e2fdbd87c587dd886c5578d",
       "src": "fb6858a2c91d9349304d9c3b2714d11fe9e368ebd980c867bcb24962dac9bda6"
-    },
-    "settings.billing.retry.declined": {
-      "by": "ai",
-      "out": "384611c6a20199ce56ef61429ca9ac65cb132d3bc99bc9d6a97f8f3a5b75679b",
-      "src": "f56965871fdae9231037b404c2567e22fdea539c1911f300229997d6a9c7f36e"
-    },
-    "settings.billing.retry.declinedAutoOff": {
-      "by": "ai",
-      "out": "847cc3345884e9e98fe3131d4bb2a9cb355310725d9e02d5371431cb917126c9",
-      "src": "23d44c74ac5b03f126b88e529782e883d9ea63cec08a000ee50d41b7837b526b"
     },
     "settings.billing.retry.done.cap_reached": {
       "by": "ai",
@@ -133421,11 +133241,6 @@
       "out": "ddf1cb68aa8ddf0a714244648efb0e2f3863553202537ea9852ba045ff92ee22",
       "src": "49e96d7cdf58069cc793555324e2226642f2f7f8bfff4cebe0c11a61eecef60a"
     },
-    "email.billing.trial.amountValue": {
-      "by": "ai",
-      "out": "d1dd1c5cf1098e6fd7a5b32d6f6c2b5392c10db95ea1f1cde9fc9d2a2c876d52",
-      "src": "7e6d8b717373ae3ed36167845ec71b315559fefc46bcd15d168eab96e3dd3e77"
-    },
     "email.billing.trial.cancel": {
       "by": "ai",
       "out": "b3f82194a30d14ced1ca42ee5690dffb52db0f9bf04a38693322ed225e9832b6",
@@ -133440,16 +133255,6 @@
       "by": "ai",
       "out": "1cc145d66f5cf7e1f55e4a6693384366a330586c45a700858b477c5c369ecc21",
       "src": "de828f90278dcf10be2e7bac6904b9eb0aece6886e3b7443c28f23c1877d5312"
-    },
-    "email.billing.trial.planMonthly": {
-      "by": "ai",
-      "out": "79c7f1172607307bed1e7a6a25f714e09d5559372d41eaac8557ec7cdc50ff30",
-      "src": "abab8490f00beebbb00fa7e13ea3b9a9275b22ff4093aff2f7616c679f6bdb56"
-    },
-    "email.billing.trial.planYearly": {
-      "by": "ai",
-      "out": "801eec50ffaf93e9d61cc61c09e3aabd77da76dc44a0b67cc4c38fb4aafbb302",
-      "src": "8abf5961f33e6bd1d88ccfcb7b017d53b5c3f20fcf9a09f699e308dafeb94bea"
     },
     "email.billing.trial.reminderDay": {
       "by": "ai",
@@ -133521,20 +133326,10 @@
       "out": "fcef1f87aadbfa0d1ecb000a3b57e11d4ebe450ad3c6d16d809fdadb55af8894",
       "src": "770e7e2e5ae8b7b37450c089b6185f27d0a35a7e9a55b78a0801561b9e395dc0"
     },
-    "email.billing.trialStarted.text": {
-      "by": "ai",
-      "out": "957c2e66b4eff1fcaf599b9045f62695f3b689889fbb2c418e6f7888764427de",
-      "src": "e9b498ba6fdb2d211e26d09845f4b36f631414b165365450adc421b293082919"
-    },
     "email.billing.trialWillEnd.cancel": {
       "by": "ai",
       "out": "67ab03e26ce2b166d0e8b9a2710b3a9963eaf6d97b9b6bbd55f7e2474428be05",
       "src": "ea7453c584796ef0c352a38a0c85173e3f6641b9d71c3fc2671b2ee66efdffe1"
-    },
-    "email.billing.trialWillEnd.planOnly": {
-      "by": "ai",
-      "out": "572aeb8cfbcc7c1c1fe48c19930158e928e23d1d0853214880b94e04f96aed27",
-      "src": "e9a756e847406ea3df5579ebf44ec8f9eeca001078298e3c43e2b2bfb59f3b70"
     },
     "email.billing.trialWillEnd.reason": {
       "by": "ai",
@@ -133545,11 +133340,6 @@
       "by": "ai",
       "out": "1a675dc47f403270b0f823a932d6aa3a9aa8da3ecf1b09d96ddcabeca0b70854",
       "src": "2a56c78f989710571155b25ec032670a385659245f43d1c10b71646bd56c737a"
-    },
-    "email.billing.trialWillEnd.text": {
-      "by": "ai",
-      "out": "40418282a5a319dc1219b16b03d85700534f236642f5ba99e04ebc505fde1cb4",
-      "src": "2d89938f42db1c3daf4adf842a9644302f5214ad70ef913f32bd87408d7f6fe5"
     },
     "email.booking.change": {
       "by": "ai",
@@ -145031,21 +144821,6 @@
       "out": "778312efae840b777270481451ad00f35cc9392e8fc5a85d1d551f8026d51ac7",
       "src": "fa8ed0bdabdd6bcb1c0746f1d3e15212f7f3439d74339fbaaf16c60c0a80fb8e"
     },
-    "settings.billing.plan.trialAutoOff": {
-      "by": "ai",
-      "out": "e1dd7d1455c59a0939f1ee4893948f3996039cc276c3e0cf4fb6e7c9740f7d85",
-      "src": "6e176b012855b12371c5fdc098e892cae089c7a644e278ccebd824f163f7a1af"
-    },
-    "settings.billing.plan.trialEnds": {
-      "by": "ai",
-      "out": "618cb8a23e243d4aca53cd2a7715a6258593019befbe07a1dfc6d78678d48de7",
-      "src": "547c02a7f544d2d8e8309171fc0825bdf680f06910da3232286592d2a44a5e29"
-    },
-    "settings.billing.plan.trialEndsCanceled": {
-      "by": "ai",
-      "out": "e95ecdb10e6d0e838c6d43f193652852fe1c55c85fe8f95234a3a3a2740d3997",
-      "src": "1655c7ec8be4d8a47019607c64cd50432aa0cd24b54fc1dfb79efbd0c70ad8fc"
-    },
     "settings.billing.plan.trialLinkPlan": {
       "by": "ai",
       "out": "40303fdc5b7c5d24aa10d5bfb96f78d7bd2a0912dfe5fac3e18828e1d97cec05",
@@ -145055,11 +144830,6 @@
       "by": "ai",
       "out": "235efb12d76925187a994896a0d498bcae79239b96d2391858cecaea88cffabb",
       "src": "e0cd5ea9fb2b73713ed485e36eafe04977333cc68123fd44dd0e23fa3b7020d4"
-    },
-    "settings.billing.plan.trialNote": {
-      "by": "ai",
-      "out": "34ec29471d679fa0608fa99e420d855b6409da9a396ebf9e0ad4b422059b73ea",
-      "src": "a9c6703e3edcf15fb347a76c05512d0e77cc01adf4fb1d9e926feebb5f80b25f"
     },
     "settings.billing.plan.workspaces": {
       "by": "ai",
@@ -145105,16 +144875,6 @@
       "by": "ai",
       "out": "6aa2a975d33cc17e6ed535d09580a717b49ba173b8b61487019901f1c4a828b5",
       "src": "fb6858a2c91d9349304d9c3b2714d11fe9e368ebd980c867bcb24962dac9bda6"
-    },
-    "settings.billing.retry.declined": {
-      "by": "ai",
-      "out": "a779c4aa40784719d7eff82544457e89c97bde693d0e88656e936efabab4b274",
-      "src": "f56965871fdae9231037b404c2567e22fdea539c1911f300229997d6a9c7f36e"
-    },
-    "settings.billing.retry.declinedAutoOff": {
-      "by": "ai",
-      "out": "c34e402342d5ed04f22cee87859a90b656578faffa4369770f4c25e7c565dce2",
-      "src": "23d44c74ac5b03f126b88e529782e883d9ea63cec08a000ee50d41b7837b526b"
     },
     "settings.billing.retry.done.cap_reached": {
       "by": "ai",
@@ -172628,11 +172388,6 @@
       "out": "b2f530c46991311cd367c992a825763bc55140682c347ad2e24d2fce316cd324",
       "src": "49e96d7cdf58069cc793555324e2226642f2f7f8bfff4cebe0c11a61eecef60a"
     },
-    "email.billing.trial.amountValue": {
-      "by": "ai",
-      "out": "51f955eb6a9f89a7ca9cb3d080f53674651c14b8fcded80c0370379de7afedd3",
-      "src": "7e6d8b717373ae3ed36167845ec71b315559fefc46bcd15d168eab96e3dd3e77"
-    },
     "email.billing.trial.cancel": {
       "by": "ai",
       "out": "560ac84d8163542c9c7231f4472a148c0b53765439420464b1ae325b5836aae4",
@@ -172647,16 +172402,6 @@
       "by": "ai",
       "out": "fe3d59d4c98239a6029e6e99bbc5c994f70d9dac89c8f0132339feb896ecd688",
       "src": "de828f90278dcf10be2e7bac6904b9eb0aece6886e3b7443c28f23c1877d5312"
-    },
-    "email.billing.trial.planMonthly": {
-      "by": "ai",
-      "out": "c73d7310e8090c3531d4b4c1fba5af53036e1c2b9ffde439f53332be4f65f104",
-      "src": "abab8490f00beebbb00fa7e13ea3b9a9275b22ff4093aff2f7616c679f6bdb56"
-    },
-    "email.billing.trial.planYearly": {
-      "by": "ai",
-      "out": "b77abbe3f61c5198f163da413e93d4c787e5d4befe3a51d509f016fdcd9bf259",
-      "src": "8abf5961f33e6bd1d88ccfcb7b017d53b5c3f20fcf9a09f699e308dafeb94bea"
     },
     "email.billing.trial.reminderDay": {
       "by": "ai",
@@ -172728,20 +172473,10 @@
       "out": "aadcdbdc716dbcbce665607294ed78631f9e7b45f29904a794864d640d2466a7",
       "src": "770e7e2e5ae8b7b37450c089b6185f27d0a35a7e9a55b78a0801561b9e395dc0"
     },
-    "email.billing.trialStarted.text": {
-      "by": "ai",
-      "out": "3cf1aab428b34f5aed7184fa2bfe66f670f8bbd28671369fd2fa7bc464928736",
-      "src": "e9b498ba6fdb2d211e26d09845f4b36f631414b165365450adc421b293082919"
-    },
     "email.billing.trialWillEnd.cancel": {
       "by": "ai",
       "out": "d029751d4cf385abaef753c9624fddc5c28279b15525a209f172adc66540bb87",
       "src": "ea7453c584796ef0c352a38a0c85173e3f6641b9d71c3fc2671b2ee66efdffe1"
-    },
-    "email.billing.trialWillEnd.planOnly": {
-      "by": "ai",
-      "out": "90c4951a1f8b8a6a77cc8d5cbbf0897d8ba9ea27029cc10cd60d9c84dc16e50a",
-      "src": "e9a756e847406ea3df5579ebf44ec8f9eeca001078298e3c43e2b2bfb59f3b70"
     },
     "email.billing.trialWillEnd.reason": {
       "by": "ai",
@@ -172752,11 +172487,6 @@
       "by": "ai",
       "out": "5ecd7cf38e5a578656f6eb4836f453194795f5e666ed222acf51c1156a1539f5",
       "src": "2a56c78f989710571155b25ec032670a385659245f43d1c10b71646bd56c737a"
-    },
-    "email.billing.trialWillEnd.text": {
-      "by": "ai",
-      "out": "b23a3ee50bac2ff5dee8fa8dd8ea9a85c609d53a2031b12641a89367df72683a",
-      "src": "2d89938f42db1c3daf4adf842a9644302f5214ad70ef913f32bd87408d7f6fe5"
     },
     "email.booking.change": {
       "by": "ai",
@@ -184238,21 +183968,6 @@
       "out": "6c55806376abf353706bfbb1aaed205305602a9628920873cbc28175a5377fa3",
       "src": "fa8ed0bdabdd6bcb1c0746f1d3e15212f7f3439d74339fbaaf16c60c0a80fb8e"
     },
-    "settings.billing.plan.trialAutoOff": {
-      "by": "ai",
-      "out": "bfdfd70a867c2b55c1c4ec2ae49ce4667616f7cddc1ab8d6ac0d0cf433e11b72",
-      "src": "6e176b012855b12371c5fdc098e892cae089c7a644e278ccebd824f163f7a1af"
-    },
-    "settings.billing.plan.trialEnds": {
-      "by": "ai",
-      "out": "60d2f81c51d03c1e787b317f0c8ff28a8e3c9313d63216ccb91663f43c617f64",
-      "src": "547c02a7f544d2d8e8309171fc0825bdf680f06910da3232286592d2a44a5e29"
-    },
-    "settings.billing.plan.trialEndsCanceled": {
-      "by": "ai",
-      "out": "03e993954757faf08320950049c02e19959fa6d31957c2b96b8e0dc35b1a774e",
-      "src": "1655c7ec8be4d8a47019607c64cd50432aa0cd24b54fc1dfb79efbd0c70ad8fc"
-    },
     "settings.billing.plan.trialLinkPlan": {
       "by": "ai",
       "out": "787dd99007695cddcdc02bfb58db9c273d528e664aab067d338efc02bc47b73a",
@@ -184262,11 +183977,6 @@
       "by": "ai",
       "out": "8d5fdf6666afbe9aaeba7c78096a91c52506fd4d5afeba4581c0aa746876c21d",
       "src": "e0cd5ea9fb2b73713ed485e36eafe04977333cc68123fd44dd0e23fa3b7020d4"
-    },
-    "settings.billing.plan.trialNote": {
-      "by": "ai",
-      "out": "3bcfbf6328c3fda3bdf3086ff77597a6af8d4b946f960a5fa37b0236e0b1e4e9",
-      "src": "a9c6703e3edcf15fb347a76c05512d0e77cc01adf4fb1d9e926feebb5f80b25f"
     },
     "settings.billing.plan.workspaces": {
       "by": "ai",
@@ -184312,16 +184022,6 @@
       "by": "ai",
       "out": "9c12979f0f327817d8fa61d1954c19ec4996e9ab86e73538bed89b4c477c201e",
       "src": "fb6858a2c91d9349304d9c3b2714d11fe9e368ebd980c867bcb24962dac9bda6"
-    },
-    "settings.billing.retry.declined": {
-      "by": "ai",
-      "out": "cb742ea73cb92b290fe6320e5bb6ebcfe5d044fd72b5e17be4c3dd74a05b1b31",
-      "src": "f56965871fdae9231037b404c2567e22fdea539c1911f300229997d6a9c7f36e"
-    },
-    "settings.billing.retry.declinedAutoOff": {
-      "by": "ai",
-      "out": "81656053fdc8ab916173155d78d82aebfcc78c90db142d9bc1f3825c59783085",
-      "src": "23d44c74ac5b03f126b88e529782e883d9ea63cec08a000ee50d41b7837b526b"
     },
     "settings.billing.retry.done.cap_reached": {
       "by": "ai",

@@ -593,6 +593,13 @@ export type GateAnswer = { allow: true; grace?: true } | { allow: false; reason:
  * call the balance does not cover still starts while the bill (less what running calls hold) is above −the trial grace
  * (`trialGraceMicros`): `grace` says so. A comped bill pays nothing, so only the cap applies.
  */
+/**
+ * The balance (less what running calls hold) at which new calls stop (callGate): −the trial grace in the trial, else
+ * −buffer. Settings › Billing says it ("Calls stop at −$5.00").
+ */
+export const callsStopAtMicros = (status: string, rules: BillingRules = BILLING_DEFAULTS) =>
+  status === 'trialing' ? -trialGraceMicros(rules) : -rules.balanceBufferMicros
+
 export function callGate(bill: GateBill, needMicros: number, rules: BillingRules = BILLING_DEFAULTS): GateAnswer {
   if (!['trialing', 'active', 'past_due', 'comped'].includes(bill.status))
     return { allow: false, reason: 'billing_inactive' }
@@ -604,7 +611,7 @@ export function callGate(bill: GateBill, needMicros: number, rules: BillingRules
   const buffer = trialing ? 0 : rules.balanceBufferMicros
   const available = bill.balanceMicros - bill.reservedMicros
   if (available - needMicros >= -buffer) return { allow: true }
-  if (trialing && available > -trialGraceMicros(rules)) return { allow: true, grace: true }
+  if (trialing && available > callsStopAtMicros(bill.status, rules)) return { allow: true, grace: true }
   return { allow: false, reason: 'no_balance' }
 }
 

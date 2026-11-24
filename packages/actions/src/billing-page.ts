@@ -78,6 +78,11 @@ export type BillingOverviewBill = {
   /** The balance (it can be below zero) and what is free of running calls' reservations, in micro-dollars. */
   balanceMicros: number
   availableMicros: number
+  /**
+   * Where new calls stop: the available balance at which they are refused (−the trial grace in the trial, else
+   * −the buffer; callGate), in micro-dollars, at most 0.
+   */
+  callsStopAtMicros: number
   autoRecharge: { on: boolean; thresholdCents: number; amountCents: number }
   /** The monthly recharge cap: its base, the cap in effect, what recharges used this month, the most the owner sets. */
   cap: { baseCents: number; effectiveCents: number; usedThisMonthCents: number; ownerMaxBaseCents: number }

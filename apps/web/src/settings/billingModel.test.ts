@@ -1,23 +1,29 @@
-import { expect, test } from 'vitest'
 import type { BillingOverviewBill, BillingStateBill, TrialMinutesPrompt } from '@linedesk/actions'
+import { expect, test } from 'vitest'
 import {
   amountFits,
+  balanceNote,
+  balanceProblem,
   billingBanner,
   canCancel,
   canResume,
   daysLeft,
   dollarsToCents,
   extraCallChoices,
+  firstChargeCents,
   freeExtraCalls,
-  paysCharges,
+  minutesLeft,
   outcomeUnknown,
+  paysCharges,
+  planLine,
   purchaseKeys,
   refusalKey,
   statusBadge,
+  trialBadge,
   trialRechargeInput,
   usageLine,
-  yearlyRefundLine,
   workspaceBillingView,
+  yearlyRefundLine,
 } from './billingModel.ts'
 
 test('typed dollars: whole amounts in range only', () => {
@@ -76,6 +82,7 @@ const bill = (over: Partial<BillingOverviewBill> = {}): BillingOverviewBill => (
   cancelAtPeriodEnd: false,
   balanceMicros: 40_000_000,
   availableMicros: 40_000_000,
+  callsStopAtMicros: -5_000_000,
   autoRecharge: { on: true, thresholdCents: 500, amountCents: 2000 },
   calls: {
     includedPerWorkspace: 5,
@@ -368,4 +375,89 @@ test('banner: busy callers today (LIN-450) is the least pressing line, in the wa
   expect(billingBanner(state({ busyLine, lowBalance: 'auto_recharge_off' }))?.key).toBe(
     'settings.billing.banner.lowBalance',
   )
+})
+
+test("a balance that stops calls (LIN-780): one reason for the banner and the Balance card, in the banner's order", () => {
+  expect(balanceProblem(null)).toBeNull()
+  expect(balanceProblem(state())).toBeNull()
+  expect(balanceProblem(state({ trialMinutes: prompt(), lowBalance: 'auto_recharge_off' }))).toEqual({
+    kind: 'minutes',
+    prompt: prompt(),
+  })
+  expect(balanceProblem(state({ lowBalance: 'auto_recharge_off' }))).toEqual({ kind: 'auto_off' })
+  expect(balanceProblem(state({ lowBalance: 'cap_reached' }))).toEqual({ kind: 'cap' })
+  // The banner says the same reasons with the same words as before.
+  expect(billingBanner(state({ lowBalance: 'auto_recharge_off' }))?.key).toBe('settings.billing.banner.lowBalance')
+  expect(billingBanner(state({ lowBalance: 'cap_reached' }))?.key).toBe('settings.billing.banner.capReached')
+  expect(billingBanner(state({ trialMinutes: prompt({ paid: true }) }))?.key).toBe('settings.billing.banner.planLow')
+})
+
+test('minutes left until calls stop: the included ones left, then the balance down to where calls stop', () => {
+  const at = (availableMicros: number, callsStopAtMicros = -5_000_000) =>
+    bill({ availableMicros, callsStopAtMicros, prices: { ...bill().prices, standardMicrosPerMinute: 50_000 } })
+  // -$2.40 down to -$5.00 at $0.05 a minute: 52 minutes.
+  expect(minutesLeft(at(-2_400_000), { kind: 'auto_off' })).toBe(52)
+  expect(minutesLeft(at(-2_400_000), { kind: 'minutes', prompt: prompt({ usedMinutes: 40 }) })).toBe(62)
+  expect(minutesLeft(at(-6_000_000), { kind: 'cap' })).toBe(0)
+  // The trial's grace used too: none, whatever the balance says.
+  expect(minutesLeft(at(0, -500_000), { kind: 'minutes', prompt: prompt({ stage: 'paused' }) })).toBe(0)
+})
+
+test("the Balance card's note per state: the consequence, the reason and the fix in place", () => {
+  const paid = bill({ availableMicros: -2_400_000, callsStopAtMicros: -5_000_000 })
+  expect(balanceNote(paid, { kind: 'minutes', prompt: prompt({ paid: true, usedMinutes: 50 }) })).toEqual({
+    tone: 'warning',
+    title: 'settings.billing.balance.problem.stopsAt',
+    text: 'settings.billing.balance.problem.planMinutes',
+    count: 52,
+    fix: 'keep',
+  })
+  expect(balanceNote(paid, { kind: 'auto_off' })).toMatchObject({
+    text: 'settings.billing.balance.problem.autoOff',
+    fix: 'auto',
+  })
+  expect(balanceNote(paid, { kind: 'cap' })).toMatchObject({ text: 'settings.billing.balance.problem.cap', fix: 'cap' })
+  // Calls stopped already: red, and the title says so.
+  expect(
+    balanceNote(bill({ availableMicros: -5_000_000, callsStopAtMicros: -5_000_000 }), { kind: 'cap' }),
+  ).toMatchObject({ tone: 'danger', title: 'settings.billing.balance.problem.stopped', count: 0 })
+  // The trial: the minutes left as the title, the text by the prompt's stage; auto-recharge does not run in the trial,
+  // so Buy minutes stays the fix.
+  const trial = bill({ status: 'trialing', availableMicros: 0, callsStopAtMicros: -500_000 })
+  expect(balanceNote(trial, { kind: 'minutes', prompt: prompt() })).toMatchObject({
+    title: 'settings.billing.balance.problem.trialTitle',
+    text: 'settings.billing.balance.problem.trialMinutes',
+    count: 20,
+  })
+  expect(balanceNote(trial, { kind: 'minutes', prompt: prompt({ stage: 'grace', usedMinutes: 50 }) }).text).toBe(
+    'settings.billing.balance.problem.trialGrace',
+  )
+  expect(balanceNote(trial, { kind: 'minutes', prompt: prompt({ stage: 'paused', usedMinutes: 50 }) })).toMatchObject({
+    tone: 'danger',
+    text: 'settings.billing.balance.problem.trialPaused',
+  })
+  expect(balanceNote(trial, { kind: 'auto_off' }).fix).toBe('buy')
+})
+
+test('the trial plan line: the first charge for every workspace, or nothing after a cancel; the days in the badge', () => {
+  const trialEndsAt = '2026-12-03T12:00:00.000Z'
+  expect(planLine(bill({ status: 'trialing', trialEndsAt }))).toEqual({
+    key: 'settings.billing.plan.trialCharge',
+    date: trialEndsAt,
+    cents: 1100,
+  })
+  expect(planLine(bill({ status: 'trialing', trialEndsAt, taxed: true, workspaces: 3 }))).toMatchObject({
+    key: 'settings.billing.plan.trialChargeTaxed',
+    cents: 3300,
+  })
+  expect(planLine(bill({ status: 'trialing', trialEndsAt, cancelAtPeriodEnd: true }))).toEqual({
+    key: 'settings.billing.plan.trialCanceled',
+    date: trialEndsAt,
+  })
+  expect(firstChargeCents(bill({ kind: 'partner', seatCents: 4900, clientSeatCents: 900, workspaces: 2 }))).toBe(6700)
+  expect(trialBadge(bill({ status: 'trialing', trialEndsAt }), Date.parse('2026-11-23T12:00:00.000Z'))).toEqual({
+    key: 'settings.billing.status.trialingDays',
+    count: 10,
+  })
+  expect(trialBadge(bill())).toBeNull()
 })

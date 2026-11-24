@@ -51,6 +51,7 @@ const bill = (over: Partial<BillingOverviewBill> = {}): BillingOverviewBill => (
   cancelAtPeriodEnd: false,
   balanceMicros: 12_340_000,
   availableMicros: 12_340_000,
+  callsStopAtMicros: -5_000_000,
   autoRecharge: { on: true, thresholdCents: 500, amountCents: 2000 },
   calls: {
     includedPerWorkspace: 5,
@@ -146,7 +147,8 @@ test('a running plan: price, renewal, balance, usage, invoices, Buy minutes as t
   expect(html).toContain('5 calls at the same time')
   expect(html).not.toContain('Each workspace includes:')
   expect(html).not.toContain('days free')
-  expect(html).toContain('1 workspace on this plan')
+  // One workspace: "per workspace" says it, no "1 workspace on this plan" (LIN-780).
+  expect(html).not.toContain('workspace on this plan')
   expect(html).toMatch(/<details class="plan-card-all"><summary>/)
   // Billed monthly: no yearly note.
   expect(html).not.toContain('billed yearly')
@@ -214,13 +216,67 @@ test('a recharge refused for a missing billing address says so, not "declined" (
   expect(html).not.toContain('Your card was declined')
 })
 
-test('the trial: its end and the days left, said in plain words', () => {
-  const html = render({
-    billingOn: true,
-    bill: bill({ status: 'trialing', trialEndsAt: new Date(Date.now() + 5 * DAY - 60_000).toISOString() }),
-  })
-  expect(html).toContain('Free trial')
-  expect(html).toContain('5 days left')
+test('the trial says each fact once (LIN-780): the days in the badge, one line with the first charge, Cancel trial', () => {
+  const trialEndsAt = new Date(Date.UTC(2026, 11, 3, 12)).toISOString()
+  const trial = (over: Partial<BillingOverviewBill> = {}) =>
+    render(
+      {
+        billingOn: true,
+        bill: bill({
+          status: 'trialing',
+          trialEndsAt,
+          taxed: true,
+          autoRecharge: { ...bill().autoRecharge, on: false },
+          intervalSwitch: { interval: 'year', seatCents: 10800 },
+          ...over,
+        }),
+      },
+      state({ status: 'trialing' }),
+    )
+  const html = trial()
+  const days = Math.ceil((Date.parse(trialEndsAt) - Date.now()) / DAY)
+  expect(html).toContain(`Free trial · ${days} days left`)
+  expect(html).toContain('Free until Dec 3, 2026. First charge then: <b>$11.00</b> plus tax where it applies.')
+  // Said by the line above or by the Balance and Auto-recharge cards: never again in the plan.
+  expect(html).not.toContain('workspace on this plan')
+  expect(html).not.toContain('Your free trial ends on')
+  expect(html).not.toContain('In the trial, calls beyond')
+  expect(html).not.toContain('Auto-recharge is off until you turn it on below')
+  expect(html).not.toContain('<span class="plan-card-fine">')
+  // Monthly: said plainly; Switch to yearly stays a normal button next to Cancel trial.
+  expect(html).toContain('Billed monthly')
+  expect(html).toMatch(/k-btn-secondary[^"]*"[^>]*><span>Switch to yearly/)
+  expect(html).toContain('Cancel trial')
+  expect(html).not.toContain('Cancel plan')
+  // Untaxed: the charge alone. Several workspaces: the charge for all of them, and how many.
+  const two = trial({ taxed: false, workspaces: 2 })
+  expect(two).toContain('First charge then: <b>$22.00</b>.')
+  expect(two).toContain('2 workspaces on this plan')
+  // Canceled in the trial: nothing will be charged, no amount.
+  const canceled = trial({ cancelAtPeriodEnd: true })
+  expect(canceled).toContain('Free until Dec 3, 2026. You canceled: nothing will be charged.')
+  expect(canceled).not.toContain('First charge')
+  // The last day.
+  expect(trial({ trialEndsAt: new Date(Date.now() + 60_000).toISOString() })).toContain('Free trial · 1 day left')
+})
+
+test('a yearly trial: the first charge is the year, and back to monthly is the small link in the billing line', () => {
+  const html = render(
+    {
+      billingOn: true,
+      bill: bill({
+        status: 'trialing',
+        interval: 'year',
+        seatCents: 10800,
+        trialEndsAt: new Date(Date.UTC(2026, 11, 3, 12)).toISOString(),
+        intervalSwitch: { interval: 'month', seatCents: 1100 },
+      }),
+    },
+    state({ status: 'trialing' }),
+  )
+  expect(html).toContain('First charge then: <b>$108.00</b>.')
+  expect(html).toMatch(/Billed yearly · <button[^>]*>Switch to monthly<\/button>/)
+  expect(html).not.toMatch(/k-btn[^"]*"[^>]*><span>Switch to monthly/)
 })
 
 test('a failed recharge: the reason, Retry as the primary button, Buy minutes no longer primary', () => {
@@ -231,9 +287,30 @@ test('a failed recharge: the reason, Retry as the primary button, Buy minutes no
     }),
   })
   expect(html).toContain('Your last auto-recharge failed')
-  expect(html).toContain('2 tries left today')
-  expect(html).toContain('Try again')
+  // The consequence, with where calls stop; Update card (the Stripe portal) right next to Try again (LIN-780).
+  expect(html).toContain('Your card was declined. Calls go on until the balance is -$5.00.')
+  expect(html).not.toContain('tries left')
+  expect(html).toMatch(/Update card<\/span><\/button><button[^>]*k-btn-primary[^>]*><span>Try again/)
   expect(primaries(html)).toBe(1)
+  // Auto-recharge off: not tried again, said with the same consequence.
+  const off = render({
+    billingOn: true,
+    bill: bill({
+      autoRecharge: { ...bill().autoRecharge, on: false },
+      rechargeFailure: { at: new Date().toISOString(), code: 'card_declined', needsAction: false, retriesLeft: 2 },
+    }),
+  })
+  expect(off).toContain('auto-recharge is off, so it is not tried again. Calls go on until the balance is -$5.00.')
+  // No Stripe customer: no portal to open.
+  expect(
+    render({
+      billingOn: true,
+      bill: bill({
+        hasPortal: false,
+        rechargeFailure: { at: new Date().toISOString(), code: 'card_declined', needsAction: false, retriesLeft: 2 },
+      }),
+    }),
+  ).not.toContain('Update card')
   const confirm = render({
     billingOn: true,
     bill: bill({
@@ -246,6 +323,8 @@ test('a failed recharge: the reason, Retry as the primary button, Buy minutes no
     }),
   })
   expect(confirm).toContain('Confirm payment')
+  // The bank wants a confirmation, not a new card.
+  expect(confirm).not.toContain('Update card')
 })
 
 test('suspended for a missed payment, and past due: what happens and by when', () => {
@@ -665,8 +744,9 @@ test('the trial: its $0.00 plan invoice says "Trial (no charge)", and auto-recha
   const html = render({ billingOn: true, bill: trial })
   expect(html).toContain('Trial (no charge)')
   expect(html).not.toContain('$0.00')
-  expect(html).toContain('Auto-recharge is off until you turn it on below.')
-  expect(html).not.toContain('Auto-recharge starts once the plan does')
+  // Auto-recharge off is the Auto-recharge card's to say, not the plan's (LIN-780).
+  expect(html).not.toContain('Auto-recharge is off until you turn it on below.')
+  expect(html).toContain('Off: buy minutes yourself.')
 })
 
 test('the bill page has no Voices and models card: picking Premium or Ultra on an assistant is the consent', () => {
@@ -701,9 +781,9 @@ test('in the trial: Switch to monthly or yearly next to Cancel; not on a paid pl
     )
   const toMonthly = trialing({ intervalSwitch: { interval: 'month', seatCents: 1100 } })
   expect(toMonthly).toContain('Switch to monthly')
-  expect(toMonthly).toContain('Cancel plan')
-  // Not a second primary button: the switch is a secondary action like Cancel.
-  expect(toMonthly).toMatch(/k-btn-secondary[^"]*"[^>]*><span>Switch to monthly/)
+  expect(toMonthly).toContain('Cancel trial')
+  // Not a second primary button: yearly to monthly is the link in the billing line.
+  expect(toMonthly).toMatch(/Billed yearly · <button/)
   expect(
     trialing({ interval: 'month', seatCents: 1100, intervalSwitch: { interval: 'year', seatCents: 10800 } }),
   ).toContain('Switch to yearly')
@@ -733,4 +813,88 @@ test('the switch dialog: the new price a month first, a yearly total as the grey
   expect(yearly).toContain('Nothing is charged until your free trial ends on Dec 3, 2026.')
   const monthly = dialog({ interval: 'month', seatCents: 1100 })
   expect(monthly).toContain('$11 a month per workspace Billed monthly')
+})
+
+test('a balance that stops calls, in the Balance card (LIN-780): the consequence, the reason, the fix as the one primary', () => {
+  const prompt = {
+    stage: 'low' as const,
+    paid: true,
+    usedMinutes: 50,
+    includedMinutes: 50,
+    amountCents: 2500,
+    thresholdCents: 500,
+    capCents: 5000,
+    freeUntil: null,
+    standardMicrosPerMinute: 50_000,
+    card: { id: 'pm_1', brand: 'visa', last4: '4242' },
+  }
+  const low = bill({
+    availableMicros: -2_400_000,
+    balanceMicros: -2_400_000,
+    autoRecharge: { ...bill().autoRecharge, on: false },
+  })
+  const balanceCard = (html: string) =>
+    html.slice(html.indexOf('id="billing-balance"'), html.indexOf('id="billing-auto"'))
+  // Minutes used up on a paid plan with auto-recharge off: Keep calls answered.
+  const minutes = balanceCard(render({ billingOn: true, bill: low }, state({ trialMinutes: prompt })))
+  expect(minutes).toContain('Calls stop at -$5.00')
+  expect(minutes).toContain('You used 50 of your 50 included minutes and auto-recharge is off. After about 52 more')
+  expect(minutes).toContain('Keep calls answered')
+  expect(minutes).toMatch(/k-btn-secondary[^"]*"[^>]*>.*Buy minutes/)
+  // Below the threshold with auto-recharge off: turn it on, its terms in the tooltip.
+  const autoOff = render({ billingOn: true, bill: low }, state({ lowBalance: 'auto_recharge_off' }))
+  expect(balanceCard(autoOff)).toContain('Your balance is low and auto-recharge is off.')
+  expect(balanceCard(autoOff)).toMatch(/title="Off: buy minutes yourself[^"]*"[^>]*><span>Turn on auto-recharge/)
+  expect(primaries(autoOff)).toBe(1)
+  // The cap reached: raise it.
+  const cap = render({ billingOn: true, bill: low }, state({ lowBalance: 'cap_reached' }))
+  expect(balanceCard(cap)).toMatch(/Auto-recharge reached this month(&#x27;|')s cap of \$50\./)
+  expect(balanceCard(cap)).toContain('Raise the cap')
+  expect(primaries(cap)).toBe(1)
+  // The trial's minutes gone: the minutes left as the title.
+  const trial = render(
+    {
+      billingOn: true,
+      bill: bill({
+        status: 'trialing',
+        trialEndsAt: new Date(Date.now() + 6 * DAY).toISOString(),
+        availableMicros: 0,
+        balanceMicros: 0,
+        callsStopAtMicros: -500_000,
+      }),
+    },
+    state({ status: 'trialing', trialMinutes: { ...prompt, paid: false, stage: 'grace', freeUntil: null } }),
+  )
+  expect(balanceCard(trial)).toContain('Calls stop after about 10 more minutes')
+  expect(balanceCard(trial)).toContain('Your trial minutes are used up.')
+  expect(primaries(trial)).toBe(1)
+  // Running normally, or a failed recharge that says more: no balance note.
+  expect(balanceCard(render({ billingOn: true, bill: bill() }))).not.toContain('Calls stop')
+  const failed = render(
+    {
+      billingOn: true,
+      bill: bill({
+        ...low,
+        rechargeFailure: { at: new Date().toISOString(), code: 'card_declined', needsAction: false, retriesLeft: 2 },
+      }),
+    },
+    state({ lowBalance: 'cap_reached', rechargeFailed: true }),
+  )
+  expect(failed).not.toContain('Raise the cap')
+  expect(primaries(failed)).toBe(1)
+})
+
+test('past due: Update card next to the pay link, as the warning asks for a new card too (LIN-780)', () => {
+  const html = render(
+    {
+      billingOn: true,
+      bill: bill({
+        status: 'past_due',
+        invoices: [{ ...bill().invoices[0]!, status: 'open', url: 'https://invoice.stripe.com/i/2' }],
+      }),
+    },
+    state({ status: 'past_due', suspendsAt: new Date(Date.now() + 2 * DAY).toISOString() }),
+  )
+  expect(html).toMatch(/Pay \$11\.00 invoice<\/a><button[^>]*k-btn-secondary[^>]*><span>Update card/)
+  expect(primaries(html)).toBe(1)
 })

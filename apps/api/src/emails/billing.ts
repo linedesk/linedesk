@@ -4,8 +4,8 @@
 import { getT } from '@linedesk/i18n/server'
 import { brandName } from '../branding.ts'
 import { trialStartUrl } from '../trial-link.ts'
-import { type Block, type RenderedEmail, renderEmail, siteHost } from './layout.ts'
 import { BILLING_PATH } from './billing-lifecycle.ts'
+import { type Block, linkedText, type RenderedEmail, renderEmail, siteHost } from './layout.ts'
 import { appLink, type EmailLocale, emailSafeName, WEB_ORIGIN } from './templates.ts'
 
 export type BillingOwnerEmail =
@@ -172,15 +172,11 @@ function trialEmail(
   origin: string,
   locale?: EmailLocale,
 ): RenderedEmail {
-  const { t, format, locale: lang } = getT(locale)
+  const translator = getT(locale)
+  const { t, format, locale: lang } = translator
   const usd = (cents: number) => format.currency(cents / 100, 'USD')
-  const price = usd(email.planCents)
   const values = {
     brand: brandName(),
-    plan:
-      email.interval === 'year'
-        ? t('email.billing.trial.planYearly', { price })
-        : t('email.billing.trial.planMonthly', { price }),
     date: format.dateTime(new Date(email.trialEnd), { dateStyle: 'long', timeZone: 'UTC' }),
   }
   const started = email.kind === 'trial_started'
@@ -193,14 +189,22 @@ function trialEmail(
   const subject = started
     ? t('email.billing.trialStarted.subject', values)
     : t('email.billing.trialWillEnd.subject', { ...values, days: email.daysBefore })
-  const lead = started ? t('email.billing.trialStarted.text', values) : t('email.billing.trialWillEnd.text', values)
+  // Each fact once (LIN-780): the date and amount only in the facts below, so the reminder has no lede that repeats
+  // them; the confirmation keeps its own (nothing is charged today).
+  const lead = started ? t('email.billing.trialStarted.lede') : null
+  const cancel = t('email.billing.trialWillEnd.cancel', values)
+  // "Settings › Billing" is a link to the page wherever the email names it.
+  const billing = email.workspaceId ? appLink(origin, email.workspaceId, BILLING_PATH) : null
   const blocks: Block[] = [
-    { kind: 'text', text: lead },
+    ...(lead ? [{ kind: 'text' as const, text: lead }] : []),
     {
       kind: 'facts',
       rows: [
         [t('email.billing.trial.firstCharge'), values.date],
-        [t('email.billing.trial.amount'), t('email.billing.trial.amountValue', values)],
+        [
+          t('email.billing.trial.amount'),
+          t('email.billing.trial.amountThen', { price: usd(email.planCents), interval: email.interval }),
+        ],
         ...(reminders
           ? [
               [t('email.billing.trial.reminders'), t('email.billing.trial.remindersValue', { days: reminders })] as [
@@ -211,8 +215,8 @@ function trialEmail(
           : []),
       ],
     },
-    { kind: 'text', text: t('email.billing.trialWillEnd.planOnly', values) },
-    { kind: 'text', text: t('email.billing.trialWillEnd.cancel', values) },
+    linkedText(translator, 'email.billing.trialWillEnd.balance', billing),
+    { kind: 'text', text: cancel },
   ]
   // Settings › Billing, and the cancel dialog there: the plan is canceled in two clicks (the portal has no cancel).
   if (email.workspaceId)
@@ -225,7 +229,7 @@ function trialEmail(
   return renderEmail({
     locale: lang,
     subject,
-    preheader: lead,
+    preheader: lead ?? cancel,
     eyebrow: t('email.billing.eyebrow'),
     heading: subject,
     blocks,

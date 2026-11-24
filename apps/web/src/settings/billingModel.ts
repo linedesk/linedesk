@@ -6,8 +6,8 @@ import type {
   BillingOverviewBill,
   BillingStateBill,
   BillingUsageRow,
-  TrialMinutesPrompt,
   BusyLinePrompt,
+  TrialMinutesPrompt,
 } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import type { Me } from '../auth.ts'
@@ -65,22 +65,42 @@ export function statusBadge(
   }
 }
 
-/** What the plan card says about its dates: the trial's end, the renewal, or the end after a cancellation. */
-export type PlanLine = { key: MessageKey; date: string; days?: number } | null
+/**
+ * What the plan card says about its dates: in the trial the one line with the first charge (its date and amount,
+ * `cents`; LIN-780), or that nothing will be charged after a cancel; else the renewal, or the end after a cancellation.
+ */
+export type PlanLine = { key: MessageKey; date: string; cents?: number } | null
 
-export function planLine(bill: BillingOverviewBill, now = Date.now()): PlanLine {
+export function planLine(bill: BillingOverviewBill): PlanLine {
   if (bill.status === 'trialing' && bill.trialEndsAt)
     return bill.cancelAtPeriodEnd
-      ? {
-          key: msg('settings.billing.plan.trialEndsCanceled'),
+      ? { key: msg('settings.billing.plan.trialCanceled'), date: bill.trialEndsAt }
+      : {
+          key: bill.taxed ? msg('settings.billing.plan.trialChargeTaxed') : msg('settings.billing.plan.trialCharge'),
           date: bill.trialEndsAt,
-          days: daysLeft(bill.trialEndsAt, now),
+          cents: firstChargeCents(bill),
         }
-      : { key: msg('settings.billing.plan.trialEnds'), date: bill.trialEndsAt, days: daysLeft(bill.trialEndsAt, now) }
   if (!bill.currentPeriodEnd || !['active', 'past_due'].includes(bill.status)) return null
   return bill.cancelAtPeriodEnd
     ? { key: msg('settings.billing.plan.ends'), date: bill.currentPeriodEnd }
     : { key: msg('settings.billing.plan.renews'), date: bill.currentPeriodEnd }
+}
+
+/**
+ * What the trial's end charges, before tax: the plan for one interval, per workspace on a Cloud bill, the partner fee
+ * plus its client workspaces on a partner bill.
+ */
+export function firstChargeCents(
+  bill: Pick<BillingOverviewBill, 'kind' | 'seatCents' | 'clientSeatCents' | 'workspaces'>,
+): number {
+  if (bill.kind === 'partner') return bill.seatCents + (bill.clientSeatCents ?? 0) * bill.workspaces
+  return bill.seatCents * Math.max(1, bill.workspaces)
+}
+
+/** The trial's badge: "Free trial · 10 days left" (the days are said once, here). */
+export function trialBadge(bill: Pick<BillingOverviewBill, 'status' | 'trialEndsAt'>, now = Date.now()) {
+  if (bill.status !== 'trialing' || !bill.trialEndsAt) return null
+  return { key: msg('settings.billing.status.trialingDays'), count: daysLeft(bill.trialEndsAt, now) }
 }
 
 /**
@@ -343,21 +363,98 @@ export function billingBanner(state: BillingStateBill | null): BillingBanner | n
       ? { key: msg('settings.billing.banner.rechargeConfirm'), tone: 'danger' }
       : { key: msg('settings.billing.banner.rechargeFailed'), tone: 'danger' }
   if (state.unpaidNumbers.length) return { key: msg('settings.billing.banner.unpaidNumber'), tone: 'warning' }
-  // Most of the period's minutes used, in the trial or on a paid plan with auto-recharge off: one tap keeps every call
-  // answered (a purchase, then auto-recharge).
-  if (state.trialMinutes)
+  const problem = balanceProblem(state)
+  if (problem?.kind === 'minutes')
     return {
-      key: state.trialMinutes.paid ? msg('settings.billing.banner.planLow') : TRIAL_KEYS[state.trialMinutes.stage],
-      tone: state.trialMinutes.stage === 'paused' ? 'danger' : 'warning',
-      trial: state.trialMinutes,
+      key: problem.prompt.paid ? msg('settings.billing.banner.planLow') : TRIAL_KEYS[problem.prompt.stage],
+      tone: problem.prompt.stage === 'paused' ? 'danger' : 'warning',
+      trial: problem.prompt,
     }
-  // Below the threshold with auto-recharge off, or the cap leaves less than one recharge: nothing lifts the balance.
-  if (state.lowBalance === 'auto_recharge_off')
-    return { key: msg('settings.billing.banner.lowBalance'), tone: 'warning' }
-  if (state.lowBalance === 'cap_reached') return { key: msg('settings.billing.banner.capReached'), tone: 'warning' }
+  if (problem?.kind === 'auto_off') return { key: msg('settings.billing.banner.lowBalance'), tone: 'warning' }
+  if (problem?.kind === 'cap') return { key: msg('settings.billing.banner.capReached'), tone: 'warning' }
   // The least pressing: callers got a busy line today because all calls at the same time were in use.
   if (state.busyLine) return { key: msg('settings.billing.banner.busyLine'), tone: 'warning', busy: state.busyLine }
   return null
+}
+
+/**
+ * A balance that will stop calls (LIN-780), the one source for the banner above (hidden on settings pages) and
+ * Settings › Billing's Balance card: most of the period's minutes used, in the trial or on a paid plan with
+ * auto-recharge off (`minutes`: "Keep calls answered" buys and turns auto-recharge on); below the threshold with
+ * auto-recharge off (`auto_off`); the monthly cap leaves less than one recharge (`cap`). Null otherwise.
+ */
+export type BalanceProblem = { kind: 'minutes'; prompt: TrialMinutesPrompt } | { kind: 'auto_off' } | { kind: 'cap' }
+
+export function balanceProblem(state: BillingStateBill | null): BalanceProblem | null {
+  if (!state) return null
+  if (state.trialMinutes) return { kind: 'minutes', prompt: state.trialMinutes }
+  if (state.lowBalance === 'auto_recharge_off') return { kind: 'auto_off' }
+  if (state.lowBalance === 'cap_reached') return { kind: 'cap' }
+  return null
+}
+
+/**
+ * About how many more minutes of Standard calls until new calls stop: the included minutes left (the minutes prompt),
+ * then what the available balance pays down to where calls stop (`callsStopAtMicros`). 0 once calls stop.
+ */
+export function minutesLeft(
+  bill: Pick<BillingOverviewBill, 'availableMicros' | 'callsStopAtMicros' | 'prices'>,
+  problem: BalanceProblem,
+): number {
+  if (problem.kind === 'minutes' && problem.prompt.stage === 'paused') return 0
+  const included =
+    problem.kind === 'minutes' ? Math.max(0, problem.prompt.includedMinutes - problem.prompt.usedMinutes) : 0
+  const rate = bill.prices.standardMicrosPerMinute
+  const paid = rate > 0 ? Math.max(0, Math.floor((bill.availableMicros - bill.callsStopAtMicros) / rate)) : 0
+  return included + paid
+}
+
+/**
+ * The Balance card's note for a balance problem: the consequence as the title (where calls stop, or in the trial
+ * after about how many minutes), the reason with the minutes left, and the fix in place: "Keep calls answered" for the
+ * minutes prompt, turning auto-recharge on, raising the cap; in the trial with auto-recharge off (it does not run in
+ * the trial) Buy minutes stays the fix.
+ */
+/** The trial's note by the prompt's stage: minutes left, used up (calls on the grace), the grace used too. */
+const TRIAL_NOTE_KEYS = {
+  low: msg('settings.billing.balance.problem.trialMinutes'),
+  grace: msg('settings.billing.balance.problem.trialGrace'),
+  paused: msg('settings.billing.balance.problem.trialPaused'),
+} as const
+
+export type BalanceNote = {
+  tone: 'warning' | 'danger'
+  title: MessageKey
+  text: MessageKey
+  count: number
+  fix: 'keep' | 'auto' | 'cap' | 'buy'
+}
+
+export function balanceNote(
+  bill: Pick<BillingOverviewBill, 'status' | 'availableMicros' | 'callsStopAtMicros' | 'prices'>,
+  problem: BalanceProblem,
+): BalanceNote {
+  const count = minutesLeft(bill, problem)
+  const trial = bill.status === 'trialing'
+  const title = trial
+    ? msg('settings.billing.balance.problem.trialTitle')
+    : count === 0
+      ? msg('settings.billing.balance.problem.stopped')
+      : msg('settings.billing.balance.problem.stopsAt')
+  const tone = count === 0 ? 'danger' : 'warning'
+  if (problem.kind === 'minutes')
+    return {
+      tone,
+      title,
+      text: problem.prompt.paid
+        ? msg('settings.billing.balance.problem.planMinutes')
+        : TRIAL_NOTE_KEYS[count === 0 ? 'paused' : problem.prompt.stage],
+      count,
+      fix: 'keep',
+    }
+  if (problem.kind === 'cap')
+    return { tone, title, text: msg('settings.billing.balance.problem.cap'), count, fix: 'cap' }
+  return { tone, title, text: msg('settings.billing.balance.problem.autoOff'), count, fix: trial ? 'buy' : 'auto' }
 }
 
 /**
