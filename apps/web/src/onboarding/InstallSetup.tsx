@@ -33,10 +33,10 @@ import { Button, cx, Note } from '../ui/kit.tsx'
 import { Loading, problemText, SkeletonFields } from '../ui/LoadStates.tsx'
 import { MarkGlyph } from '../ui/StatusMark.tsx'
 import { HostingNote } from './AgentSetup.tsx'
-import { backToInstallAgent } from './setup-choice.ts'
 import { leaveInstallSetup } from './leave-install-setup.ts'
 import { SetupFoot } from './SetupFoot.tsx'
 import { SetupPage, SetupTopBar } from './SetupTopBar.tsx'
+import { backToInstallAgent } from './setup-choice.ts'
 import '../admin/admin.css'
 import './agent-setup.css'
 import { useSetupKeys } from './setup-keys.ts'
@@ -50,9 +50,17 @@ export const INSTALL_SETUP_HASH = '#setup-install'
 export type InstallSetupFrom = 'start' | 'left'
 // Read by the walkthrough when it opens (the address stays `#setup-install`).
 let openFrom: InstallSetupFrom = 'left'
+// Opened from Server admin: the page to go back to when it is left ("Finish"), instead of on to the business setup.
+let returnTo: string | null = null
 export const openInstallSetup = ({ from = 'left' }: { from?: InstallSetupFrom } = {}) => {
   openFrom = from
+  returnTo = adminReturnHash(window.location.hash)
   window.location.hash = INSTALL_SETUP_HASH
+}
+
+/** The Server admin page the walkthrough was opened from, to go back to when it is left; null from anywhere else. */
+export function adminReturnHash(hash: string): string | null {
+  return hash.startsWith('#admin') ? hash : null
 }
 
 /** Each step's name in the reader's language (installStepLabels in @linedesk/actions is the English for the CLI). */
@@ -109,8 +117,10 @@ type Props = {
 export function InstallSetup({ onExit, onAgentSetup }: Props) {
   const t = useT()
   const from = useRef(openFrom)
+  const backTo = useRef(returnTo)
   useEffect(() => {
     openFrom = 'left'
+    returnTo = null
   }, [])
   const [setup, setSetup] = useState<InstallSetupState | null>(null)
   const [setupError, setSetupError] = useState<string | null>(null)
@@ -173,8 +183,13 @@ export function InstallSetup({ onExit, onAgentSetup }: Props) {
     document.querySelector('.ob.is')?.scrollTo({ top: 0 })
   }
   // Leaving never waits for the server (its save carries on): a slow one made both buttons look dead.
-  const later = () => leaveInstallSetup(save, { setAside: true }, onExit)
-  const finish = () => leaveInstallSetup(save, { finished: true, step: 'done' }, onExit)
+  // Opened from Server admin: leaving goes back to the page it was opened from, not on to the business setup.
+  const exit = () => {
+    if (backTo.current) window.location.hash = backTo.current
+    else onExit()
+  }
+  const later = () => leaveInstallSetup(save, { setAside: true }, exit)
+  const finish = () => leaveInstallSetup(save, { finished: true, step: 'done' }, exit)
 
   if (signInAgain) return <SecondFactorPrompt state={signInAgain} onExit={onExit} />
 
@@ -215,7 +230,13 @@ export function InstallSetup({ onExit, onAgentSetup }: Props) {
       ) : step === 'welcome' ? (
         <Welcome status={status} onStart={() => go('email')} onAgent={onAgentSetup ?? backToInstallAgent} />
       ) : step === 'done' ? (
-        <Done status={status} onBack={() => go(installSteps[index - 1]!)} onOpen={step => go(step)} onFinish={finish} />
+        <Done
+          status={status}
+          fromAdmin={backTo.current !== null}
+          onBack={() => go(installSteps[index - 1]!)}
+          onOpen={step => go(step)}
+          onFinish={finish}
+        />
       ) : (
         <PartStep
           key={step}
@@ -380,11 +401,14 @@ function PartStep({ step, data, status, setup, reloadAll, onBack, onNext, onSkip
 
 function Done({
   status,
+  fromAdmin,
   onBack,
   onOpen,
   onFinish,
 }: {
   status: ProviderStatusState
+  /** Opened from Server admin: "Finish" goes back there, and the business setup is not the next step. */
+  fromAdmin: boolean
   onBack: () => void
   onOpen: (step: InstallStep) => void
   onFinish: () => void
@@ -397,7 +421,13 @@ function Done({
       <div className="ob-body">
         <h1>{open.length ? t('onboarding.install.done.almost') : t('onboarding.install.done.title')}</h1>
         <p className="ob-lede">
-          {open.length ? t('onboarding.install.done.almostLede') : t('onboarding.install.done.titleLede')}
+          {fromAdmin
+            ? open.length
+              ? t('onboarding.install.done.almostLedeAdmin')
+              : t('onboarding.install.done.titleLedeAdmin')
+            : open.length
+              ? t('onboarding.install.done.almostLede')
+              : t('onboarding.install.done.titleLede')}
         </p>
       </div>
       <section className="as-card">
@@ -409,7 +439,7 @@ function Done({
         onBack={onBack}
         backTitle={t('onboarding.action.backTip')}
         onContinue={onFinish}
-        label={t('onboarding.install.done.next')}
+        label={fromAdmin ? t('onboarding.install.done.finish') : t('onboarding.install.done.next')}
       />
     </>
   )
