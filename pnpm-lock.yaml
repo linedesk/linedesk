@@ -21,7 +21,7 @@ importers:
         specifier: 2.6.6
         version: 2.6.6
       turbo:
-        specifier: ^2.11.12
+        specifier: ^2.11.13
         version: 2.11.13
       typescript:
         specifier: ^7.0.2
@@ -91,7 +91,7 @@ importers:
         specifier: ^4.23.15
         version: 4.23.15
       vitest:
-        specifier: ^5.1.0
+        specifier: ^5.1.1
         version: 5.1.1(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15))
       ws:
         specifier: ^8.23.0
@@ -104,7 +104,7 @@ importers:
         version: 1.7.19(@better-auth/core@1.7.25(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(@opentelemetry/api@1.10.0)(better-call@1.4.5(zod@4.6.7))(jose@6.2.17)(kysely@0.29.9)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.25(@opentelemetry/api@1.10.0)(drizzle-kit@0.31.11)(drizzle-orm@0.45.4(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(kysely@0.29.9)(pg@8.23.1))(pg@8.23.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.1.1(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15))))(better-call@1.4.5(zod@4.6.7))(nanostores@1.5.5)
       '@hono/node-server':
         specifier: ^2.1.9
-        version: 2.1.9(hono@4.13.19)
+        version: 2.1.11(hono@4.13.19)
       '@linedesk/actions':
         specifier: workspace:*
         version: link:../../packages/actions
@@ -155,7 +155,7 @@ importers:
         version: 4.13.19
       nodemailer:
         specifier: ^10.6.0
-        version: 10.6.0
+        version: 10.6.1
       pg-boss:
         specifier: ^12.38.2
         version: 12.38.2(@opentelemetry/api@1.10.0)
@@ -191,7 +191,7 @@ importers:
         specifier: ^4.23.15
         version: 4.23.15
       vitest:
-        specifier: ^5.1.0
+        specifier: ^5.1.1
         version: 5.1.1(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15))
 
   apps/web:
@@ -279,7 +279,7 @@ importers:
         specifier: ^8.3.8
         version: 8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15)
       vitest:
-        specifier: ^5.1.0
+        specifier: ^5.1.1
         version: 5.1.1(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15))
 
   packages/actions:
@@ -292,13 +292,13 @@ importers:
         version: link:../i18n
       libphonenumber-js:
         specifier: ^1.13.16
-        version: 1.13.16
+        version: 1.13.17
       zod:
         specifier: ^4.6.7
         version: 4.6.7
     devDependencies:
       vitest:
-        specifier: ^5.1.0
+        specifier: ^5.1.1
         version: 5.1.1(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15))
 
   packages/billing:
@@ -314,13 +314,13 @@ importers:
         specifier: ^26.6.6
         version: 26.6.6
       vitest:
-        specifier: ^5.1.0
+        specifier: ^5.1.1
         version: 5.1.1(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15))
 
   packages/calendar:
     devDependencies:
       vitest:
-        specifier: ^5.1.0
+        specifier: ^5.1.1
         version: 5.1.1(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15))
 
   packages/cli:
@@ -329,17 +329,17 @@ importers:
         specifier: ^26.6.6
         version: 26.6.6
       vitest:
-        specifier: ^5.1.0
+        specifier: ^5.1.1
         version: 5.1.1(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15))
 
   packages/connectors:
     dependencies:
       libphonenumber-js:
         specifier: ^1.13.16
-        version: 1.13.16
+        version: 1.13.17
     devDependencies:
       vitest:
-        specifier: ^5.1.0
+        specifier: ^5.1.1
         version: 5.1.1(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15))
 
   packages/db:
@@ -377,8 +377,8 @@ importers:
         version: 12.2.0(@types/react@19.3.0)(react@19.3.1)
     devDependencies:
       '@anthropic-ai/sdk':
-        specifier: ^1.9.0
-        version: 1.9.0(zod@4.6.7)
+        specifier: ^1.10.0
+        version: 1.10.0(zod@4.6.7)
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -392,13 +392,13 @@ importers:
         specifier: ^19.3.1
         version: 19.3.1
       vitest:
-        specifier: ^5.1.0
+        specifier: ^5.1.1
         version: 5.1.1(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15))
 
   packages/mail:
     devDependencies:
       vitest:
-        specifier: ^5.1.0
+        specifier: ^5.1.1
         version: 5.1.1(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15))
 
   packages/scrub:
@@ -411,7 +411,7 @@ importers:
         specifier: ^0.45.4
         version: 0.45.4(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(kysely@0.29.9)(pg@8.23.1)
       vitest:
-        specifier: ^5.1.0
+        specifier: ^5.1.1
         version: 5.1.1(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15))
 
   packages/sync:
@@ -430,7 +430,7 @@ importers:
         specifier: ^6.2.8
         version: 6.2.8
       vitest:
-        specifier: ^5.1.0
+        specifier: ^5.1.1
         version: 5.1.1(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15))
 
   packages/telephony:
@@ -439,13 +439,13 @@ importers:
         specifier: ^26.6.6
         version: 26.6.6
       vitest:
-        specifier: ^5.1.0
+        specifier: ^5.1.1
         version: 5.1.1(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15))
 
 packages:
 
-  '@anthropic-ai/sdk@1.9.0':
-    resolution: {integrity: sha512-xDu4za3B+rK+5ZI8wLLoosiIuwi1ktZk/3L3KKNahwO50O34H+622hly8JdXzaEerLQDhsqwVzp81Nrw80BYHg==}
+  '@anthropic-ai/sdk@1.10.0':
+    resolution: {integrity: sha512-j4uVct5p3aGIz/BU4K8VU5vt2A6AueHTvx2gfF3xr4mVpwH9IJMWEAUKNwSwdZSJOHQq1Za2tv5huYc5v02D0w==}
     hasBin: true
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
@@ -1000,8 +1000,8 @@ packages:
     resolution: {integrity: sha512-BlN5wLlbjuBso/D7JbpRC5nizJkXi2WXmayZOJL3dc9R3a6RoCeIFp0aowqMdIcuETF2qpOM1OBoP6rUgW1eBg==}
     engines: {node: '>=12.0.0'}
 
-  '@hono/node-server@2.1.9':
-    resolution: {integrity: sha512-Sk4NQd3GFY0WZWCzndwFMPwJhtD0y9qjsQ+pjID0/03nK9pxyBCUoUHCho8QYBLBVhi0ssL8UkNPHqbgSOFPIQ==}
+  '@hono/node-server@2.1.11':
+    resolution: {integrity: sha512-KzKz9vl4vvr1vgLHamj+g5uonbrj5NwAdO3yzOS6cd2HjALVeOgTgeZOyAzNxejbkfOOPIcvuf/Tg8l1pEFLog==}
     engines: {node: '>=20'}
     peerDependencies:
       hono: ^4 || ^5.0.0-0
@@ -1258,76 +1258,76 @@ packages:
     resolution: {integrity: sha512-e9VEckIjUJt8vLiziGcgPQD6AiFuBxHBAC4Ujpk93Cm0wnTurR+IKHn6wZR5hf/9rtaEgOPur/JmlXI9QhqwSQ==}
     engines: {node: '>=18.0.0'}
 
-  '@livekit/blingfire-darwin-arm64@1.2.0':
-    resolution: {integrity: sha512-T5VutjrRGhDjYlPGMpfTbu1FQ+fX+kne/Q6iXp+wjwlcslauxzc5fhjdhO4jfjC240vZy/51psWxxHW9YD1hyQ==}
+  '@livekit/blingfire-darwin-arm64@1.2.1':
+    resolution: {integrity: sha512-DX0MT5EMV5Kcf+RkYN8OpmWgIApRiQjwot9x+7XR0jGPDypwna7bDKiG0taCCynL4itnYZEIaO1bSvuTDMyhlg==}
     cpu: [arm64]
     os: [darwin]
 
-  '@livekit/blingfire-darwin-x64@1.2.0':
-    resolution: {integrity: sha512-85gLmr16ZF/7fKWzx3t2x+BSfWp6KebMH9k70pUFqzmfPxaw95ykiHME4Xh5tgbbBqe7RLF4gFIOGcfUZi9hGQ==}
+  '@livekit/blingfire-darwin-x64@1.2.1':
+    resolution: {integrity: sha512-dpy5ZuA5bxAjcqmFRClcGmQ/rfUjEUf5VDsQvI3YYqL1w/xB63oTeaesX691uuNmDXhPMUSP4WhWG20JqhI1dA==}
     cpu: [x64]
     os: [darwin]
 
-  '@livekit/blingfire-linux-arm64-gnu@1.2.0':
-    resolution: {integrity: sha512-ByYgnLPKE6PFFNwLKMmTaNPVo3daGl006nNCyIIP7PFTVQ7GUnP2nC6a42GlquSj1bKtaXI9JA/rUWbcVRT1JQ==}
+  '@livekit/blingfire-linux-arm64-gnu@1.2.1':
+    resolution: {integrity: sha512-43bnGTCbe3ASJ/PiNUqIC73vRY3rdQcb6L5KRqZxJCE80ZRIlWnCzLR4g6dIGAltaFG2IfG+C2LxO+hN8KyuTQ==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@livekit/blingfire-linux-arm64-musl@1.2.0':
-    resolution: {integrity: sha512-i52nJN3DxrJA0H7F0vIs7gsDKpxwuNqvc3/w/6SxpPJuV9X0UfvtZ5GcYKmcKUfLIZBk1pxW2ukRW3KagBcPaQ==}
+  '@livekit/blingfire-linux-arm64-musl@1.2.1':
+    resolution: {integrity: sha512-Z17WkomDMxwGvjASArtL5j2AeOcekXMJA48kXiQYHlw9z46R3kKEpb+86yF1H6uwNe66fpk6v/QKJr8mnfuTEw==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@livekit/blingfire-linux-x64-gnu@1.2.0':
-    resolution: {integrity: sha512-9GA+RaNikYlLhQd4i3aJQGAICd3kSFKN3xr8JZhi3YirhbU4GsPLC6FIdTC44QgOtciR/4tUGS1fCM/SkIJowg==}
+  '@livekit/blingfire-linux-x64-gnu@1.2.1':
+    resolution: {integrity: sha512-AglNwyT895cRnjtytw+S/d+B4DCKFyS/6moM62k/GTPzUm+0n5PMpW27jaFVC6eR2zFfAJaQtvBcTH7jhDdwJg==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@livekit/blingfire-linux-x64-musl@1.2.0':
-    resolution: {integrity: sha512-/Phblzva6LsWYgFrk3niZq4sBIDY9/3fFMCJo8lF65B2Rkz1BWNoxSCEjmyFeYdfjmgsDClRtR1lymGZrjT5hA==}
+  '@livekit/blingfire-linux-x64-musl@1.2.1':
+    resolution: {integrity: sha512-KXHrr9D7LayqO/AvSEaB5hQQEMkhqj4qCkEyAcwR3mqdBhkZ/cjO2/rRwU7b0kdA3jKEed9x7vdmAU4Wtll5VA==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@livekit/blingfire-win32-x64-msvc@1.2.0':
-    resolution: {integrity: sha512-VAz0sr5ogT11CsviPSdbaGV0A7onGH9oW+vtN8XP1hwP5Mm1Dgz7rfG2ZYVi1pRuNqJfF2zmEVm9/Qmb6EYvDA==}
+  '@livekit/blingfire-win32-x64-msvc@1.2.1':
+    resolution: {integrity: sha512-uMHQJT9yf/Pj3I/yc0K4gU7uKyPhav9tRl7XyR/sUmfIl34A4VrYlQ+CVpMOrg3j4MWqsHIXNxFvHFz1Gfyn2w==}
     cpu: [x64]
     os: [win32]
 
-  '@livekit/blingfire@1.2.0':
-    resolution: {integrity: sha512-NBkAm31MpXyatfstI5YlaPlU2TCcvwoyghgODeieZU63TjhGM9tTHDsh10P8FP5nJ67nJLN+ZqbH3L1Pkdvpjg==}
+  '@livekit/blingfire@1.2.1':
+    resolution: {integrity: sha512-zNf1PQiady4h84yMCtEYG2bjFQ4rAHm0odDXBoIocw5j1I340J0a+gdlMe7r8Xf6gJnaOqVRb6yUx1AF28+0tw==}
     engines: {node: '>=18.0.0'}
 
-  '@livekit/local-inference-darwin-arm64@0.3.1':
-    resolution: {integrity: sha512-yLe4SNxe7NRr6DuB5j6MHzFT3Gc8q3+By0AFVm4ouv2LTU2TJ3YIO3aLCdWrmUjT6xWAaUu0aAdyBvkQZmnmlg==}
+  '@livekit/local-inference-darwin-arm64@0.3.2':
+    resolution: {integrity: sha512-hYODQdRiB8l0N+0xucYW+eE8BTB1IBTdGW7NfaFBwdIqGzc6eqSFNGADB6EF27hhhQhes/a6d0YwvFFSNbVkwg==}
     cpu: [arm64]
     os: [darwin]
 
-  '@livekit/local-inference-darwin-x64@0.3.1':
-    resolution: {integrity: sha512-5A1TiXnQrLBt8JdmgYCjjY0xUz3IpT9NxwlY/IYx6qz38JdvznI/0AG0lSU8jE/XoGT0x4yynO/n9dP1Mym8Kw==}
+  '@livekit/local-inference-darwin-x64@0.3.2':
+    resolution: {integrity: sha512-nAeuEnpeSUl68RQH4pOnQAH6KR7Ni4fABOe/gnQ2PxjhbfeWOgdcBjsbgnBT59Sd9/oadONCAAVvkF8naayHKg==}
     cpu: [x64]
     os: [darwin]
 
-  '@livekit/local-inference-linux-arm64-gnu@0.3.1':
-    resolution: {integrity: sha512-Aw5NFw1dsWL1d/GYFEbzEk9jUvj9QjS7DFc00K/onLbSphD30mG+a+GvxYW872XUlvRkh3eUblUB+lDBokXZ7w==}
+  '@livekit/local-inference-linux-arm64-gnu@0.3.2':
+    resolution: {integrity: sha512-arFDlqIXnA3LUynzFXKHtZvS3nOJYe/XrtUODTjW5vGXemjCbXQupnnk0efkMpAD2PslmqQbT2aeQHD89jlMMA==}
     cpu: [arm64]
     os: [linux]
 
-  '@livekit/local-inference-linux-x64-gnu@0.3.1':
-    resolution: {integrity: sha512-hIKKfMQWNQ8qLzg8i79NkEgiElV2BgBK9D+YvDnWFZct7WrAflxmCOQj/n2Et2zVMTL1u9HTU9QvyZj2vrKHOg==}
+  '@livekit/local-inference-linux-x64-gnu@0.3.2':
+    resolution: {integrity: sha512-s9wG+h8r4nQKZj3dS2+SuJeAmnRCtIKKHI124pV86Z70g4N5JhjXR1DI7Df9/OcqOLcECWJ+nSzJ/aKBcOGghw==}
     cpu: [x64]
     os: [linux]
 
-  '@livekit/local-inference-win32-x64-msvc@0.3.1':
-    resolution: {integrity: sha512-3p0187XMeEAbbp8gPFhWFwr9SwmQVFlwWI48HukbpPnhiYK/jEsAGeHzXd2uEISu2qlj6Ee1euhPoWALAXeqxw==}
+  '@livekit/local-inference-win32-x64-msvc@0.3.2':
+    resolution: {integrity: sha512-/nJG+ou1DaVCt4PqX42w5+v5OTFI11ro7oj01di5k7+KQ8j7su10lPtrkO70Z9t9zzorUcEwvJe8+CwgXizdOA==}
     cpu: [x64]
     os: [win32]
 
-  '@livekit/local-inference@0.3.1':
-    resolution: {integrity: sha512-XlVVh9MeqheD+wFzp2x20s+EDKg2ethL0j4D2L25wd+wnbRXOIsj/nt0mMruX+Q4Dd0XS2f4gdCIQXz7AFjVzA==}
+  '@livekit/local-inference@0.3.2':
+    resolution: {integrity: sha512-6s19hqmoeUHyHseaq/PuxI5eg94b1JkOmW+qw/aHyzzN+pvXiOKxBDspqXglHn3ShQuUDEKIqj+WvfccajD5Xw==}
     engines: {node: '>=18.0.0'}
 
   '@livekit/mutex@1.1.1':
@@ -1981,8 +1981,8 @@ packages:
   '@rolldown/pluginutils@1.1.1':
     resolution: {integrity: sha512-glFIJDvLNDtJhT9qrMFWLPbvS+skxgt4L0K8Ei2YtnhPysAJnsI7nyxSJxKj4ADeKX0OLjC4ntRkwpLOoS3rwA==}
 
-  '@rollup/rollup-darwin-arm64@4.68.3':
-    resolution: {integrity: sha512-dra5zl0QWKkIkaMgNDNPC19gkMlPAfAf41yWlkGztXMIvUQrX9XWZFQRw7abhH3nks+XZGQpybINAxT2pKdFew==}
+  '@rollup/rollup-darwin-arm64@4.68.5':
+    resolution: {integrity: sha512-xJVTzKZnwwQsQ5WA9cV4Q8l1SVYF9UyVa/3ECoCFfgtow4MUt7HcI3AB8Hwa/4790fimHPXzYfsuyMp67ErQ8w==}
     cpu: [arm64]
     os: [darwin]
 
@@ -2110,8 +2110,8 @@ packages:
     cpu: [arm64]
     os: [win32]
 
-  '@tybys/wasm-util@0.10.4':
-    resolution: {integrity: sha512-W3c4gRigFS0T/Ma4qIYF3GDAc5AQdHb1yL5znJT1Zv1YaD9Kitx656wBjvr19qbiosmZT8lWDM5BEMynUqX65A==}
+  '@tybys/wasm-util@0.10.5':
+    resolution: {integrity: sha512-dOGOPxlaNV+G046mZzN+9C0dAcQZeSKcXiVaM0TYy/LM4ttTmgSBDxYfovcYI8Em3+eAbiAYpvWLOv8+ZVRJKA==}
 
   '@types/canvas-confetti@1.9.0':
     resolution: {integrity: sha512-aBGj/dULrimR1XDZLtG9JwxX1b4HPRF6CX9Yfwh3NvstZEm1ZL7RBnel4keCPSqs1ANRu1u2Aoz9R+VmtjYuTg==}
@@ -2470,8 +2470,8 @@ packages:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
     engines: {node: '>= 8'}
 
-  csstype@3.2.3:
-    resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
+  csstype@3.2.4:
+    resolution: {integrity: sha512-PoKaoPzQapnEoqUSnHx1u6W6ku8CVEgKsnpmmzU3m1nwkidpPBQ8V/Zq2+bWNrsOKoKLwTGdbx6xF7BXP1zLVQ==}
 
   date-bengali-revised@2.1.0:
     resolution: {integrity: sha512-A/+Bo0lQY8ZaOjIgqxF+qii3b5911HyBGzfYkjQpa3EWsH+kj8gks675D73vzTp4XIuEQqtTg4h+7pJh0sHbuw==}
@@ -2648,8 +2648,8 @@ packages:
   es-module-lexer@2.3.2:
     resolution: {integrity: sha512-poHGpORABojJJucnV9KbOavETW8lBVnphkW77ER5/BQ5Fz7oXSoCNek7IH3vR5nRjdsEz926ibFYX8KtLQmdyw==}
 
-  es-module-lexer@3.0.4:
-    resolution: {integrity: sha512-BldNY5mwkVu+cQ5Ymn3e6hB9Sx8XHx4ZevWbiUyZbfKxJxYO27Hf0wfzkxIaD5CAJMaGl3YspKELj0ff/7nCMA==}
+  es-module-lexer@3.0.5:
+    resolution: {integrity: sha512-RNq2lKJw53c7z9QRHeiKeA6Ez0oikOqiBGdmxQhKDxEiOX1g5QJR4IoFVwicn8uCZcRWNrXC3NZaJihgK7aEbg==}
 
   es-object-atoms@1.1.2:
     resolution: {integrity: sha512-HWcBoN6NileqtSydK2FqHbS/LoDd2pqrnQHLyJzBj4kOp/ky2MWMN694xOfkK8/SnUsW2DH7EfyVlydKCsm1Zw==}
@@ -2843,8 +2843,8 @@ packages:
     resolution: {integrity: sha512-K48ErswC3MlIcBqR0pYIIEl+n9rIgwxgzaM1FxKHMXn7egxr1NHj7bCeF98mXl9A3/QoL5I7mo5S/mLXgeDgGA==}
     engines: {node: '>=22.0.0'}
 
-  libphonenumber-js@1.13.16:
-    resolution: {integrity: sha512-tIOCM9yx2Go6d5/ZANe0K+G4AZek1Ymx81HxQpf19Sri4zMP95eQbKdnUGHAvFQ4nx0PeLhFqvAfisTADXj3tQ==}
+  libphonenumber-js@1.13.17:
+    resolution: {integrity: sha512-V92dxRHhYTsHF5B6IjR8rtKW6qL7xKuERPFFqZt7XQl8A+NikbwEzjhxGpM+R6JnWjaL7/wokWSdTG/eyYAscQ==}
 
   lightningcss-android-arm64@1.33.0:
     resolution: {integrity: sha512-gEpRTalKdosp4Bb8qWtc2iOgE5SeIHlpS1up9bFq2wAyYhl1UdTObYiHe98zEM9SQvSoqQZ1IQD0JNpg3Ml5pg==}
@@ -2966,8 +2966,8 @@ packages:
   minimalistic-assert@1.0.1:
     resolution: {integrity: sha512-UtJcAD4yEaGtjPezWuO9wC4nwUnVH/8/Im3yEHQP4b67cXlD/Qr9hdITCU1xDbSEXg2XKNaP8jsReV7vQd00/A==}
 
-  minimatch@11.0.8:
-    resolution: {integrity: sha512-nFQuYSTVrGvysVBps5Ih+0BdnYFN/Cj3C816r6+p7yK+FHrVLGE4O4N9AFwykrlNlvM2HYt+Rad1Uiro6h88Ig==}
+  minimatch@11.0.9:
+    resolution: {integrity: sha512-KCFkfyjqerNlSstjlhIGNXIKZGA/6O4V4RlhZ+Dsr621SPPw0mzlypE9D9ZOoPiVefHID+j7/XuMMlqfD/F60Q==}
     engines: {node: 20 || >=22}
 
   minimist@1.2.8:
@@ -3008,8 +3008,8 @@ packages:
     resolution: {integrity: sha512-LA4ZjwlnUblHVgq0oBF3Jl/6h/Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH+F6ewcIB/q4jQ4UzPyid+CQ==}
     hasBin: true
 
-  nodemailer@10.6.0:
-    resolution: {integrity: sha512-jWanL7D9GD3jvUDYKmoC5rWTiG8MnBgnN2yV68bgMKip1zUJhiSTyz7Eg+18y8sk5OvdVDzws5nZK5arSI4f5Q==}
+  nodemailer@10.6.1:
+    resolution: {integrity: sha512-d7kfFfS/tR4Aca+SBvRaQ+MXKNv7d2JiRe5TxaRcFT/kYMh4GGPnW9aKksTIEvyEbA7d/7HYWE4YPDEHxzJj/g==}
     engines: {node: '>=20.0.0'}
 
   non-error@0.1.0:
@@ -3293,8 +3293,8 @@ packages:
     resolution: {integrity: sha512-FT1EL2Pz7lAWA48I6Qb1qHEvGT9ZGz2pb1sYZ9Dhu2t+RmHN6O12WMu7HzFcqFRQaUWEl3Q+++EYBTrZpCoykQ==}
     engines: {node: '>=20'}
 
-  set-cookie-parser@3.2.2:
-    resolution: {integrity: sha512-df017qMeYuXo4emL09nlyMpi2i2MtEIKS/6jtXH3vmjFgIRsOi852/5RmhJ4EkvN3ZF8jXadM/EkTPXgc8yPIw==}
+  set-cookie-parser@3.2.3:
+    resolution: {integrity: sha512-bDO7NdAkLprNt3BNl3LAh0oVnOS5+WspzxOxiboo7vRIyTqj2pvFmNWYEFynSGQgpJ+7yG/9nc/aSG20UDBUpg==}
 
   sharp@0.35.5:
     resolution: {integrity: sha512-Ywn4OnzGukp7CDMrp08RQ50YKmuwG47brZgIVPTvBaaAfQlRlygrRqSrxdCiL9M+LlzLBiJ68IR1QqvzHyjC7g==}
@@ -3584,7 +3584,7 @@ packages:
 
 snapshots:
 
-  '@anthropic-ai/sdk@1.9.0(zod@4.6.7)':
+  '@anthropic-ai/sdk@1.10.0(zod@4.6.7)':
     dependencies:
       '@opentelemetry/api': 1.10.0
       json-schema-to-ts: 3.1.1
@@ -3713,7 +3713,7 @@ snapshots:
     dependencies:
       '@microsoft/fetch-event-source': 2.0.1
     optionalDependencies:
-      '@rollup/rollup-darwin-arm64': 4.68.3
+      '@rollup/rollup-darwin-arm64': 4.68.5
 
   '@emnapi/core@2.0.0-beta.2':
     dependencies:
@@ -3947,7 +3947,7 @@ snapshots:
     dependencies:
       astronomia: 4.3.0
 
-  '@hono/node-server@2.1.9(hono@4.13.19)':
+  '@hono/node-server@2.1.11(hono@4.13.19)':
     dependencies:
       hono: 4.13.19
 
@@ -4126,8 +4126,8 @@ snapshots:
     dependencies:
       '@bufbuild/protobuf': 1.10.1
       '@livekit/av': 10.1.0
-      '@livekit/blingfire': 1.2.0
-      '@livekit/local-inference': 0.3.1
+      '@livekit/blingfire': 1.2.1
+      '@livekit/local-inference': 0.3.2
       '@livekit/mutex': 1.1.1
       '@livekit/protocol': 1.54.1
       '@livekit/rtc-node': 1.2.2
@@ -4199,63 +4199,63 @@ snapshots:
       '@livekit/av-linux-x64': 10.1.0
       '@livekit/av-win32-x64': 10.1.0
 
-  '@livekit/blingfire-darwin-arm64@1.2.0':
+  '@livekit/blingfire-darwin-arm64@1.2.1':
     optional: true
 
-  '@livekit/blingfire-darwin-x64@1.2.0':
+  '@livekit/blingfire-darwin-x64@1.2.1':
     optional: true
 
-  '@livekit/blingfire-linux-arm64-gnu@1.2.0':
+  '@livekit/blingfire-linux-arm64-gnu@1.2.1':
     optional: true
 
-  '@livekit/blingfire-linux-arm64-musl@1.2.0':
+  '@livekit/blingfire-linux-arm64-musl@1.2.1':
     optional: true
 
-  '@livekit/blingfire-linux-x64-gnu@1.2.0':
+  '@livekit/blingfire-linux-x64-gnu@1.2.1':
     optional: true
 
-  '@livekit/blingfire-linux-x64-musl@1.2.0':
+  '@livekit/blingfire-linux-x64-musl@1.2.1':
     optional: true
 
-  '@livekit/blingfire-win32-x64-msvc@1.2.0':
+  '@livekit/blingfire-win32-x64-msvc@1.2.1':
     optional: true
 
-  '@livekit/blingfire@1.2.0':
+  '@livekit/blingfire@1.2.1':
     dependencies:
       node-gyp-build: 4.8.4
     optionalDependencies:
-      '@livekit/blingfire-darwin-arm64': 1.2.0
-      '@livekit/blingfire-darwin-x64': 1.2.0
-      '@livekit/blingfire-linux-arm64-gnu': 1.2.0
-      '@livekit/blingfire-linux-arm64-musl': 1.2.0
-      '@livekit/blingfire-linux-x64-gnu': 1.2.0
-      '@livekit/blingfire-linux-x64-musl': 1.2.0
-      '@livekit/blingfire-win32-x64-msvc': 1.2.0
+      '@livekit/blingfire-darwin-arm64': 1.2.1
+      '@livekit/blingfire-darwin-x64': 1.2.1
+      '@livekit/blingfire-linux-arm64-gnu': 1.2.1
+      '@livekit/blingfire-linux-arm64-musl': 1.2.1
+      '@livekit/blingfire-linux-x64-gnu': 1.2.1
+      '@livekit/blingfire-linux-x64-musl': 1.2.1
+      '@livekit/blingfire-win32-x64-msvc': 1.2.1
 
-  '@livekit/local-inference-darwin-arm64@0.3.1':
+  '@livekit/local-inference-darwin-arm64@0.3.2':
     optional: true
 
-  '@livekit/local-inference-darwin-x64@0.3.1':
+  '@livekit/local-inference-darwin-x64@0.3.2':
     optional: true
 
-  '@livekit/local-inference-linux-arm64-gnu@0.3.1':
+  '@livekit/local-inference-linux-arm64-gnu@0.3.2':
     optional: true
 
-  '@livekit/local-inference-linux-x64-gnu@0.3.1':
+  '@livekit/local-inference-linux-x64-gnu@0.3.2':
     optional: true
 
-  '@livekit/local-inference-win32-x64-msvc@0.3.1':
+  '@livekit/local-inference-win32-x64-msvc@0.3.2':
     optional: true
 
-  '@livekit/local-inference@0.3.1':
+  '@livekit/local-inference@0.3.2':
     dependencies:
       node-gyp-build: 4.8.4
     optionalDependencies:
-      '@livekit/local-inference-darwin-arm64': 0.3.1
-      '@livekit/local-inference-darwin-x64': 0.3.1
-      '@livekit/local-inference-linux-arm64-gnu': 0.3.1
-      '@livekit/local-inference-linux-x64-gnu': 0.3.1
-      '@livekit/local-inference-win32-x64-msvc': 0.3.1
+      '@livekit/local-inference-darwin-arm64': 0.3.2
+      '@livekit/local-inference-darwin-x64': 0.3.2
+      '@livekit/local-inference-linux-arm64-gnu': 0.3.2
+      '@livekit/local-inference-linux-x64-gnu': 0.3.2
+      '@livekit/local-inference-win32-x64-msvc': 0.3.2
 
   '@livekit/mutex@1.1.1': {}
 
@@ -4333,7 +4333,7 @@ snapshots:
     dependencies:
       '@emnapi/core': 2.0.0-beta.2
       '@emnapi/runtime': 2.0.0-beta.2
-      '@tybys/wasm-util': 0.10.4
+      '@tybys/wasm-util': 0.10.5
     optional: true
 
   '@noble/ciphers@2.4.0': {}
@@ -4788,7 +4788,7 @@ snapshots:
 
   '@rolldown/pluginutils@1.1.1': {}
 
-  '@rollup/rollup-darwin-arm64@4.68.3':
+  '@rollup/rollup-darwin-arm64@4.68.5':
     optional: true
 
   '@sentry/browser-utils@11.12.0':
@@ -4922,7 +4922,7 @@ snapshots:
   '@turbo/windows-arm64@2.11.13':
     optional: true
 
-  '@tybys/wasm-util@0.10.4':
+  '@tybys/wasm-util@0.10.5':
     dependencies:
       tslib: 2.9.1
     optional: true
@@ -4958,7 +4958,7 @@ snapshots:
 
   '@types/react@19.3.0':
     dependencies:
-      csstype: 3.2.3
+      csstype: 3.2.4
 
   '@types/sdp-transform@2.15.0': {}
 
@@ -5117,7 +5117,7 @@ snapshots:
       '@better-auth/utils': 0.5.1
       '@better-fetch/fetch': 1.3.3
       rou3: 0.9.2
-      set-cookie-parser: 3.2.2
+      set-cookie-parser: 3.2.3
     optionalDependencies:
       zod: 4.6.7
 
@@ -5169,7 +5169,7 @@ snapshots:
       shebang-command: 2.0.0
       which: 2.0.2
 
-  csstype@3.2.3: {}
+  csstype@3.2.4: {}
 
   date-bengali-revised@2.1.0: {}
 
@@ -5250,7 +5250,7 @@ snapshots:
 
   es-module-lexer@2.3.2: {}
 
-  es-module-lexer@3.0.4: {}
+  es-module-lexer@3.0.5: {}
 
   es-object-atoms@1.1.2:
     dependencies:
@@ -5395,7 +5395,7 @@ snapshots:
 
   glob@14.0.6:
     dependencies:
-      minimatch: 11.0.8
+      minimatch: 11.0.9
       minipass: 7.1.3
       path-scurry: 3.0.0
 
@@ -5431,7 +5431,7 @@ snapshots:
   import-in-the-middle@3.6.0:
     dependencies:
       cjs-module-lexer: 2.3.0
-      es-module-lexer: 3.0.4
+      es-module-lexer: 3.0.5
       module-details-from-path: 1.0.4
 
   inherits@2.0.4: {}
@@ -5477,7 +5477,7 @@ snapshots:
 
   kysely@0.29.9: {}
 
-  libphonenumber-js@1.13.16: {}
+  libphonenumber-js@1.13.17: {}
 
   lightningcss-android-arm64@1.33.0:
     optional: true
@@ -5573,7 +5573,7 @@ snapshots:
 
   minimalistic-assert@1.0.1: {}
 
-  minimatch@11.0.8:
+  minimatch@11.0.9:
     dependencies:
       '@isaacs/nonrecursive-glob-match': 1.1.0
       brace-expansion: 5.0.13
@@ -5602,7 +5602,7 @@ snapshots:
 
   node-gyp-build@4.8.4: {}
 
-  nodemailer@10.6.0: {}
+  nodemailer@10.6.1: {}
 
   non-error@0.1.0: {}
 
@@ -5951,7 +5951,7 @@ snapshots:
       non-error: 0.1.0
       type-fest: 5.10.0
 
-  set-cookie-parser@3.2.2: {}
+  set-cookie-parser@3.2.3: {}
 
   sharp@0.35.5(@types/node@26.6.6):
     dependencies:
