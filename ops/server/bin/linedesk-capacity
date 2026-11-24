@@ -109,15 +109,27 @@ fi
     "$at on $host:$busy$([ "$calls" = null ] || echo " calls now: $calls,") CPU this minute: ${cpu}%, memory ${mem}%. New calls may get no assistant or a slow one. Compare the intranet's Capacity view and plan a bigger server or another agent server." default
 
 # The intranet copy: every 5 minutes, the lines it does not have yet (at most a day of them).
+# The alerts every script recorded (linedesk-alert-text, linedesk-alert-queue) go along: new ones at once, not only
+# every 5 minutes. They leave the queue once the intranet took them; without a push, after 7 days.
 push_key=/root/.ssh/linedesk_capacity_push
-if [ -n "${LINEDESK_CAPACITY_PUSH:-}" ] && [ -r "$push_key" ] && [ $((now / 60 % 5)) = 0 ]; then
-  pushed=$(cat "$dir/pushed" 2>/dev/null || echo 0)
-  awk -v min="$pushed" -F'[:,]' '$2 > min' "$dir/samples.jsonl" | tail -n 1440 > "$dir/push.tmp"
-  if [ -s "$dir/push.tmp" ] &&
-    timeout 60 ssh -T -i "$push_key" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 \
-      "$LINEDESK_CAPACITY_PUSH" < "$dir/push.tmp" > /dev/null; then
-    tail -n 1 "$dir/push.tmp" | sed -E 's/^\{"t":([0-9]+).*/\1/' > "$dir/pushed"
+queue=/usr/local/sbin/linedesk-alert-queue
+if [ -n "${LINEDESK_CAPACITY_PUSH:-}" ] && [ -r "$push_key" ]; then
+  "$queue" read "$dir/alert-names" > "$dir/push-alerts.tmp" 2>/dev/null || : > "$dir/push-alerts.tmp"
+  if [ $((now / 60 % 5)) = 0 ] || [ -s "$dir/push-alerts.tmp" ]; then
+    pushed=$(cat "$dir/pushed" 2>/dev/null || echo 0)
+    { awk -v min="$pushed" -F'[:,]' '$2 > min' "$dir/samples.jsonl" | tail -n 1440; cat "$dir/push-alerts.tmp"; } > "$dir/push.tmp"
+    if [ -s "$dir/push.tmp" ] &&
+      timeout 60 ssh -T -i "$push_key" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 \
+        "$LINEDESK_CAPACITY_PUSH" < "$dir/push.tmp" > /dev/null; then
+      grep -v '"alert":' "$dir/push.tmp" | tail -n 1 | sed -E 's/^\{"t":([0-9]+).*/\1/' | grep . > "$dir/pushed.new" &&
+        mv "$dir/pushed.new" "$dir/pushed"
+      rm -f "$dir/pushed.new"
+      "$queue" remove "$dir/alert-names" 2>/dev/null || true
+    fi
+    rm -f "$dir/push.tmp"
   fi
-  rm -f "$dir/push.tmp"
+  rm -f "$dir/push-alerts.tmp"
+elif [ $((now / 60 % 60)) = 0 ]; then
+  "$queue" prune 2>/dev/null || true
 fi
 printf 'calls %s, cpu %s%%, mem %s%%, events {%s}\n' "$calls" "$cpu" "$mem" "$events"

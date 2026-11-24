@@ -6,6 +6,9 @@ set -eu
 [ -r /etc/linedesk/ops.env ] && . /etc/linedesk/ops.env
 to=${LINEDESK_ALERT_TO:?set LINEDESK_ALERT_TO in /etc/linedesk/ops.env}
 label=${LINEDESK_ALERT_LABEL:-$(hostname)}
+# Every alert is also recorded for the intranet's Alerts list and Slack (linedesk-alert-queue; linedesk-capacity sends
+# new ones within a minute), before the email, so a failing SMTP never loses it.
+[ -w /var/lib/linedesk-alerts ] && /usr/local/sbin/linedesk-alert-queue add "$1" "$2" 2>/dev/null || true
 env=${LINEDESK_APP_DIR:-/opt/linedesk/app}/.env
 smtp=$(sed -n 's/^SMTP_URL=//p' "$env" | tail -1)
 from_line=$(sed -n 's/^EMAIL_FROM=//p' "$env" | tail -1)

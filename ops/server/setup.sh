@@ -91,6 +91,9 @@ valid "app folder" "$app_dir" '^/[A-Za-z0-9._/-]+$'
 put "$tmp/ops.env" "$ops_env" 644
 
 for f in "$here"/bin/*; do put "$f" "/usr/local/sbin/$(basename "$f")" 755; done
+# The alert queue (linedesk-alert-queue: one new file per alert from root or the stack user; root only reads them
+# without following links, and deletes them once sent).
+[ -d /var/lib/linedesk-alerts ] || { changed=1; say "/var/lib/linedesk-alerts: new"; run install -d -m 2770 -o root -g "$(id -gn "$user")" /var/lib/linedesk-alerts; }
 # Once, from a hand-made install: addresses its allow list had beyond the carriers' (an uptime check, say) move to
 # this server's own list. Later runs leave the local list alone, so a carrier address dropped from the repo is gone.
 if [ -f /etc/linedesk/sip-allow.txt ] && [ ! -e /etc/linedesk/sip-allow.local.txt ]; then

@@ -1,0 +1,100 @@
+#!/usr/bin/python3 -I
+"""The queue of recorded alerts in /var/lib/linedesk-alerts (one file per alert, written by linedesk-alert-text).
+
+  linedesk-alert-queue add "<title>" "<text>"   record one alert (any user that may write the folder)
+  linedesk-alert-queue read <names-file>         print the queued alerts as JSON lines, oldest first (at most 100);
+                                                 their file names go to <names-file>
+  linedesk-alert-queue remove <names-file>       delete the alerts listed there (after they were sent)
+  linedesk-alert-queue prune                     delete alerts older than 7 days (nothing sends them)
+
+The folder is shared by root and the stack user, so nothing here follows a symlink or writes into an existing file:
+`add` creates a new file (O_EXCL), `read` opens with O_NOFOLLOW and takes only small regular files, `remove` only
+unlinks names that look like queue files.
+"""
+import json
+import os
+import re
+import stat
+import sys
+import time
+
+DIR = "/var/lib/linedesk-alerts"
+NAME = re.compile(r"[0-9]{19}-[0-9]{1,10}\.json")
+MAX_BYTES = 8192
+
+
+def add(title, text):
+    record = {"t": int(time.time()), "alert": {"title": title[:200], "text": text[:2000]}}
+    name = f"{time.time_ns():019d}-{os.getpid()}.json"
+    fd = os.open(os.path.join(DIR, name), os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o660)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(json.dumps(record, separators=(",", ":")))
+
+
+def queued():
+    return sorted(n for n in os.listdir(DIR) if NAME.fullmatch(n))
+
+
+def read(names_file):
+    taken = []
+    for name in queued():
+        if len(taken) >= 100:
+            break
+        try:
+            fd = os.open(os.path.join(DIR, name), os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        except OSError:
+            continue
+        with os.fdopen(fd, "rb") as f:
+            info = os.fstat(f.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_BYTES:
+                continue
+            raw = f.read(MAX_BYTES)
+        try:
+            a = json.loads(raw)
+            line = json.dumps({"t": int(a["t"]), "alert": {"title": str(a["alert"]["title"])[:200],
+                                                          "text": str(a["alert"]["text"])[:2000]}}, separators=(",", ":"))
+        except Exception:  # noqa: BLE001 - broken, too deep, numbers too large
+            taken.append(name)  # broken: drop it with the others
+            continue
+        print(line)
+        taken.append(name)
+    with open(names_file, "w", encoding="utf-8") as out:
+        out.write("".join(n + "\n" for n in taken))
+
+
+def remove(names_file):
+    with open(names_file, encoding="utf-8") as f:
+        for name in f.read().split():
+            if NAME.fullmatch(name):
+                try:
+                    os.unlink(os.path.join(DIR, name))
+                except OSError:  # gone already, or not a file
+                    pass
+
+
+def prune():
+    cutoff = time.time_ns() - 7 * 86400 * 10**9
+    for name in queued():
+        if int(name[:19]) < cutoff:
+            try:
+                os.unlink(os.path.join(DIR, name))
+            except OSError:
+                pass
+
+
+def main():
+    cmd, args = (sys.argv[1] if len(sys.argv) > 1 else ""), sys.argv[2:]
+    if cmd == "add" and len(args) == 2:
+        add(*args)
+    elif cmd == "read" and len(args) == 1:
+        read(args[0])
+    elif cmd == "remove" and len(args) == 1:
+        remove(args[0])
+    elif cmd == "prune" and not args:
+        prune()
+    else:
+        sys.exit(__doc__)
+
+
+if __name__ == "__main__":
+    main()
