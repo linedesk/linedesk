@@ -53,7 +53,7 @@ import {
   type RenewalLine,
 } from './emails/billing-lifecycle.ts'
 import { emailSafeName } from './emails/templates.ts'
-import { jobQueue } from './jobs.ts'
+import { queueForSend } from './jobs.ts'
 import { decideRecharge, feeNumbers, lockBalance, periodAt, postEntry } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
 
@@ -672,7 +672,7 @@ export async function queueLifecycleEmail(
   workspace?: string,
 ) {
   const job: LifecycleEmailJob = workspace ? { bill, email, workspace } : { bill, email }
-  await jobQueue()?.send(BILLING_LIFECYCLE_EMAIL, job, {
+  await (await queueForSend())?.send(BILLING_LIFECYCLE_EMAIL, job, {
     db: fromDrizzle(tx, sql),
   })
 }

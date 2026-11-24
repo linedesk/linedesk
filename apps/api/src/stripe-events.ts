@@ -40,7 +40,7 @@ import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { type NotCreditedReason, rechargeNotCreditedAlert, stripeEventFailedAlert } from './emails/billing-alerts.ts'
 import { type Handler, type Preparer, Reject } from './handler-context.ts'
-import { jobQueue } from './jobs.ts'
+import { queueForSend } from './jobs.ts'
 import { lockBalance, periodForMoney, postEntry } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
 
@@ -130,7 +130,7 @@ const iso = (seconds: number) => new Date(seconds * 1000).toISOString()
 
 /** Queues the processing of one event in the caller's transaction; one queued or running job per event. */
 export async function queueStripeEvent(tx: Tx, eventId: string) {
-  await jobQueue()?.send(STRIPE_EVENT, { eventId }, { db: fromDrizzle(tx, sql), singletonKey: eventId })
+  await (await queueForSend())?.send(STRIPE_EVENT, { eventId }, { db: fromDrizzle(tx, sql), singletonKey: eventId })
 }
 
 export type StoreOutcome = 'stored' | 'requeued' | 'duplicate' | 'foreign'
