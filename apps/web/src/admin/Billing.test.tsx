@@ -185,6 +185,26 @@ test('the bills list filters by status with counted chips and colour badges', ()
   // Only statuses that have bills get a chip, each with its count.
   expect(html).toContain('Trial<span class="n">1</span>')
   expect(html).not.toContain('Past due<span')
+  // Nothing canceled: no "All bills" chip, it would show the same.
+  expect(html).not.toContain('All bills<span')
+})
+
+test('the bills list hides canceled bills by default; the Canceled and All bills chips show them', () => {
+  data['admin.billing.bills'] = [
+    { ...bill, id: 'bill_live', status: 'active' },
+    {
+      ...bill,
+      id: 'bill_gone',
+      status: 'canceled',
+      owner: { id: 'u2', email: 'gone@example.com', name: 'Gone Owner' },
+    },
+  ]
+  const html = renderList('bills')
+  expect(html).toContain('Current<span class="n">1</span>')
+  expect(html).toContain('Canceled<span class="n">1</span>')
+  expect(html).toContain('All bills<span class="n">2</span>')
+  expect(html).toContain('mike@brightwater.example')
+  expect(html).not.toContain('gone@example.com')
 })
 
 test("Billing's own page is one card of part rows, each with its state and the page it opens; no tab strip", () => {

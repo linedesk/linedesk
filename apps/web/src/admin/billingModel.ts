@@ -277,19 +277,24 @@ export const changedFields = (form: RulesForm, before: RulesForm) =>
 
 // ---- The bills list ----
 
-/** The bills list's filter: every bill, the ones held for review, or one status. */
-export type BillFilter = 'all' | 'held' | AdminBillStatus
+/**
+ * The bills list's filter: the current bills (every bill but the canceled ones, the default), every bill, the ones
+ * held for review, or one status.
+ */
+export type BillFilter = 'current' | 'all' | 'held' | AdminBillStatus
 
 /** The bills the filter keeps. */
 export const filterBills = (bills: readonly AdminBillRow[], filter: BillFilter): AdminBillRow[] =>
   filter === 'all'
     ? [...bills]
-    : filter === 'held'
-      ? bills.filter(b => b.heldForReviewAt)
-      : bills.filter(b => b.status === filter)
+    : filter === 'current'
+      ? bills.filter(b => b.status !== 'canceled')
+      : filter === 'held'
+        ? bills.filter(b => b.heldForReviewAt)
+        : bills.filter(b => b.status === filter)
 
 export const BILL_FILTERS: readonly BillFilter[] = [
-  'all',
+  'current',
   'held',
   'pending_payment',
   'trialing',
@@ -298,19 +303,21 @@ export const BILL_FILTERS: readonly BillFilter[] = [
   'suspended',
   'comped',
   'canceled',
+  'all',
 ]
 
 /** The query of a Billing address (`#admin/billing/bills?status=past_due`): what a link from the overview asks for. */
 const hashQuery = (hash: string) => new URLSearchParams(hash.split('?')[1] ?? '')
 
-/** The bills filter a link asked for (`?status=`); every bill otherwise. */
+/** The bills filter a link asked for (`?status=`); the current bills (canceled ones hidden) otherwise. */
 export function billFilterOfHash(hash: string): BillFilter {
   const status = hashQuery(hash).get('status')
-  return BILL_FILTERS.includes(status as BillFilter) ? (status as BillFilter) : 'all'
+  return BILL_FILTERS.includes(status as BillFilter) ? (status as BillFilter) : 'current'
 }
 
 /** The address of the bills, filtered. */
-export const billsHref = (filter: BillFilter) => `#admin/billing/bills${filter === 'all' ? '' : `?status=${filter}`}`
+export const billsHref = (filter: BillFilter) =>
+  `#admin/billing/bills${filter === 'current' ? '' : `?status=${filter}`}`
 
 /** The Stripe events filter a link asked for (`?filter=`); every event otherwise. */
 export function eventFilterOfHash(hash: string): BillingEventFilter {

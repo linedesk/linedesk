@@ -488,6 +488,7 @@
   "bills.fact.subscription": "Subscription",
   "bills.fact.trialEnds": "Trial ends {when}",
   "bills.filter.all": "All bills",
+  "bills.filter.current": "Current",
   "bills.filter.empty": "No bills with this status.",
   "bills.filter.held": "Held for review",
   "bills.filter.label": "Show bills",

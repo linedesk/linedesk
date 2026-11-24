@@ -324,7 +324,7 @@ function billsRow(t: Translate, s: AdminBillingSummary): PartRow {
       ? t('admin.bills.summary.owingLine', { pastDue: s.bills.past_due, suspended: s.bills.suspended })
       : null,
     help: null,
-    href: owing ? billsHref(s.bills.past_due ? 'past_due' : 'suspended') : billsHref('all'),
+    href: owing ? billsHref(s.bills.past_due ? 'past_due' : 'suspended') : billsHref('current'),
   }
 }
 
@@ -456,7 +456,13 @@ const billColumns = (t: Translate): Column<AdminBillRow>[] => [
 ]
 
 const filterLabel = (t: Translate, value: BillFilter) =>
-  value === 'all' ? t('admin.bills.filter.all') : value === 'held' ? t('admin.bills.filter.held') : t(STATUS[value])
+  value === 'current'
+    ? t('admin.bills.filter.current')
+    : value === 'all'
+      ? t('admin.bills.filter.all')
+      : value === 'held'
+        ? t('admin.bills.filter.held')
+        : t(STATUS[value])
 
 /** The filter a link asked for (`#admin/billing/bills?status=…`), followed when the address changes. */
 function useHashFilter<F extends string>(parse: (hash: string) => F, href: (filter: F) => string) {
@@ -493,8 +499,14 @@ function BillsList({ onOpen, keysRef }: { onOpen: (id: string) => void; keysRef:
       </div>
     )
   const bills = query.data
-  // Every filter that has bills, and the one chosen even when it has none.
-  const chips = BILL_FILTERS.filter(value => value === 'all' || value === filter || filterBills(bills, value).length)
+  // Every filter that has bills, and the one chosen even when it has none; "All" only when it shows more than the
+  // current bills (some are canceled).
+  const chips = BILL_FILTERS.filter(
+    value =>
+      value === 'current' ||
+      value === filter ||
+      (value === 'all' ? filterBills(bills, 'canceled').length > 0 : filterBills(bills, value).length > 0),
+  )
   return (
     <AdminList
       rows={shown}
@@ -525,7 +537,7 @@ function BillsList({ onOpen, keysRef }: { onOpen: (id: string) => void; keysRef:
       onOpen={b => onOpen(b.id)}
       keysRef={keysRef}
       empty={
-        filter === 'all' ? (
+        bills.length === 0 ? (
           <>
             {t('admin.bills.empty')} <T k="admin.bills.emptyHint" values={{ link: appLink('#admin/billing/signup') }} />
           </>

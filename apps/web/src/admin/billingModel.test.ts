@@ -185,11 +185,13 @@ test('the bills list filters by status, or by a hold for review', () => {
     row({ id: 'a', status: 'trialing' }),
     row({ id: 'b', status: 'active', heldForReviewAt: '2026-11-02T00:00:00.000Z' }),
     row({ id: 'c', status: 'past_due' }),
+    row({ id: 'd', status: 'canceled' }),
   ]
-  expect(filterBills(bills, 'all').map(b => b.id)).toEqual(['a', 'b', 'c'])
+  expect(filterBills(bills, 'current').map(b => b.id)).toEqual(['a', 'b', 'c'])
+  expect(filterBills(bills, 'all').map(b => b.id)).toEqual(['a', 'b', 'c', 'd'])
   expect(filterBills(bills, 'trialing').map(b => b.id)).toEqual(['a'])
   expect(filterBills(bills, 'held').map(b => b.id)).toEqual(['b'])
-  expect(filterBills(bills, 'canceled')).toEqual([])
+  expect(filterBills(bills, 'canceled').map(b => b.id)).toEqual(['d'])
 })
 
 test('the sign-up limits: defaults go back as null, changes as values, numbers out of range are problems', () => {
@@ -277,10 +279,12 @@ test("the install's own values are the filled fields that differ from the defaul
 
 test('filters live in the address, so a link or a reload keeps them', () => {
   expect(billFilterOfHash('#admin/billing/bills?status=past_due')).toBe('past_due')
-  expect(billFilterOfHash('#admin/billing/bills?status=nonsense')).toBe('all')
-  expect(billFilterOfHash('#admin/billing/bills')).toBe('all')
+  expect(billFilterOfHash('#admin/billing/bills?status=nonsense')).toBe('current')
+  expect(billFilterOfHash('#admin/billing/bills')).toBe('current')
+  expect(billFilterOfHash('#admin/billing/bills?status=all')).toBe('all')
   expect(billsHref('held')).toBe('#admin/billing/bills?status=held')
-  expect(billsHref('all')).toBe('#admin/billing/bills')
+  expect(billsHref('current')).toBe('#admin/billing/bills')
+  expect(billsHref('all')).toBe('#admin/billing/bills?status=all')
   expect(eventFilterOfHash('#admin/billing/events?filter=failed')).toBe('failed')
   expect(eventFilterOfHash('#admin/billing/events?filter=x')).toBe('all')
   expect(eventsHref('all')).toBe('#admin/audit?kind=stripe')
