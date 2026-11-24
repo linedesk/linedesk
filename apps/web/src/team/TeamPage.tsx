@@ -525,7 +525,7 @@ export function LeaveWorkspace({ data, isInstanceAdmin }: { data: TeamData; isIn
   )
 }
 
-/** The team section of Workspace settings: members and invitations (call emails: Assistant › Who hears about calls). */
+/** The team section of Workspace settings: members and invitations (call emails: Assistant › Email notifications). */
 export function TeamSection({ toast }: { toast: (text: string) => void }) {
   const t = useT()
   const team = useTeam()

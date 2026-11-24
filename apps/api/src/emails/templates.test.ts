@@ -165,7 +165,7 @@ describe('call summary', () => {
     expect(email.html).toContain('href="https://desk.example.com/#call/call_1?ws=ws_1"')
     // Call emails are set in one place for the team (LIN-768).
     expect(email.html).toContain('href="https://desk.example.com/#assistant/emails?ws=ws_1"')
-    expect(email.text).toContain('Change who hears about calls')
+    expect(email.text).toContain('Change email notifications')
     expect(email.html).not.toContain('class="ld-badge"')
   })
 
@@ -251,7 +251,7 @@ describe('call summary', () => {
       'You get emails for some calls to Brightwater Plumbing & Heating, because a call email rule names you.',
     )
     expect(byRule.text).not.toContain('one email per call')
-    expect(byRule.text).toContain('Change who hears about calls')
+    expect(byRule.text).toContain('Change email notifications')
     expect(firstCallEmail({ ...call, byRule: true }, ORIGIN).text).not.toContain('one email per call')
     expect(firstCallEmail(call, ORIGIN).text).toContain(
       'From now on you get one email per call to Brightwater Plumbing & Heating.',

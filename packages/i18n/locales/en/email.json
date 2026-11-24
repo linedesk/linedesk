@@ -377,7 +377,7 @@
   "call.urgent": "Urgent",
   "call.what": "What",
   "call.when": "When",
-  "call.whoHears": "Change who hears about calls",
+  "call.whoHears": "Change email notifications",
   "code.note": "It works once and expires in {minutes} minutes. Don't share this code: nobody from {brand} or your team will ever ask you for it.",
   "confirmationCode.heading": "Your confirmation code",
   "confirmationCode.note": "It works once and expires in {minutes} minutes. Don't share this code with anyone; {brand} staff will never ask for it.",

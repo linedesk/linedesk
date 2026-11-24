@@ -127,7 +127,7 @@ type SwitchRowProps = {
   nested?: boolean
   /** The switch's hover tooltip. */
   tip?: string
-  /** Before the words: a 24px avatar where the row is a person (Who hears about calls). */
+  /** Before the words: a 24px avatar where the row is a person (Email notifications). */
   lead?: ReactNode
 }
 

@@ -2575,7 +2575,7 @@ describe('impersonation', () => {
       'call.markRead',
       'call.markUnread',
       'call.remind',
-      // Who hears about calls (LIN-768): every member reads it.
+      // Email notifications (LIN-768): every member reads it.
       'callEmails.get',
       // Read-only and instance:admin, like setupEmails.get: an impersonation never has instance:admin.
       'callQuality.get',

@@ -1,5 +1,5 @@
 // Call email routing (docs/architecture.md, Notifications; LIN-470, LIN-768): who hears about a call is set in one
-// place, Assistant › Who hears about calls. Every member with "Email for every call" on (their own
+// place, Assistant › Email notifications. Every member with "Email for every call" on (their own
 // member_notification_settings.email, else the team default for new teammates) gets every call email. On top of that,
 // each assistant has a short rule list (`assistants.email_rules`, saved with assistant.update): each rule has the calls
 // it is about in plain words (`when`), its members (`to`, who get those calls' emails even with "every call" off) and
@@ -68,7 +68,7 @@ export const emailRoutingGet = defineAction({
 })
 
 /**
- * One member's row in Who hears about calls: whether they get the email about every call. `email` only for a member
+ * One member's row in Email notifications: whether they get the email about every call. `email` only for a member
  * without a name, whose row shows it instead (every member reads the team's addresses anyway, team.list).
  */
 export type CallEmailsMember = { userId: string; everyCall: boolean; email?: string }
@@ -86,7 +86,7 @@ export type CallEmailsData = {
 }
 
 /**
- * For every member: Who hears about calls as it is, so everyone sees who gets which call. Changing a switch is
+ * For every member: Email notifications as it is, so everyone sees who gets which call. Changing a switch is
  * notifications.update (your own), team.updateMemberNotifications (a teammate's, owners and admins) and
  * notifications.setDefaults (new teammates).
  */
@@ -94,7 +94,7 @@ export const callEmailsGet = defineAction({
   name: 'callEmails.get',
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
   description:
-    'Read who hears about calls: each member\'s "Email for every call" (`everyCall`), the default new teammates start with (`newTeammates`) and whether call email rules are on (`llm`: a language model is set up; without one the rules in email_rules are ignored). Members with everyCall on get every call email; the members of the rules that fit a call get its email too.',
+    'Read the email notifications: each member\'s "Email for every call" (`everyCall`), the default new teammates start with (`newTeammates`) and whether call email rules are on (`llm`: a language model is set up; without one the rules in email_rules are ignored). Members with everyCall on get every call email; the members of the rules that fit a call get its email too.',
   input: z.object({}),
   permission: 'call:read',
   readOnly: true,

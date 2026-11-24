@@ -66,7 +66,7 @@ export const notificationsUpdate = defineAction({
 export const notificationsSetDefaults = defineAction({
   name: 'notifications.setDefaults',
   description:
-    "Set the workspace's default new-call notifications: what a new teammate starts with (Who hears about calls › New teammates). Members already in the workspace keep what they get now: changing the email default first sets it as their own for every member who still followed it.",
+    "Set the workspace's default new-call notifications: what a new teammate starts with (Email notifications › New teammates). Members already in the workspace keep what they get now: changing the email default first sets it as their own for every member who still followed it.",
   input: z.object({ email: z.boolean().optional(), browser: z.boolean().optional() }),
   permission: 'settings:write',
 })

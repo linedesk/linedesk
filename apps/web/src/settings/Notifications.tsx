@@ -1,7 +1,7 @@
 // User settings › Preferences, under Language: your own notifications in this workspace: one switch for notifications
 // on this device (push where the browser and server can, else while Linedesk is open; it asks for the browser's
 // permission itself), assigned-call and setup emails. Call emails are set in one place for the whole team, Assistant ›
-// Who hears about calls (CallEmails.tsx); the line under the switches links there.
+// Email notifications (CallEmails.tsx); the line under the switches links there.
 import type { NotificationSettingsData } from '@linedesk/actions'
 import { type ReactNode, useEffect, useState } from 'react'
 import { brandName } from '../brand.ts'
@@ -22,10 +22,10 @@ import { T, useT } from '@linedesk/i18n/react'
 import { appLink } from '../ui/AppLink.tsx'
 import { i18n } from '../i18n/index.tsx'
 
-/** Where call emails are set for the whole team: Assistant › Who hears about calls (the first assistant's). */
+/** Where call emails are set for the whole team: Assistant › Email notifications (the first assistant's). */
 export const WHO_HEARS_HASH = '#assistant/emails'
 
-/** The line that sends to Who hears about calls, the one place for call emails. */
+/** The line that sends to Email notifications, the one place for call emails. */
 export const WhoHearsLine = () => <T k="account.notify.oneplace" values={{ link: appLink(WHO_HEARS_HASH) }} />
 
 const blockedText = () => i18n().t('account.notify.blocked')
@@ -179,7 +179,7 @@ export function Notifications() {
   )
 }
 
-/** The settings a member keeps per workspace that NotificationSwitches changes (call emails: Who hears about calls). */
+/** The settings a member keeps per workspace that NotificationSwitches changes (call emails: Email notifications). */
 export type NotificationChange = {
   assignedEmail?: boolean
   setupEmails?: boolean

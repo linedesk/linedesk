@@ -33,7 +33,7 @@ test('an action in text looks like the link but is a button', () => {
 test('a message tag renders the link around its own words, the sentence stays one message', () => {
   const html = renderToStaticMarkup(<T k="account.notify.oneplace" values={{ link: appLink('#assistant/emails') }} />)
   expect(html).toContain(
-    'Call emails for the team are set in one place: <a class="k-link" href="#assistant/emails">Assistant › Who hears about calls</a>.',
+    'Call emails for the team are set in one place: <a class="k-link" href="#assistant/emails">Assistant › Email notifications</a>.',
   )
 })
 

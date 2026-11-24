@@ -61,7 +61,7 @@ export function appLink(origin: string, workspaceId: string, path: string): stri
 const callLink = (origin: string, workspaceId: string, callId: string) =>
   appLink(origin, workspaceId, `call/${encodeURIComponent(callId)}`)
 const notificationsLink = (origin: string, workspaceId: string) => appLink(origin, workspaceId, 'account/preferences')
-/** Where call emails are set for the whole team: Assistant › Who hears about calls (LIN-768). */
+/** Where call emails are set for the whole team: Assistant › Email notifications (LIN-768). */
 const whoHearsLink = (origin: string, workspaceId: string) => appLink(origin, workspaceId, 'assistant/emails')
 
 // ---------------------------------------------------------------- sign-in and account
@@ -777,7 +777,7 @@ export type CallEmail = {
   workspace: string
   /**
    * The member gets this call only through a rule that names them, not because they get an email for every call
-   * (Who hears about calls): the footer says so (LIN-769).
+   * (Email notifications): the footer says so (LIN-769).
    */
   byRule?: boolean
 }
