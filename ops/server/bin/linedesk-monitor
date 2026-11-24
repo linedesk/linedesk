@@ -37,9 +37,7 @@ describe() { # <name>
 }
 mail() { LINEDESK_ALERT_LABEL="$host" /usr/local/sbin/linedesk-alert-text "$1" "$2"; }
 push() { # <title> <text> <priority>: the email above goes out also when the push fails.
-  [ -n "${LINEDESK_PUSH_URL:-}" ] || return 0
-  curl -sS -m 10 -o /dev/null -H "Title: [Linedesk $host] $1" -H "Priority: $3" -d "$2" "$LINEDESK_PUSH_URL" ||
-    echo "linedesk-monitor: push failed" >&2
+  LINEDESK_ALERT_LABEL="$host" /usr/local/sbin/linedesk-push "$1" "$2" "$3" || true
 }
 
 for name in api agent web livekit sip; do

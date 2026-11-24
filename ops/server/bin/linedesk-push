@@ -1,0 +1,15 @@
+#!/bin/sh
+# Sends one phone push: linedesk-push "<title>" "<text>" <priority> (ntfy: min, low, default, high, urgent), to the ntfy
+# topic URL in LINEDESK_PUSH_URL (/etc/linedesk/ops.env, setup.sh --push-url); nothing when it is not set. The title
+# starts with [Linedesk <label>]. A refused push (an error status, such as ntfy.sh's 429 when the server's shared IPv6
+# range is over the free daily quota) is sent once more over IPv4. Every push on the server goes through here.
+set -u
+# A label the caller sets (the monitor names the install it checks) wins over this server's own label in ops.env.
+caller_label=${LINEDESK_ALERT_LABEL:-}
+[ -r /etc/linedesk/ops.env ] && . /etc/linedesk/ops.env
+LINEDESK_ALERT_LABEL=${caller_label:-${LINEDESK_ALERT_LABEL:-}}
+[ -n "${LINEDESK_PUSH_URL:-}" ] || exit 0
+title="[Linedesk ${LINEDESK_ALERT_LABEL:-$(hostname)}] $1"
+priority=${3:-default} text=$2
+send() { curl -fsS -m 10 -o /dev/null "$@" -H "Title: $title" -H "Priority: $priority" -d "$text" "$LINEDESK_PUSH_URL"; }
+send || send -4 || { echo "linedesk-push: push failed" >&2; exit 1; }

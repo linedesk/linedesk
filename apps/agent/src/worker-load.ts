@@ -20,6 +20,15 @@ export const MAX_REPORTED_LOAD = 0.99
 export const LOAD_WARN_AT = 0.95
 /** At most one overload warning this often. */
 export const LOAD_WARN_EVERY_MS = 60_000
+/**
+ * After the worker starts it never refuses a call because of load for this long. A new worker loads its warm processes
+ * at once (AGENT_IDLE_PROCESSES, about 2 s of CPU each), which puts its CPU over the threshold for a few seconds,
+ * also with no call. During an update the old worker is draining at the same time, so a "full" new worker leaves a call
+ * in those seconds without an assistant (production agent-1, 2026-11-22, LIN-795).
+ */
+export const START_GRACE_MS = 60_000
+/** How far under the threshold the load is reported in the grace time. */
+export const GRACE_MARGIN = 0.01
 
 export type LoadPolicy = {
   /** The SDK's loadThreshold: at or above it the worker reports itself full. */
@@ -54,26 +63,33 @@ const percent = (load: number) => `${Math.round(load * 100)}%`
 
 /**
  * Wraps the SDK's load measure (ServerOptions.loadFunc, called every few seconds): warns at most once a minute while
- * the load is above LOAD_WARN_AT, and while the worker never refuses caps what LiveKit sees at MAX_REPORTED_LOAD.
+ * the load is above LOAD_WARN_AT, and while the worker never refuses (by policy, or in its first graceMs after start)
+ * caps what LiveKit sees at MAX_REPORTED_LOAD.
  */
 export function reportedLoad<W>(
   measure: (worker: W) => Promise<number>,
   policy: LoadPolicy,
   warn: (line: string) => void,
   now: () => number = Date.now,
+  graceMs: number = START_GRACE_MS,
 ): (worker: W) => Promise<number> {
   let lastWarning = Number.NEGATIVE_INFINITY
+  const startedAt = now()
   return async worker => {
     const load = await measure(worker)
+    const refuses = policy.refuses && now() - startedAt >= graceMs
     if (load > LOAD_WARN_AT && now() - lastWarning >= LOAD_WARN_EVERY_MS) {
       lastWarning = now()
       warn(
-        policy.refuses && load >= policy.threshold
+        refuses && load >= policy.threshold
           ? `Host CPU load is ${percent(load)}: this worker takes no new calls until it drops below ${percent(policy.threshold)} (AGENT_LOAD_THRESHOLD).`
           : `Host CPU load is ${percent(load)} (above ${percent(LOAD_WARN_AT)}). Calls are still answered, but replies may be slow: free up CPU or use a bigger server.`,
       )
     }
-    return policy.refuses ? load : Math.min(load, MAX_REPORTED_LOAD)
+    if (refuses || !policy.refuses) return refuses ? load : Math.min(load, MAX_REPORTED_LOAD)
+    // In the grace time after start: just under the worker's own threshold, which the SDK and LiveKit's target_load
+    // compare with, so neither treats the new worker as full.
+    return Math.min(load, policy.threshold - GRACE_MARGIN)
   }
 }
 

@@ -7,6 +7,7 @@ import {
   loadPolicy,
   MAX_REPORTED_LOAD,
   reportedLoad,
+  START_GRACE_MS,
 } from './worker-load.ts'
 
 describe('loadPolicy', () => {
@@ -44,11 +45,11 @@ describe('loadPolicy', () => {
 })
 
 describe('reportedLoad', () => {
-  const run = (raw: string | undefined, loads: number[], step = 2_500) => {
+  const run = (raw: string | undefined, loads: number[], step = 2_500, graceMs = 0) => {
     let clock = 0
     const warn = vi.fn()
     const measure = vi.fn(async () => loads.shift() ?? 0)
-    const fn = reportedLoad(measure, loadPolicy(raw), warn, () => clock)
+    const fn = reportedLoad(measure, loadPolicy(raw), warn, () => clock, graceMs)
     return {
       warn,
       next: async () => {
@@ -85,6 +86,19 @@ describe('reportedLoad', () => {
     const { next, warn } = run(undefined, [0.95, 0.5, 0.9])
     for (let i = 0; i < 3; i++) await next()
     expect(warn).not.toHaveBeenCalled()
+  })
+
+  test('opted in, just started: no refusing while the warm processes load (LIN-795)', async () => {
+    const { next, warn } = run('0.8', Array(30).fill(1), 2_500, START_GRACE_MS)
+    // Under the worker's own threshold (the SDK marks it full at load >= threshold), so LiveKit keeps giving it calls.
+    for (let t = 2_500; t < START_GRACE_MS; t += 2_500) expect(await next()).toBeLessThan(0.8)
+    expect(warn.mock.calls[0]?.[0]).toMatch(/still answered/)
+    // From the end of the grace time on, the real load counts again.
+    expect(await next()).toBe(1)
+  })
+
+  test('the grace time after start is a minute by default', () => {
+    expect(START_GRACE_MS).toBe(60_000)
   })
 
   test('opted in and over the threshold: the warning says the worker takes no new calls', async () => {

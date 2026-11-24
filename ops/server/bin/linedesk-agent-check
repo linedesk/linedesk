@@ -28,9 +28,7 @@ problem() {
   echo "the agent is not healthy (not registered with the main server's LiveKit: docker compose logs agent)"
 }
 push() { # <title> <text> <priority>: the email goes out also when the push fails.
-  [ -n "${LINEDESK_PUSH_URL:-}" ] || return 0
-  curl -sS -m 10 -o /dev/null -H "Title: [Linedesk $label] $1" -H "Priority: $3" -d "$2" "$LINEDESK_PUSH_URL" ||
-    echo "linedesk-agent-check: push failed" >&2
+  LINEDESK_ALERT_LABEL="$label" /usr/local/sbin/linedesk-push "$1" "$2" "$3" || true
 }
 
 fails=$(cat "$dir/fails" 2>/dev/null || echo 0)

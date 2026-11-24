@@ -84,9 +84,7 @@ alert() {
   [ $((now - $(cat "$stamp" 2>/dev/null || echo 0))) -ge "$2" ] || return 0
   echo "$now" > "$stamp"
   /usr/local/sbin/linedesk-alert-text "$3" "$4" || echo "linedesk-capacity: email failed" >&2
-  [ -n "${LINEDESK_PUSH_URL:-}" ] || return 0
-  curl -sS -m 10 -o /dev/null -H "Title: [Linedesk ${LINEDESK_ALERT_LABEL:-$host}] $3" -H "Priority: $5" -d "$4" \
-    "$LINEDESK_PUSH_URL" || echo "linedesk-capacity: push failed" >&2
+  /usr/local/sbin/linedesk-push "$3" "$4" "$5" || true
 }
 at=$(date -u -d "@$now" '+%F %T UTC')
 [ "${ev[no_agent]:-0}" -gt 0 ] &&
