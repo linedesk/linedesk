@@ -31,6 +31,7 @@ import { reconcileBilling } from '../src/billing-reconcile.ts'
 import { forgetWebhookBillingProvider, setBillingFetch } from '../src/billing-settings.ts'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
+import { billingLifecycleEmail, type LifecycleEmail } from '../src/emails/billing-lifecycle.ts'
 import { setJobQueue } from '../src/jobs.ts'
 import { decideRecharge, postEntry } from '../src/ledger.ts'
 import { checkLedgerGuards } from '../src/ledger-guards.ts'
@@ -2239,6 +2240,16 @@ describe('disputes, fraud warnings and cancellations', () => {
   })
 
   test('a subscription deleted in Stripe cancels the bill, once, with the release date for the owner', async () => {
+    const queued: { name: string; data: Record<string, unknown> }[] = []
+    setJobQueue({
+      send: async (name: string, data: Record<string, unknown>) => {
+        queued.push({ name, data })
+        return 'job'
+      },
+      insert: async () => [],
+    } as never)
+    const emailOf = (billId: string) =>
+      queued.find(j => j.name === BILLING_LIFECYCLE_EMAIL && j.data.bill === billId)?.data.email
     const subscriptionId = rid('sub')
     const { bill, ws } = await billWith({ stripe_subscription_id: subscriptionId })
     stripe.subscriptions.set(subscriptionId, subscription(subscriptionId, bill.stripe_customer_id!, 'canceled'))
@@ -2257,6 +2268,17 @@ describe('disputes, fraud warnings and cancellations', () => {
       .from(billing_alerts)
       .where(and(eq(billing_alerts.billing_account_id, bill.id), eq(billing_alerts.kind, 'numbers_release')))
     expect(alerts).toHaveLength(1)
+    // Not for an unpaid plan fee: the email says the plan ended, not that it stayed unpaid.
+    expect(emailOf(bill.id)).toEqual({
+      kind: 'canceled',
+      releaseAt: endedDates(after.canceled_at!).numbersReleaseAt,
+      dataUntil: endedDates(after.canceled_at!).dataUntil,
+      endedAt: new Date(after.canceled_at!).toISOString(),
+    })
+    const textOf = (email: unknown) =>
+      billingLifecycleEmail(email as LifecycleEmail, ws.id, 'https://app.test', 'en').text
+    expect(textOf(emailOf(bill.id))).toContain('Your plan ended on ')
+    expect(textOf(emailOf(bill.id))).not.toContain('unpaid')
     // Set to cancel at its period end, and the event came hours later (the next day): the plan ended on the day the
     // page promised ("answers calls until"), and the numbers and data dates count from it (LIN-781).
     const endingId = rid('sub')
@@ -2302,5 +2324,21 @@ describe('disputes, fraud warnings and cancellations', () => {
         }),
       ),
     ).toEqual({ outcome: 'applied', bill: live.bill.id })
+    // A plan already suspended for an unpaid fee and then deleted in Stripe: the email says the fee stayed unpaid.
+    const unpaidId = rid('sub')
+    const unpaid = await billWith({ stripe_subscription_id: unpaidId, status: 'suspended', suspend_reason: 'payment' })
+    stripe.subscriptions.set(unpaidId, subscription(unpaidId, unpaid.bill.stripe_customer_id!, 'canceled'))
+    await deliverAndProcess(
+      event('customer.subscription.deleted', {
+        id: unpaidId,
+        object: 'subscription',
+        customer: unpaid.bill.stripe_customer_id,
+      }),
+    )
+    expect(emailOf(unpaid.bill.id)).not.toHaveProperty('endedAt')
+    expect(
+      billingLifecycleEmail(emailOf(unpaid.bill.id) as LifecycleEmail, unpaid.ws.id, 'https://app.test', 'en').text,
+    ).toContain('stayed unpaid for 30 days')
+    setJobQueue(null)
   })
 })

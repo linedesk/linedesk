@@ -28,8 +28,12 @@ export type LifecycleEmail =
   | { kind: 'suspended'; cancelAt: string }
   /** Day 14 and 21 of an unpaid plan fee, still suspended. */
   | { kind: 'dunning_reminder'; cancelAt: string }
-  /** The plan was canceled: the numbers are kept until `releaseAt` (port-out), the data until `dataUntil` (export). */
-  | { kind: 'canceled'; releaseAt: string; dataUntil: string }
+  /**
+   * The plan was canceled: the numbers are kept until `releaseAt` (port-out), the data until `dataUntil` (export).
+   * `endedAt`: the plan ended on its own (canceled by the owner, or in Stripe), not for an unpaid plan fee; absent for
+   * day 30 of an unpaid plan fee, which says so.
+   */
+  | { kind: 'canceled'; releaseAt: string; dataUntil: string; endedAt?: string }
   /** 30 days after the cancellation: the numbers were released. */
   | { kind: 'numbers_released'; numbers: string[]; dataUntil: string }
   /** A port-out of one of the bill's numbers was requested at another carrier (recorded by an instance admin). */
@@ -96,7 +100,12 @@ export function billingLifecycleEmail(
     blocks.push({ kind: 'text', text: t('email.billing.suspended.effect', values) })
   } else if (email.kind === 'canceled') {
     Object.assign(values, { date: day(email.releaseAt), dataDate: day(email.dataUntil) })
-    blocks.push({ kind: 'text', text: t('email.billing.canceled.text', values) })
+    blocks.push({
+      kind: 'text',
+      text: email.endedAt
+        ? t('email.billing.canceled.ended', { endDate: day(email.endedAt) })
+        : t('email.billing.canceled.text', values),
+    })
     blocks.push({ kind: 'text', text: t('email.billing.canceled.numbers', values) })
     blocks.push({ kind: 'text', text: t('email.billing.canceled.data', values) })
   } else if (email.kind === 'numbers_released') {

@@ -249,6 +249,7 @@
   "billing.busyLine.text": "On {date}, {workspace} was already on {count, plural, one {# call} other {# calls}} at the same time, so {callers, plural, one {a caller} other {# callers}} heard that you'll call back. They are in your inbox as missed calls, with their numbers.",
   "billing.canceled.button": "Open Settings › Billing",
   "billing.canceled.data": "Your inbox stays readable and can be exported until {dataDate}.",
+  "billing.canceled.ended": "Your plan ended on {endDate}. Calls are no longer answered.",
   "billing.canceled.numbers": "Your phone numbers are kept until {date}. To keep a number, port it to another carrier before then: Settings › Billing shows the port-out details. After that date the numbers are released.",
   "billing.canceled.subject": "Your {brand} plan was canceled",
   "billing.canceled.text": "Your plan fee stayed unpaid for 30 days, so your plan was canceled. Calls are no longer answered.",

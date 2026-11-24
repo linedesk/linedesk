@@ -266,11 +266,14 @@ export async function sendDunningReminders(now: string): Promise<string[]> {
 async function markCanceled(tx: Tx, bill: Bill, now: string, { atPeriodEnd = false } = {}) {
   const endedAt = atPeriodEnd ? planEndedAt(bill, now) : now
   const dates = endedDates(endedAt)
+  // Only a plan fee left unpaid is told so; a plan the owner canceled (or one deleted in Stripe) just ended.
+  const unpaid = bill.status === 'past_due' || (bill.status === 'suspended' && bill.suspend_reason === 'payment')
   await setStatus(tx, bill.id, { status: 'canceled', canceled_at: endedAt }, now)
   await emailOnce(tx, bill.id, 'numbers_release', endedAt, {
     kind: 'canceled',
     releaseAt: dates.numbersReleaseAt,
     dataUntil: dates.dataUntil,
+    ...(unpaid ? {} : { endedAt }),
   })
 }
 

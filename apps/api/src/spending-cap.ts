@@ -68,14 +68,17 @@ export async function spendingCap(tx: Tx, workspaceId: string, now: string): Pro
 }
 
 /**
- * Queues the 80 % and 100 % emails the workspace has reached this month and not had yet, in the caller's
- * transaction (the row that marks one as sent commits with it). `cap`: when the caller has read it already.
+ * Queues the email for the highest of the 80 % and 100 % levels the workspace has reached this month and not had yet,
+ * in the caller's transaction (the rows that mark the levels as had commit with it). `cap`: when the caller has read it already.
  */
 export async function queueSpendingAlerts(tx: Tx, workspaceId: string, now: string, cap?: SpendingCap | null) {
   const state = cap === undefined ? await spendingCap(tx, workspaceId, now) : cap
   if (!state) return
   const percent = state.capUsd > 0 ? (state.spentUsd / state.capUsd) * 100 : 100
   const month = monthOf(now)
+  // Every level reached is marked as had, but only the highest new one is emailed: a spend that passes 80 % and the cap
+  // at once (a new cap below this month's spend, one long call) gets the cap email alone, not both in the same minute.
+  let highest: number | null = null
   for (const level of SPENDING_ALERT_LEVELS) {
     if (percent < level) continue
     const added = await tx
@@ -83,8 +86,9 @@ export async function queueSpendingAlerts(tx: Tx, workspaceId: string, now: stri
       .values({ workspace_id: workspaceId, month, level })
       .onConflictDoNothing()
       .returning()
-    if (added.length) await queueSpendingCapAlert(tx, { workspaceId, month, level })
+    if (added.length) highest = level
   }
+  if (highest !== null) await queueSpendingCapAlert(tx, { workspaceId, month, level: highest })
 }
 
 /**

@@ -4722,6 +4722,12 @@ describe('monthly spending cap', () => {
     ).toMatchObject({ reached: false })
     expect(alerts.filter(a => a.name === SPENDING_CAP_ALERT).map(a => a.data.level)).toEqual([80])
     expect((await act(agent(), 'call.start', { from: '+15035550179', to: ws.number })).body.data.overCap).toBe(false)
+    // A cap below this month's spend passes both levels at once: only the cap email goes out, not the 80 % one too.
+    alerts = []
+    expect(
+      (await act(operator, 'workspace.setSpendingCap', { workspaceId: ws.id, capUsd: 0 })).body.data,
+    ).toMatchObject({ reached: true })
+    expect(alerts.filter(a => a.name === SPENDING_CAP_ALERT).map(a => a.data.level)).toEqual([100])
     await act(operator, 'workspace.setSpendingCap', { workspaceId: ws.id, capUsd: null })
     expect(await capOf(ws.id)).toBeNull()
   })
