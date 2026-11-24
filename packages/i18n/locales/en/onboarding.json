@@ -65,6 +65,8 @@
   "agentSetup.error.end": "Could not end agent access",
   "agentSetup.error.read": "Could not read the setup state",
   "agentSetup.error.switch": "Could not switch the workspace",
+  "agentSetup.formExample": "Example",
+  "agentSetup.formExampleTitle": "A picture of the form in your agent. Fill it in there.",
   "agentSetup.hidePrompt": "Hide prompt",
   "agentSetup.hidePromptTitle": "Fold the prompt away again",
   "agentSetup.hosting.addHttps": "Add an https address",

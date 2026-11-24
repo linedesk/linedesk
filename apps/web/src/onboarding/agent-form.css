@@ -50,19 +50,38 @@
 .as-fallback > summary {
   justify-self: start;
 }
-/* The agent's own form, drawn filled in (AgentForm): a raised card like a dialog, each value where it goes. Dense: one
-   line per field, the label beside the value (above it on a narrow screen), the checkbox and the button on one line. */
+/* The agent's own form, drawn filled in (AgentForm): a picture of it, not a form of this page. A dashed frame on the
+   page tone with an "Example" tag; the agent's radio, checkbox and button are drawn grey and inert (only Copy is real).
+   Dense: one line per field, the label beside the value (above it on a narrow screen), the checkbox and the button on
+   one line. */
 .as-form {
   display: grid;
   gap: 8px;
   padding: 12px 14px;
   border-radius: var(--radius-md);
-  background: var(--surface);
-  box-shadow: var(--shadow-1);
+  border: 1.5px dashed var(--line-soft);
+  background: var(--bg);
+  cursor: default;
+}
+.as-form-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 .as-form-title {
   font-size: 13px;
   font-weight: 600;
+}
+.as-form-tag {
+  padding: 1px 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--line-soft);
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 .as-form-fields {
   display: grid;
@@ -100,20 +119,22 @@
 .as-form-pick {
   padding: 4px 10px 4px 8px;
   border-radius: var(--radius-sm);
-  border: 1.5px solid var(--ink);
+  border: 1.5px solid var(--line-control);
   font-size: 12.5px;
   font-weight: 500;
+  user-select: none;
 }
 .as-form-check {
   font-size: 12.5px;
+  user-select: none;
 }
 .as-form-radio {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 1.5px solid var(--ink);
-  background: var(--ink);
-  box-shadow: inset 0 0 0 2px var(--surface);
+  border: 1.5px solid var(--ink-muted);
+  background: var(--ink-muted);
+  box-shadow: inset 0 0 0 2px var(--bg);
 }
 .as-form-box {
   display: grid;
@@ -121,8 +142,8 @@
   width: 16px;
   height: 16px;
   border-radius: 4px;
-  background: var(--ink);
-  color: var(--surface);
+  background: var(--ink-muted);
+  color: var(--bg);
 }
 .as-form-submit {
   display: flex;
@@ -133,12 +154,13 @@
 }
 .as-form-button {
   margin-left: auto;
-  padding: 5px 14px;
+  padding: 4px 13px;
   border-radius: var(--radius-full);
-  background: var(--ink);
-  color: var(--surface);
+  border: 1.5px dashed var(--line-control);
+  color: var(--ink-muted);
   font-size: 12.5px;
   font-weight: 500;
+  user-select: none;
 }
 @media (max-width: 560px) {
   .as-form-fields {
