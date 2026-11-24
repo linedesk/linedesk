@@ -1,20 +1,15 @@
 // Business info as parts (LIN-724): the About text the assistant reads stays one text (business_profile.instructions),
 // but the page shows it as the business's own text and a list of questions and answers. Every
-// `If a caller asks "…": …` line (an answered open question, answeredQuestionLine; an accepted support mail topic,
-// mailTopicLine) is one row; all other lines are the business text. Writing back keeps every row the page did not
+// `If a caller asks "…": …` line (an answered open question or an accepted support mail topic) is one row; all other lines are the business text. Writing back keeps every row the page did not
 // change as it was, so a text that was not edited stays byte for byte.
 import { answeredQuestionLine } from '@linedesk/actions'
-
-/** Where a row came from, as far as its line tells: a support mail topic adds what to ask the caller for. */
-export type AboutSource = 'mail' | 'answered'
 
 export type AboutQuestion = {
   /** Stable while the page is open. */
   key: string
   question: string
-  /** Everything the assistant says or does for it, "To help, ask the caller for: …" included. */
+  /** What the assistant says when a caller asks it. */
   answer: string
-  source: AboutSource
   /** The line as read; null for a row added on the page. */
   line: string | null
 }
@@ -22,13 +17,11 @@ export type AboutQuestion = {
 export type AboutParts = { profile: string; questions: AboutQuestion[] }
 
 const QUESTION_LINE = /^If a caller asks "(.+?)": (.+)$/
-// i18n-ignore: the marker mailTopicLine writes (text the assistant reads), not UI
-const MAIL_MARK = ' To help, ask the caller for: '
 
-function parseLine(line: string): Pick<AboutQuestion, 'question' | 'answer' | 'source'> | null {
+function parseLine(line: string): Pick<AboutQuestion, 'question' | 'answer'> | null {
   const m = QUESTION_LINE.exec(line.trim())
   if (!m) return null
-  return { question: m[1]!, answer: m[2]!.trim(), source: m[2]!.includes(MAIL_MARK) ? 'mail' : 'answered' }
+  return { question: m[1]!, answer: m[2]!.trim() }
 }
 
 /** The About text as the business's own text and its question rows, in the order they appear. */
@@ -85,7 +78,6 @@ export const newQuestion = (n: number): AboutQuestion => ({
   key: `new${n}`,
   question: '',
   answer: '',
-  source: 'answered',
   line: null,
 })
 

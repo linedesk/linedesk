@@ -205,35 +205,6 @@ a.kn-sub:hover {
   gap: var(--space-2);
   flex-wrap: wrap;
 }
-.kn-block-head .kn-sub {
-  flex: 1;
-  min-width: 160px;
-}
-.kn-read {
-  display: grid;
-  gap: 4px;
-  padding: var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  font-size: 13.5px;
-  line-height: 1.5;
-}
-.kn-read p {
-  margin: 0;
-}
-.kn-read b {
-  font-weight: 500;
-}
-.kn-bullet {
-  position: relative;
-  padding-left: 14px;
-}
-.kn-bullet::before {
-  content: "•";
-  position: absolute;
-  left: 3px;
-  color: var(--ink-muted);
-}
 .kn-total {
   display: block;
   margin-top: var(--space-2);
@@ -345,37 +316,22 @@ a.kn-sub:hover {
   flex-wrap: wrap;
   gap: 6px;
 }
-.kn-qrow-src {
-  padding-top: 2px;
-  color: var(--ink-muted);
-}
-.kn-panel {
-  position: fixed;
-  z-index: 40;
-  top: 0;
-  right: 0;
-  bottom: 0;
+.kn-qedit {
   display: grid;
-  align-content: start;
   gap: var(--space-3);
-  width: min(440px, 100vw);
-  padding: var(--space-4);
-  overflow: auto;
-  border-left: 1px solid var(--line);
+  padding: var(--space-3);
+  border-top: 1px solid var(--line);
   background: var(--surface);
-  box-shadow: var(--shadow-lg);
+  box-shadow: inset 2px 0 0 var(--ink);
 }
-.kn-panel-head,
-.kn-panel-foot {
+.kn-qedit:first-child {
+  border-top: 0;
+}
+.kn-qedit-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-}
-.kn-panel-foot .kn-sub {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
 }
 .kn-pfield {
   display: grid;
@@ -385,11 +341,7 @@ a.kn-sub:hover {
   font-size: 13px;
   font-weight: 500;
 }
-.kn-chars {
-  justify-self: end;
-}
-.kn-issue,
-.kn-helped {
+.kn-issue {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -401,19 +353,18 @@ a.kn-sub:hover {
   background: var(--warning-soft);
   color: var(--warning);
 }
-.kn-helped {
-  background: var(--surface-hover);
-}
-.kn-issue > span,
-.kn-helped > span {
+.kn-issue > span {
   flex: 1;
 }
 .kn-try {
   display: grid;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
-  border: 1px dashed var(--line);
+  border: 1px solid var(--line);
   border-radius: var(--radius-md);
+}
+.kn-head-first {
+  margin-left: auto;
 }
 .kn-try-row {
   display: flex;
@@ -453,13 +404,6 @@ a.kn-sub:hover {
   text-decoration: underline;
   cursor: pointer;
 }
-@media (min-width: 1100px) {
-  body.kn-panel-open {
-    padding-right: min(440px, 100vw);
-  }
-}
-@media (max-width: 640px) {
-  .kn-panel {
-    width: 100vw;
-  }
+.kn-qa {
+  margin-top: var(--space-4);
 }

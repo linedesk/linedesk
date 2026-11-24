@@ -5,20 +5,15 @@ const TEXT = [
   'We fix pipes in Portland.',
   'Service area: Portland, Beaverton.',
   'If a caller asks "Do you come to Hillsboro?": Yes, at no extra charge.',
-  'If a caller asks "My water heater is leaking?": Turn off the valve. To help, ask the caller for: address; age of the heater.',
+  'If a caller asks "My water heater is leaking?": Turn off the valve. We come the same day.',
 ].join('\n')
 
 describe('parseAbout and joinAbout', () => {
   test('rows for question lines, the rest is the business text; an unchanged text comes back byte for byte', () => {
     const parts = parseAbout(TEXT)
     expect(parts.profile).toBe('We fix pipes in Portland.\nService area: Portland, Beaverton.')
-    expect(parts.questions.map(q => [q.question, q.source])).toEqual([
-      ['Do you come to Hillsboro?', 'answered'],
-      ['My water heater is leaking?', 'mail'],
-    ])
-    expect(parts.questions[1]!.answer).toBe(
-      'Turn off the valve. To help, ask the caller for: address; age of the heater.',
-    )
+    expect(parts.questions.map(q => q.question)).toEqual(['Do you come to Hillsboro?', 'My water heater is leaking?'])
+    expect(parts.questions[1]!.answer).toBe('Turn off the valve. We come the same day.')
     expect(joinAbout(parts)).toBe(TEXT)
   })
 

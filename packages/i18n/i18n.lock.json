@@ -32090,26 +32090,6 @@
       "out": "4d33c44a740727c3e8071a6b275bf53cb2796c0b9eaad8def4eeb515d0748d3c",
       "src": "e8d00a9b9ef410c6987eec7b325c6fe35764299ab936325c5c4af33e94154e00"
     },
-    "settings.knowledge.business.done": {
-      "by": "ai",
-      "out": "25d52d7e8665036474497ba91fea3d28f9d1eb218824575541cc0992c63f16c5",
-      "src": "11a6767d5674c7e45f7e00dc525762275b3a48491ad6045427d2609cc496c516"
-    },
-    "settings.knowledge.business.edit": {
-      "by": "ai",
-      "out": "84e45ee7341134db76d539d9ea4806d7ef7c23f846c73063848335a3f481c6bd",
-      "src": "464c4ffd019e1e9691dcf0537c797353ef2b1c1d4833d3d463e5b74ae4547344"
-    },
-    "settings.knowledge.business.editTip": {
-      "by": "ai",
-      "out": "a9400afe0e9075d802c3fb72c71a0f6fe7f9db59834d2f8e85e7b832e177f08e",
-      "src": "763a24f92727a1be491aee5926abe87235e51aac6f7af50f280ca7564753285c"
-    },
-    "settings.knowledge.business.title": {
-      "by": "ai",
-      "out": "b63006995fe3b3f9fe3f10a49e6e5821310767a52db8059d4d3a4a98dd37ec53",
-      "src": "38089502055677d9cc6e4b0e976a461509cd661387e524892114add9b90da08f"
-    },
     "settings.knowledge.description": {
       "by": "ai",
       "out": "04027e67aaef92c1881af02b62ab813e62d8deb634ad6d806d9103ea8d4e1273",
@@ -32145,11 +32125,6 @@
       "out": "815a6ebe3375be956f5ad1a49ea0447de1bebfe6d60dbcf43b974d58e76cd6df",
       "src": "35cfcb8a0eccd71f78a9ddd498679b1af095d79314ea1793ab16359a2282b61c"
     },
-    "settings.knowledge.issue.helped": {
-      "by": "ai",
-      "out": "c2ed3ed4f005c3f08442741fa3a80791fcda61554c52c15dd70d415fcf9b6143",
-      "src": "e845dbe776d8c5776fccea451e312880fbe40cb98a9a7e34d9e1e61fb6470664"
-    },
     "settings.knowledge.issue.language": {
       "by": "ai",
       "out": "5973930f35ad9e24c15cd6ed4a5cc899426a422abc8605b2f305db38221b4764",
@@ -32180,11 +32155,6 @@
       "out": "7a45e66ef9010ea8d3ca1640eec3203c8a2e32f95ddf9c92d0c09b83dc533da2",
       "src": "8e7bb62c666cb7dc14f3a759e83682afe9a7fe9c69d4a512537a393b1c99760b"
     },
-    "settings.knowledge.issue.undo": {
-      "by": "ai",
-      "out": "dd7bd2f68c4d4dc3808eeff34e092201673cd6a846c2f86f38d6d6e80e8b69d8",
-      "src": "a8283ade31856f71220db0e6f60a257c6889dc4dad0f275f66ad44b9ed9bf8d5"
-    },
     "settings.knowledge.label": {
       "by": "ai",
       "out": "571f993aadf02d4cdb744bb5fd31c889552da3ce0bc3d1885b6d6d7c704d8994",
@@ -32200,21 +32170,6 @@
       "out": "14f8a52d95b2c10a74752c148a067518d96307f9692f4b8e7d2f4827e2a0624e",
       "src": "b2a3aa602762a782e47a4f8e93bb5ae1b8819d1b92b7e6ceb3ef46a3c7077eb0"
     },
-    "settings.knowledge.panel.answerHelp": {
-      "by": "ai",
-      "out": "f64ba1a23e77ae02f7e2a6d27d4df4c33d651665d95e970429cb01bb0e525ead",
-      "src": "2c5963dcce1038b0c67cc0ceb361820ab230f736af5e4550be897bec07bab5e5"
-    },
-    "settings.knowledge.panel.chars": {
-      "by": "ai",
-      "out": "3d54056e74954e86fc2bae98c9a026fcc00a8a2d20be07e2b83849cd2af2f72d",
-      "src": "426699d5a8c0756a62fed217caf3e486a81862852d6dbe31d8e0d7c2ab6a14f3"
-    },
-    "settings.knowledge.panel.close": {
-      "by": "ai",
-      "out": "b808f6e97075772fe36de2ee4ea0eb310550f84baa9ea8aa88314f21e467616d",
-      "src": "7d9eb7acb13e24625c404401d8e88b2350e32162455885f18276cf802f7701ed"
-    },
     "settings.knowledge.panel.closeTip": {
       "by": "ai",
       "out": "243cea11c1bf40e39fac63b102761be9608cb8da9d8f135280a2c65489f470f2",
@@ -32225,20 +32180,10 @@
       "out": "6c2d352161df580922a184a99f8f0900612154aaa4c8f7fd03df2fbec0e24f06",
       "src": "e2d0a54968ead24efc0dffa6ac78fc606dceec34a0f586177a74a54cc2272cf8"
     },
-    "settings.knowledge.panel.new": {
-      "by": "ai",
-      "out": "60c0b96f2aaaf7ce38537d630c2ff48a7fc6da0b66d88299f9505c4c65529579",
-      "src": "bef59364265130602c037ab092a48a0cf6c79ee9a0994719b1be3cf864a7f0e2"
-    },
     "settings.knowledge.panel.question": {
       "by": "ai",
       "out": "c3220ad9d7b2cfb63a9d7ee1824c666c9eccd83ff43e22c94318a9517e253f42",
       "src": "a897fdea4b3de9283c92f40f4a7d9b554fe34c095c5de38215979c84139465f8"
-    },
-    "settings.knowledge.panel.saveNote": {
-      "by": "ai",
-      "out": "4e15714fe4002fc0792b8724cfe7c6808d9c9cbfbde2ee4520344eefa2ecf747",
-      "src": "1e04681bb511eba225457bf4c022ecd42eca4f9024f76c938bfdccf5aebcaac8"
     },
     "settings.knowledge.panel.title": {
       "by": "ai",
@@ -32260,35 +32205,15 @@
       "out": "73eb9d075a535a250397308d14a8bfb95bf856e8259c6016f492d58fc5dd59cb",
       "src": "953fc5472b60daf4aa8b9b2ce54c82e9cbca1035f4415b63e53454417c87447c"
     },
-    "settings.knowledge.qa.count": {
-      "by": "ai",
-      "out": "92b2b204895170e464613e50630a2277dfe9f1bae064c0f92b1681690279dad4",
-      "src": "7c4f722507a15fca2992312efb97a5741dfabbe9806ef3259eed3e6ddd079139"
-    },
     "settings.knowledge.qa.empty": {
       "by": "ai",
       "out": "2bd5cb08d8af74c37f54910fd84166daaa0dd86497a045e91a62f180ad76e401",
       "src": "6ae21de05157cb9043611a58c970b6ffe4f4ed247163c0a728dd78c44d83585e"
     },
-    "settings.knowledge.qa.filter.all": {
-      "by": "ai",
-      "out": "3801a35c5182283990f6c7e7cbe137e58d6d7f750f6ab2522b687dcc9aa1d91d",
-      "src": "a52ace420f2175d08b1577a1bea5445e36801229c074ef9ed6c55a73401fd9c2"
-    },
-    "settings.knowledge.qa.filter.answered": {
-      "by": "ai",
-      "out": "78f8e3729b81a0248f5b912285890df8f43b646378b6ad264c1201c74d313b9a",
-      "src": "5feb1f08d2458eaea34d3942e305f0ab58fdbcba9801fc050f9efa83fb9eb2c1"
-    },
     "settings.knowledge.qa.filter.check": {
       "by": "ai",
       "out": "3918867cbf527c1c64ba06ea81a9280485f0938348a797660184a4828905a722",
       "src": "5ce96f1220a648e0db45b2e9e3024a423dfbef7bfefdf0fb3b5ef9d6a5ffa0f1"
-    },
-    "settings.knowledge.qa.filter.mail": {
-      "by": "ai",
-      "out": "1de2c0b570cf1f0eefaaab7aa676bdaa00dd18df148c4d850cf3c91396023ea7",
-      "src": "efad9551ea97523eb83f45459851ce041e7f193eefd716bb199707ac620611f3"
     },
     "settings.knowledge.qa.noMatch": {
       "by": "ai",
@@ -32304,16 +32229,6 @@
       "by": "ai",
       "out": "645417575db66a93704df14e522fa6d8f272afafc5fa6f690bc69f9bf89f56fe",
       "src": "bae77fae537c1dcb4cacf0ed8e8028bd15c42c0093729ff638524da834e42ea9"
-    },
-    "settings.knowledge.qa.source.answered": {
-      "by": "ai",
-      "out": "efa8c6d083b05899eca60f8f8046bd053eca41d6c3d47d36ad63a9825b591a65",
-      "src": "a0749a6a7e73cfa17c6856cf8b1d3b2c419d1b7537328df3ca29098c821928e2"
-    },
-    "settings.knowledge.qa.source.mail": {
-      "by": "ai",
-      "out": "4688ff943496b0162ff3468acd52790e923ee214a9cdf3e4bafb7800c699e8c0",
-      "src": "25299de9fd089055f0d1a863e9bb7c0972951b65becbdfca0c09754b0ba182e2"
     },
     "settings.knowledge.qa.title": {
       "by": "ai",
@@ -71132,26 +71047,6 @@
       "out": "6cdbb91758625baa08b8a6b38d2c739b7b6827cb9c486683e71bb9529e294989",
       "src": "e8d00a9b9ef410c6987eec7b325c6fe35764299ab936325c5c4af33e94154e00"
     },
-    "settings.knowledge.business.done": {
-      "by": "ai",
-      "out": "b5fa51d564a9d8809f67c15dd6aef17cb1ebffbaa416b42978e079134adf568e",
-      "src": "11a6767d5674c7e45f7e00dc525762275b3a48491ad6045427d2609cc496c516"
-    },
-    "settings.knowledge.business.edit": {
-      "by": "ai",
-      "out": "2eba946b2e1ee4b62a8d1047f9af2977662e3cccf11606ad62b9a868dc17e0a4",
-      "src": "464c4ffd019e1e9691dcf0537c797353ef2b1c1d4833d3d463e5b74ae4547344"
-    },
-    "settings.knowledge.business.editTip": {
-      "by": "ai",
-      "out": "254e3bb63e9273bc3c25e91799d959c2159350c276d13d0e359ac2b500806498",
-      "src": "763a24f92727a1be491aee5926abe87235e51aac6f7af50f280ca7564753285c"
-    },
-    "settings.knowledge.business.title": {
-      "by": "ai",
-      "out": "e92e2176e5d2994d04c2c00c35c76456360774092563c4243da5306367acfe26",
-      "src": "38089502055677d9cc6e4b0e976a461509cd661387e524892114add9b90da08f"
-    },
     "settings.knowledge.description": {
       "by": "ai",
       "out": "47fa7529eec3fc591035d0c350c687bc091d00ac9be95d3f04f67fa7fd8e70d3",
@@ -71187,11 +71082,6 @@
       "out": "91fff5a10823549e2e39297800505297c181eff1d7d43a4ff72acbea41d1b6f3",
       "src": "35cfcb8a0eccd71f78a9ddd498679b1af095d79314ea1793ab16359a2282b61c"
     },
-    "settings.knowledge.issue.helped": {
-      "by": "ai",
-      "out": "edbdfb088e86f40868d1d3401e9737b9601fefce3c80ec078abce5ea53fdf1f8",
-      "src": "e845dbe776d8c5776fccea451e312880fbe40cb98a9a7e34d9e1e61fb6470664"
-    },
     "settings.knowledge.issue.language": {
       "by": "ai",
       "out": "e7ef1077da12ca46fefaba9df54c4c35f9420e9aaa039e968a2c1c1b4ff760ea",
@@ -71222,11 +71112,6 @@
       "out": "3bbdf58397980901529e75c3310a7cbd68cb1089226d039cbb9d497a11837758",
       "src": "8e7bb62c666cb7dc14f3a759e83682afe9a7fe9c69d4a512537a393b1c99760b"
     },
-    "settings.knowledge.issue.undo": {
-      "by": "ai",
-      "out": "29fa864fd744397e68662957a145b49ade5c81b023f1e24d8ee693052ff2d6ae",
-      "src": "a8283ade31856f71220db0e6f60a257c6889dc4dad0f275f66ad44b9ed9bf8d5"
-    },
     "settings.knowledge.label": {
       "by": "ai",
       "out": "2b11fa8d1f18c24bdac7044aea835b05f13bdd87ddcdf7e7a48d5036ef29ee0e",
@@ -71242,21 +71127,6 @@
       "out": "eda96518d54f845d891b4c3e0a4bc399e123fdaa48013810d6587b0db9499815",
       "src": "b2a3aa602762a782e47a4f8e93bb5ae1b8819d1b92b7e6ceb3ef46a3c7077eb0"
     },
-    "settings.knowledge.panel.answerHelp": {
-      "by": "ai",
-      "out": "3082ee40387009c85441130b54b3d158d23913e9c7d1f8fb4073bfb550138087",
-      "src": "2c5963dcce1038b0c67cc0ceb361820ab230f736af5e4550be897bec07bab5e5"
-    },
-    "settings.knowledge.panel.chars": {
-      "by": "ai",
-      "out": "2bf8db35188013fbae3df23fbacfc5c0af5731bbe777a5452947a055fe9a2eb7",
-      "src": "426699d5a8c0756a62fed217caf3e486a81862852d6dbe31d8e0d7c2ab6a14f3"
-    },
-    "settings.knowledge.panel.close": {
-      "by": "ai",
-      "out": "aeccae342e4bd0a70ded84675569da91c5efb3894e35929cafd851cda763a6aa",
-      "src": "7d9eb7acb13e24625c404401d8e88b2350e32162455885f18276cf802f7701ed"
-    },
     "settings.knowledge.panel.closeTip": {
       "by": "ai",
       "out": "efe7186a1db954d85436db9e9fd0077947feafe2c7a00354501b83fbdd885d11",
@@ -71267,20 +71137,10 @@
       "out": "c9894cf002f90bd0be9020b50e743b226ff5d54ec8ffc87bf7d7a675d47561a9",
       "src": "e2d0a54968ead24efc0dffa6ac78fc606dceec34a0f586177a74a54cc2272cf8"
     },
-    "settings.knowledge.panel.new": {
-      "by": "ai",
-      "out": "be4d82fe39c0e34df8c89e06a9157e125a51cb7a7a03b8e0e14b475ee0be1080",
-      "src": "bef59364265130602c037ab092a48a0cf6c79ee9a0994719b1be3cf864a7f0e2"
-    },
     "settings.knowledge.panel.question": {
       "by": "ai",
       "out": "d25ad52ceed826274ca7d9c7070e2cf2333e97b48e2991776a4fda31f149ce67",
       "src": "a897fdea4b3de9283c92f40f4a7d9b554fe34c095c5de38215979c84139465f8"
-    },
-    "settings.knowledge.panel.saveNote": {
-      "by": "ai",
-      "out": "767f84413e9120c3d22ddf29919faad4fea1d7cd318500dd1a4da9371815ebbe",
-      "src": "1e04681bb511eba225457bf4c022ecd42eca4f9024f76c938bfdccf5aebcaac8"
     },
     "settings.knowledge.panel.title": {
       "by": "ai",
@@ -71302,35 +71162,15 @@
       "out": "c64bf469aa09e09e987325184ce3262759c86cc725751b1fd40b7397d89a6c53",
       "src": "953fc5472b60daf4aa8b9b2ce54c82e9cbca1035f4415b63e53454417c87447c"
     },
-    "settings.knowledge.qa.count": {
-      "by": "ai",
-      "out": "fdb824249ac189d0d766dac6a7af0549c2c0378dc2d5c783f5ac5b27512cb672",
-      "src": "7c4f722507a15fca2992312efb97a5741dfabbe9806ef3259eed3e6ddd079139"
-    },
     "settings.knowledge.qa.empty": {
       "by": "ai",
       "out": "985f090799b2bd9f170972c3ce349003542035712a99c79a5c53a295f27a0587",
       "src": "6ae21de05157cb9043611a58c970b6ffe4f4ed247163c0a728dd78c44d83585e"
     },
-    "settings.knowledge.qa.filter.all": {
-      "by": "ai",
-      "out": "aff4d19d6ee43b204bc26edea7c9b2e21d0ca188641d656ad0610ffee541cad1",
-      "src": "a52ace420f2175d08b1577a1bea5445e36801229c074ef9ed6c55a73401fd9c2"
-    },
-    "settings.knowledge.qa.filter.answered": {
-      "by": "ai",
-      "out": "08e0c379313b2133dd97140eb25e83f982640c9858ddc69f880994ac20401b7d",
-      "src": "5feb1f08d2458eaea34d3942e305f0ab58fdbcba9801fc050f9efa83fb9eb2c1"
-    },
     "settings.knowledge.qa.filter.check": {
       "by": "ai",
       "out": "81a6035fa8554b75f8645e09e6a3fed6583353bf94ed304c6c49b307f356d814",
       "src": "5ce96f1220a648e0db45b2e9e3024a423dfbef7bfefdf0fb3b5ef9d6a5ffa0f1"
-    },
-    "settings.knowledge.qa.filter.mail": {
-      "by": "ai",
-      "out": "33dc89a1ab870d5adf430c83ba73a072e99718600bfbe3afdee7bd305611ea29",
-      "src": "efad9551ea97523eb83f45459851ce041e7f193eefd716bb199707ac620611f3"
     },
     "settings.knowledge.qa.noMatch": {
       "by": "ai",
@@ -71346,16 +71186,6 @@
       "by": "ai",
       "out": "f01ba1cf9b006a4cead3a8d1321d4f9c197dc6cd8b90eb4c98bd8ea1e0597b47",
       "src": "bae77fae537c1dcb4cacf0ed8e8028bd15c42c0093729ff638524da834e42ea9"
-    },
-    "settings.knowledge.qa.source.answered": {
-      "by": "ai",
-      "out": "0076a3ad98385223a3246d997a5d053993526e0428e3b98ccd60a7e5f2933924",
-      "src": "a0749a6a7e73cfa17c6856cf8b1d3b2c419d1b7537328df3ca29098c821928e2"
-    },
-    "settings.knowledge.qa.source.mail": {
-      "by": "ai",
-      "out": "2989700fa891b195cacf7682d0dbbe6f331eab80af84cdee79e3c0db600d4173",
-      "src": "25299de9fd089055f0d1a863e9bb7c0972951b65becbdfca0c09754b0ba182e2"
     },
     "settings.knowledge.qa.title": {
       "by": "ai",
@@ -110174,26 +110004,6 @@
       "out": "cd42853178559b23457a57ab09d813e93a7f4fee08b6b7986f1b12455a6e5c7a",
       "src": "e8d00a9b9ef410c6987eec7b325c6fe35764299ab936325c5c4af33e94154e00"
     },
-    "settings.knowledge.business.done": {
-      "by": "ai",
-      "out": "f28acc85bfcb0e7da15bfe19070aceb61e8d1730237370ff0d21cf6563928192",
-      "src": "11a6767d5674c7e45f7e00dc525762275b3a48491ad6045427d2609cc496c516"
-    },
-    "settings.knowledge.business.edit": {
-      "by": "ai",
-      "out": "42e37604b638b62790fde6210fe9af90567961220206ec36e2739e075c85a7ae",
-      "src": "464c4ffd019e1e9691dcf0537c797353ef2b1c1d4833d3d463e5b74ae4547344"
-    },
-    "settings.knowledge.business.editTip": {
-      "by": "ai",
-      "out": "a064dffdbf6130204c5d2bf9570c6a43ae85c7ce99c397b6cb57f0bb4e23e34f",
-      "src": "763a24f92727a1be491aee5926abe87235e51aac6f7af50f280ca7564753285c"
-    },
-    "settings.knowledge.business.title": {
-      "by": "ai",
-      "out": "542a9a743f40d17b253647bcdbc7c24179c445798b71f7a512379f9098c11c42",
-      "src": "38089502055677d9cc6e4b0e976a461509cd661387e524892114add9b90da08f"
-    },
     "settings.knowledge.description": {
       "by": "ai",
       "out": "e23a8ee328ad2d658e61c46acfc08e2d2356523fbffc7eb5f69e4a3e51d580d3",
@@ -110229,11 +110039,6 @@
       "out": "4bccb52ca1b30686f5ae60baf78bc80e0558a8ba82e5a090ee1da16666f37865",
       "src": "35cfcb8a0eccd71f78a9ddd498679b1af095d79314ea1793ab16359a2282b61c"
     },
-    "settings.knowledge.issue.helped": {
-      "by": "ai",
-      "out": "f37f489ba3ced1a90bd0ebdfad088cb5e3ec89ce458dfd3bcf7f382f33c3cd5b",
-      "src": "e845dbe776d8c5776fccea451e312880fbe40cb98a9a7e34d9e1e61fb6470664"
-    },
     "settings.knowledge.issue.language": {
       "by": "ai",
       "out": "7780735712ba9fa1bb8c17cbadf4bec3ae3b75dc54a418d06bc8c5d73eab1d71",
@@ -110264,11 +110069,6 @@
       "out": "acb288d746778e49a1e6cc3476ab331f18520cc1728be57804970a79934c1d7e",
       "src": "8e7bb62c666cb7dc14f3a759e83682afe9a7fe9c69d4a512537a393b1c99760b"
     },
-    "settings.knowledge.issue.undo": {
-      "by": "ai",
-      "out": "46ad3916f6a0979841df9c4ba6f5310d34434d95024912df97b2eba644d0a60d",
-      "src": "a8283ade31856f71220db0e6f60a257c6889dc4dad0f275f66ad44b9ed9bf8d5"
-    },
     "settings.knowledge.label": {
       "by": "ai",
       "out": "d6b6342f80cbc3dc875a8269cef692e96adc8c42e721139f2bca6f970208f2bf",
@@ -110284,21 +110084,6 @@
       "out": "c42aba3814897341f67dcb95b41a5ef1eb79971c25ad80a5f1adf6d7699d9c63",
       "src": "b2a3aa602762a782e47a4f8e93bb5ae1b8819d1b92b7e6ceb3ef46a3c7077eb0"
     },
-    "settings.knowledge.panel.answerHelp": {
-      "by": "ai",
-      "out": "3e83bcf88357c583c38b87772dadf902e276d5a0a74b42a979a870f276b3d43a",
-      "src": "2c5963dcce1038b0c67cc0ceb361820ab230f736af5e4550be897bec07bab5e5"
-    },
-    "settings.knowledge.panel.chars": {
-      "by": "ai",
-      "out": "4e2d906caa824a783589ded07e9a7f0e2ec1ebd08638c5a670a6404010005b5a",
-      "src": "426699d5a8c0756a62fed217caf3e486a81862852d6dbe31d8e0d7c2ab6a14f3"
-    },
-    "settings.knowledge.panel.close": {
-      "by": "ai",
-      "out": "711e5f2e198df1b61e6bece686ba026a4b06341e8d9590498d509cf943b2c115",
-      "src": "7d9eb7acb13e24625c404401d8e88b2350e32162455885f18276cf802f7701ed"
-    },
     "settings.knowledge.panel.closeTip": {
       "by": "ai",
       "out": "a14b2c2a31968c1b4f97e065b4c31c1a8f4e918aebe843ee696cb6e110404ece",
@@ -110309,20 +110094,10 @@
       "out": "5e5d0216ce0b5b9ef8c015800730294a0ae3fb3f153f3015423b908dbe579d63",
       "src": "e2d0a54968ead24efc0dffa6ac78fc606dceec34a0f586177a74a54cc2272cf8"
     },
-    "settings.knowledge.panel.new": {
-      "by": "ai",
-      "out": "6cd865fcb33a4d6e6061751c104f1f29ee2f62d4086d29d096259c64eb7934aa",
-      "src": "bef59364265130602c037ab092a48a0cf6c79ee9a0994719b1be3cf864a7f0e2"
-    },
     "settings.knowledge.panel.question": {
       "by": "ai",
       "out": "6c9d36152ccce2766b81f459f10e77a0ee74ba09e7cfa2d7506f9742eaeccd56",
       "src": "a897fdea4b3de9283c92f40f4a7d9b554fe34c095c5de38215979c84139465f8"
-    },
-    "settings.knowledge.panel.saveNote": {
-      "by": "ai",
-      "out": "2c1157d624ca8ace193094ee27248f2f1847294568b45aa91cc6d7885270dba4",
-      "src": "1e04681bb511eba225457bf4c022ecd42eca4f9024f76c938bfdccf5aebcaac8"
     },
     "settings.knowledge.panel.title": {
       "by": "ai",
@@ -110344,35 +110119,15 @@
       "out": "30b0d4c9c74655c4195f27f199e70e757ccdc43ffa86668400f8003bddf03aac",
       "src": "953fc5472b60daf4aa8b9b2ce54c82e9cbca1035f4415b63e53454417c87447c"
     },
-    "settings.knowledge.qa.count": {
-      "by": "ai",
-      "out": "46be650392834ee64d78bd5be8a5dbbbd3c9e704cfb8e7efec267562e4e957bf",
-      "src": "7c4f722507a15fca2992312efb97a5741dfabbe9806ef3259eed3e6ddd079139"
-    },
     "settings.knowledge.qa.empty": {
       "by": "ai",
       "out": "1ed36cbe5749a5a1746f6e240d1b0136ad42bae2465492a987baacd85f463b8a",
       "src": "6ae21de05157cb9043611a58c970b6ffe4f4ed247163c0a728dd78c44d83585e"
     },
-    "settings.knowledge.qa.filter.all": {
-      "by": "ai",
-      "out": "42623b97b4815a8a5520e24ab0f2cfaf8639cef7bc9213d782ac9c56b8dd28c5",
-      "src": "a52ace420f2175d08b1577a1bea5445e36801229c074ef9ed6c55a73401fd9c2"
-    },
-    "settings.knowledge.qa.filter.answered": {
-      "by": "ai",
-      "out": "8a7ea7eda8b7d7d56af3e1e07da030d8fb528f5089927e7183e1abc908c8e125",
-      "src": "5feb1f08d2458eaea34d3942e305f0ab58fdbcba9801fc050f9efa83fb9eb2c1"
-    },
     "settings.knowledge.qa.filter.check": {
       "by": "ai",
       "out": "03a088312dad261f9ef92a40f432f13718cc40d40bdc6ea56900b7f22b847cf9",
       "src": "5ce96f1220a648e0db45b2e9e3024a423dfbef7bfefdf0fb3b5ef9d6a5ffa0f1"
-    },
-    "settings.knowledge.qa.filter.mail": {
-      "by": "ai",
-      "out": "4ba65df53929513cf855414f217b6b3db6c15f1f68c54d8e3e3e5397c454e3ea",
-      "src": "efad9551ea97523eb83f45459851ce041e7f193eefd716bb199707ac620611f3"
     },
     "settings.knowledge.qa.noMatch": {
       "by": "ai",
@@ -110388,16 +110143,6 @@
       "by": "ai",
       "out": "d6d2e5903888eea4bd4becfa3339e3df7f304fec8ab75786da7762b770b7313f",
       "src": "bae77fae537c1dcb4cacf0ed8e8028bd15c42c0093729ff638524da834e42ea9"
-    },
-    "settings.knowledge.qa.source.answered": {
-      "by": "ai",
-      "out": "718eaa8aa098ca290ca4da90888f27e8d2cc7c8d3188319152068778c9fe6471",
-      "src": "a0749a6a7e73cfa17c6856cf8b1d3b2c419d1b7537328df3ca29098c821928e2"
-    },
-    "settings.knowledge.qa.source.mail": {
-      "by": "ai",
-      "out": "3805619408bb1202b20d2ac614ab501f96e5d8754e185e50216904eba50c9447",
-      "src": "25299de9fd089055f0d1a863e9bb7c0972951b65becbdfca0c09754b0ba182e2"
     },
     "settings.knowledge.qa.title": {
       "by": "ai",
@@ -149216,26 +148961,6 @@
       "out": "a7a63832b26b30e6f5326cf937b4685301cbdc82dc8c4924812f4007d6812b87",
       "src": "e8d00a9b9ef410c6987eec7b325c6fe35764299ab936325c5c4af33e94154e00"
     },
-    "settings.knowledge.business.done": {
-      "by": "ai",
-      "out": "1031639454032f27aee34d14d86df41c568e65621bb6b7bd802bde092551b870",
-      "src": "11a6767d5674c7e45f7e00dc525762275b3a48491ad6045427d2609cc496c516"
-    },
-    "settings.knowledge.business.edit": {
-      "by": "ai",
-      "out": "11f9049ddab593adbbeccbad6d070f959cb4d60f41351acce2a9ead4281028b8",
-      "src": "464c4ffd019e1e9691dcf0537c797353ef2b1c1d4833d3d463e5b74ae4547344"
-    },
-    "settings.knowledge.business.editTip": {
-      "by": "ai",
-      "out": "8938d672ddf0d6f3dbb972281f57c15ac05b986df303ba09267c77de14b20be7",
-      "src": "763a24f92727a1be491aee5926abe87235e51aac6f7af50f280ca7564753285c"
-    },
-    "settings.knowledge.business.title": {
-      "by": "ai",
-      "out": "5e6c8f08bd3883520bec4f0225a92faa0408a10b1d0aa74631b82fd202905c5f",
-      "src": "38089502055677d9cc6e4b0e976a461509cd661387e524892114add9b90da08f"
-    },
     "settings.knowledge.description": {
       "by": "ai",
       "out": "570508af2b772d92fa5d9d733122a10dabce4605c84cd3796739ba6011f7a40b",
@@ -149271,11 +148996,6 @@
       "out": "274c8c5a65b60163f90412efb69515109a65ffffc7ccb556a0237632a56ea8d8",
       "src": "35cfcb8a0eccd71f78a9ddd498679b1af095d79314ea1793ab16359a2282b61c"
     },
-    "settings.knowledge.issue.helped": {
-      "by": "ai",
-      "out": "ade373b4c3db32f52782d954b4ef9b0d93438549361db547e8c655d238f3e625",
-      "src": "e845dbe776d8c5776fccea451e312880fbe40cb98a9a7e34d9e1e61fb6470664"
-    },
     "settings.knowledge.issue.language": {
       "by": "ai",
       "out": "9169cde61fbf373db963af76c922b632e048481966b7ae92574bd499faf61e4a",
@@ -149306,11 +149026,6 @@
       "out": "0aff25051ed2d717bbcff0de6fe95f4ac7aa467ab1d53e200702eade412a6876",
       "src": "8e7bb62c666cb7dc14f3a759e83682afe9a7fe9c69d4a512537a393b1c99760b"
     },
-    "settings.knowledge.issue.undo": {
-      "by": "ai",
-      "out": "dc65bd3603e8227e890ea9df05fcbbf5a53b955359dfc244bab3b49b72e8075c",
-      "src": "a8283ade31856f71220db0e6f60a257c6889dc4dad0f275f66ad44b9ed9bf8d5"
-    },
     "settings.knowledge.label": {
       "by": "ai",
       "out": "cfe3fb3db570d4e90e9b62c9a527d16d981d4c3795c8560dc436edcb08a6369d",
@@ -149326,21 +149041,6 @@
       "out": "f3f512648742020fbd700fa8f0576babd8f7ec8e56d3dcd38e28be5b99287db3",
       "src": "b2a3aa602762a782e47a4f8e93bb5ae1b8819d1b92b7e6ceb3ef46a3c7077eb0"
     },
-    "settings.knowledge.panel.answerHelp": {
-      "by": "ai",
-      "out": "f8139eb22f4cce4ba73ba144bbaa9fcd914e1d07ad724a1e535e4602d8280237",
-      "src": "2c5963dcce1038b0c67cc0ceb361820ab230f736af5e4550be897bec07bab5e5"
-    },
-    "settings.knowledge.panel.chars": {
-      "by": "ai",
-      "out": "06353c72a626e98e9b231926746660904ad20b19b818b331d19b9ab3e18714c1",
-      "src": "426699d5a8c0756a62fed217caf3e486a81862852d6dbe31d8e0d7c2ab6a14f3"
-    },
-    "settings.knowledge.panel.close": {
-      "by": "ai",
-      "out": "f6c244f98893cd951392f88864ef16a239999b2e95a6cebf5f6aa8d670460637",
-      "src": "7d9eb7acb13e24625c404401d8e88b2350e32162455885f18276cf802f7701ed"
-    },
     "settings.knowledge.panel.closeTip": {
       "by": "ai",
       "out": "5f25625b7b98249a327fdd415b786256a277edab796264ed1020aa68e3b129ee",
@@ -149351,20 +149051,10 @@
       "out": "e9653dc3edcbc072d033d200b3aa56539fde84e9b7cc80287fedc9f91cbe03ad",
       "src": "e2d0a54968ead24efc0dffa6ac78fc606dceec34a0f586177a74a54cc2272cf8"
     },
-    "settings.knowledge.panel.new": {
-      "by": "ai",
-      "out": "b9dfc8bfb6ec58368a2f46ed3d07e5a69f6b60d34f3969cfbe8520a5e5c5407d",
-      "src": "bef59364265130602c037ab092a48a0cf6c79ee9a0994719b1be3cf864a7f0e2"
-    },
     "settings.knowledge.panel.question": {
       "by": "ai",
       "out": "2db2c4a54f15e38bd2e12a56b8af47f47a2f63f50e2c8aba27fc76db18bef9df",
       "src": "a897fdea4b3de9283c92f40f4a7d9b554fe34c095c5de38215979c84139465f8"
-    },
-    "settings.knowledge.panel.saveNote": {
-      "by": "ai",
-      "out": "8bc118c7f9d93089f559c5d4dfa1370dc12dd5cfb5d66eee746db0be8a071eb3",
-      "src": "1e04681bb511eba225457bf4c022ecd42eca4f9024f76c938bfdccf5aebcaac8"
     },
     "settings.knowledge.panel.title": {
       "by": "ai",
@@ -149386,35 +149076,15 @@
       "out": "57aa204c5955838fb3c124bc7acf7e12bb31fb8c6acea97c20ad6a1bbafeba2e",
       "src": "953fc5472b60daf4aa8b9b2ce54c82e9cbca1035f4415b63e53454417c87447c"
     },
-    "settings.knowledge.qa.count": {
-      "by": "ai",
-      "out": "061c8b74744aff5dd8ea0ec1a68ad8f5f625bda1827afcced02a6dfc8e2ffba9",
-      "src": "7c4f722507a15fca2992312efb97a5741dfabbe9806ef3259eed3e6ddd079139"
-    },
     "settings.knowledge.qa.empty": {
       "by": "ai",
       "out": "b7ae410daec807367f30e3c7332f0e847894adae2e1c7eee910bbc6caba238ad",
       "src": "6ae21de05157cb9043611a58c970b6ffe4f4ed247163c0a728dd78c44d83585e"
     },
-    "settings.knowledge.qa.filter.all": {
-      "by": "ai",
-      "out": "b55eb06d25e14a36c179b5ab27d5f570f0f32d7ed970dffcdd8997ec022d0f9a",
-      "src": "a52ace420f2175d08b1577a1bea5445e36801229c074ef9ed6c55a73401fd9c2"
-    },
-    "settings.knowledge.qa.filter.answered": {
-      "by": "ai",
-      "out": "ac67dd21dbe9e3863a7b57b720f7ba3bb1e85096b6f938d5c716ddb628d85e14",
-      "src": "5feb1f08d2458eaea34d3942e305f0ab58fdbcba9801fc050f9efa83fb9eb2c1"
-    },
     "settings.knowledge.qa.filter.check": {
       "by": "ai",
       "out": "df8456f204371b9d7e0ade1533b2f9a7b2eb8f5cf3656373f40dbd3fc6972d7a",
       "src": "5ce96f1220a648e0db45b2e9e3024a423dfbef7bfefdf0fb3b5ef9d6a5ffa0f1"
-    },
-    "settings.knowledge.qa.filter.mail": {
-      "by": "ai",
-      "out": "ef73b75cc40acbd026682895303a7fbb49464233e5fccdd8d951b8e6f4eea5d6",
-      "src": "efad9551ea97523eb83f45459851ce041e7f193eefd716bb199707ac620611f3"
     },
     "settings.knowledge.qa.noMatch": {
       "by": "ai",
@@ -149430,16 +149100,6 @@
       "by": "ai",
       "out": "408b8d2cbb96cf3550026121caa2c914bff6d5d6cd4c1259f8e33937cef69a68",
       "src": "bae77fae537c1dcb4cacf0ed8e8028bd15c42c0093729ff638524da834e42ea9"
-    },
-    "settings.knowledge.qa.source.answered": {
-      "by": "ai",
-      "out": "cb3cc2bcb9339e31377341b91c87fc1e3f1d47d28600428030bc1be7f8d1e58b",
-      "src": "a0749a6a7e73cfa17c6856cf8b1d3b2c419d1b7537328df3ca29098c821928e2"
-    },
-    "settings.knowledge.qa.source.mail": {
-      "by": "ai",
-      "out": "e3569529df20b366e917ff3cdf121801c194ba7fe977b713f601870b341d3b19",
-      "src": "25299de9fd089055f0d1a863e9bb7c0972951b65becbdfca0c09754b0ba182e2"
     },
     "settings.knowledge.qa.title": {
       "by": "ai",
@@ -188258,26 +187918,6 @@
       "out": "64c24f19554e0c3a0b36e13da32f5716ca7102041152c84ce2010cdf81439060",
       "src": "e8d00a9b9ef410c6987eec7b325c6fe35764299ab936325c5c4af33e94154e00"
     },
-    "settings.knowledge.business.done": {
-      "by": "ai",
-      "out": "2801cb53f1fa6f085f4dbfb4480276d96876d7bc6f85995c2877c93a7a3975a1",
-      "src": "11a6767d5674c7e45f7e00dc525762275b3a48491ad6045427d2609cc496c516"
-    },
-    "settings.knowledge.business.edit": {
-      "by": "ai",
-      "out": "2eba946b2e1ee4b62a8d1047f9af2977662e3cccf11606ad62b9a868dc17e0a4",
-      "src": "464c4ffd019e1e9691dcf0537c797353ef2b1c1d4833d3d463e5b74ae4547344"
-    },
-    "settings.knowledge.business.editTip": {
-      "by": "ai",
-      "out": "6467b2ed5667c05c7f0f5fb09327a7f5c0e819f30022756861b30827e2111894",
-      "src": "763a24f92727a1be491aee5926abe87235e51aac6f7af50f280ca7564753285c"
-    },
-    "settings.knowledge.business.title": {
-      "by": "ai",
-      "out": "d9ef183befe3be68b1d8e97bf26774d8e5f669aa2869119fea2522774b23a2c3",
-      "src": "38089502055677d9cc6e4b0e976a461509cd661387e524892114add9b90da08f"
-    },
     "settings.knowledge.description": {
       "by": "ai",
       "out": "3888794101cdcc398cae5a5984da3b369935d2acf4492a5ece7f0280ecce5bc1",
@@ -188313,11 +187953,6 @@
       "out": "211a988ad81ee2a7b91bd2f16555a01138c23f9915a96358d8480efbbd3e96b3",
       "src": "35cfcb8a0eccd71f78a9ddd498679b1af095d79314ea1793ab16359a2282b61c"
     },
-    "settings.knowledge.issue.helped": {
-      "by": "ai",
-      "out": "c051231b8412d1cdda3a153f42ffd8663704c2a2a912aaa2c942fc17b6ce3a8a",
-      "src": "e845dbe776d8c5776fccea451e312880fbe40cb98a9a7e34d9e1e61fb6470664"
-    },
     "settings.knowledge.issue.language": {
       "by": "ai",
       "out": "54af8911f2de1b08e00d72e3edd346407cfd0a69151fd5000143d9a2a67e9fc7",
@@ -188348,11 +187983,6 @@
       "out": "fa06fe67ddba22473e00b86203e6a58e57e6380b34b2b6c51945bc5054b429b3",
       "src": "8e7bb62c666cb7dc14f3a759e83682afe9a7fe9c69d4a512537a393b1c99760b"
     },
-    "settings.knowledge.issue.undo": {
-      "by": "ai",
-      "out": "786b4822284896ad39ad35bcc6fe9ea2c7e85a49372be06f2898acd662beacbd",
-      "src": "a8283ade31856f71220db0e6f60a257c6889dc4dad0f275f66ad44b9ed9bf8d5"
-    },
     "settings.knowledge.label": {
       "by": "ai",
       "out": "f71248a1c4d7aa912f05148486134de24656c68fb734f9b17e1c926b102c2614",
@@ -188368,21 +187998,6 @@
       "out": "e209fb3bb6985fe0f44f218ebe9d682c9547e3a16a06e3b1ca05cd00f7a50c23",
       "src": "b2a3aa602762a782e47a4f8e93bb5ae1b8819d1b92b7e6ceb3ef46a3c7077eb0"
     },
-    "settings.knowledge.panel.answerHelp": {
-      "by": "ai",
-      "out": "c5c60c147b1931f23daf1e1d1cf5521414bab87fd59711fff2a738e0741e2827",
-      "src": "2c5963dcce1038b0c67cc0ceb361820ab230f736af5e4550be897bec07bab5e5"
-    },
-    "settings.knowledge.panel.chars": {
-      "by": "ai",
-      "out": "da99d7c6e4943b8b928ed0e15cf221d2644817f5d894d705179cdd8c86c51c8a",
-      "src": "426699d5a8c0756a62fed217caf3e486a81862852d6dbe31d8e0d7c2ab6a14f3"
-    },
-    "settings.knowledge.panel.close": {
-      "by": "ai",
-      "out": "0f2bd88ef0acbda94f434542f073bf9a116aab69a63ffc6c57ceddf1033bb5e2",
-      "src": "7d9eb7acb13e24625c404401d8e88b2350e32162455885f18276cf802f7701ed"
-    },
     "settings.knowledge.panel.closeTip": {
       "by": "ai",
       "out": "e439f8753d9d3942ab4e5f59c09146c3c54cb5aa6dc81633e903e1198eee3ee2",
@@ -188393,20 +188008,10 @@
       "out": "8b19518ff49b2e29b07838e572247a491b4c344d3f6eab61985585d29d06aae6",
       "src": "e2d0a54968ead24efc0dffa6ac78fc606dceec34a0f586177a74a54cc2272cf8"
     },
-    "settings.knowledge.panel.new": {
-      "by": "ai",
-      "out": "82f18198831084b9952a166ba4ac2b0793c0b98b9bc49a2a93479b7057dadd9b",
-      "src": "bef59364265130602c037ab092a48a0cf6c79ee9a0994719b1be3cf864a7f0e2"
-    },
     "settings.knowledge.panel.question": {
       "by": "ai",
       "out": "c8e09ec7ac1c28e039d75752afc67d67cea76cecaa0d5d52402102f8e9d335fb",
       "src": "a897fdea4b3de9283c92f40f4a7d9b554fe34c095c5de38215979c84139465f8"
-    },
-    "settings.knowledge.panel.saveNote": {
-      "by": "ai",
-      "out": "9eee82303ade6bc0f91dc45cdf18f6e9be939dda5a218fee8224c9437367456e",
-      "src": "1e04681bb511eba225457bf4c022ecd42eca4f9024f76c938bfdccf5aebcaac8"
     },
     "settings.knowledge.panel.title": {
       "by": "ai",
@@ -188428,35 +188033,15 @@
       "out": "6a8a66721f65c7be1be2ddf9235fb31a4d0f7a74c8450a62781f00b8bb536e6c",
       "src": "953fc5472b60daf4aa8b9b2ce54c82e9cbca1035f4415b63e53454417c87447c"
     },
-    "settings.knowledge.qa.count": {
-      "by": "ai",
-      "out": "bf71e3e0f23277499141da780297b407f7e6a95552a6154daa074967542c7c17",
-      "src": "7c4f722507a15fca2992312efb97a5741dfabbe9806ef3259eed3e6ddd079139"
-    },
     "settings.knowledge.qa.empty": {
       "by": "ai",
       "out": "49c10888674659271ddc2a6be115490af80ea5975b3698d1ab83065fe6e2996f",
       "src": "6ae21de05157cb9043611a58c970b6ffe4f4ed247163c0a728dd78c44d83585e"
     },
-    "settings.knowledge.qa.filter.all": {
-      "by": "ai",
-      "out": "aff4d19d6ee43b204bc26edea7c9b2e21d0ca188641d656ad0610ffee541cad1",
-      "src": "a52ace420f2175d08b1577a1bea5445e36801229c074ef9ed6c55a73401fd9c2"
-    },
-    "settings.knowledge.qa.filter.answered": {
-      "by": "ai",
-      "out": "99a8fb77964a738d117360bba5e2185697c82876fd9c2d026600af6aa681561c",
-      "src": "5feb1f08d2458eaea34d3942e305f0ab58fdbcba9801fc050f9efa83fb9eb2c1"
-    },
     "settings.knowledge.qa.filter.check": {
       "by": "ai",
       "out": "5b8341fc70b1b59877782a8daa887eb1c98cb57fdc8f65008b6e78164faa39e8",
       "src": "5ce96f1220a648e0db45b2e9e3024a423dfbef7bfefdf0fb3b5ef9d6a5ffa0f1"
-    },
-    "settings.knowledge.qa.filter.mail": {
-      "by": "ai",
-      "out": "4549259bb554eba0530b473d904b0289b3d54afadbc97dca177d0f7e3ca021b6",
-      "src": "efad9551ea97523eb83f45459851ce041e7f193eefd716bb199707ac620611f3"
     },
     "settings.knowledge.qa.noMatch": {
       "by": "ai",
@@ -188472,16 +188057,6 @@
       "by": "ai",
       "out": "f01ba1cf9b006a4cead3a8d1321d4f9c197dc6cd8b90eb4c98bd8ea1e0597b47",
       "src": "bae77fae537c1dcb4cacf0ed8e8028bd15c42c0093729ff638524da834e42ea9"
-    },
-    "settings.knowledge.qa.source.answered": {
-      "by": "ai",
-      "out": "69cba57b4eecff486247f2c052c85c9420a96546f6fbb072c5fde44a47053d4c",
-      "src": "a0749a6a7e73cfa17c6856cf8b1d3b2c419d1b7537328df3ca29098c821928e2"
-    },
-    "settings.knowledge.qa.source.mail": {
-      "by": "ai",
-      "out": "d3e10b0c42941d5c6ee778600f374370509c714bcd75fd5f9bd76e34f52b9a93",
-      "src": "25299de9fd089055f0d1a863e9bb7c0972951b65becbdfca0c09754b0ba182e2"
     },
     "settings.knowledge.qa.title": {
       "by": "ai",

@@ -6,7 +6,6 @@ import { INSTRUCTIONS_MAX, type KnowledgeImproveData } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { useT } from '@linedesk/i18n/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { fmt } from '../i18n/format.ts'
 import { Input, Textarea } from '../ui/form.tsx'
 import { Badge, Button, cx, Icon } from '../ui/kit.tsx'
@@ -39,13 +38,12 @@ type Props = {
   toast: (text: string) => void
 }
 
-type Filter = 'all' | 'mail' | 'answered' | 'check'
-
 const count = (n: number) => fmt().number(n)
 /** The length shows only from this share of the limit on: below it, the number says nothing worth reading. */
 const COUNT_FROM = 0.8
 // i18n-dynamic: settings.knowledge.issue.*
-// i18n-dynamic: settings.knowledge.qa.source.*
+/** Search shows only from this many questions on; fewer fit on the screen. */
+const SEARCH_FROM = 6
 const issuesOf = (issues: AboutIssue[], key: string) => issues.filter(i => i.key === key)
 
 export function Knowledge(props: Props) {
@@ -81,7 +79,7 @@ export function Knowledge(props: Props) {
       }
       help={t('settings.knowledge.help', { name })}
     >
-      <BusinessText parts={all} update={update} name={name} canEdit={canEdit} />
+      <BusinessText parts={all} update={update} name={name} />
       <Questions {...props} parts={all} update={update} name={name} addDraft={q => setDrafts(d => [...d, q])} />
       {draft.instructions.trim().length >= INSTRUCTIONS_MAX * COUNT_FROM && (
         <span className="help kn-total">
@@ -96,68 +94,22 @@ export function Knowledge(props: Props) {
   )
 }
 
-// --- Your business ------------------------------------------------------------------------
+// --- What the assistant should know ---------------------------------------------------------
 
-/** The business's own text, shown to read (labels bold, lists as bullets); Edit opens it as a text field. */
-function BusinessText(props: { parts: AboutParts; update: (p: AboutParts) => void; name: string; canEdit: boolean }) {
-  const { parts, update, name, canEdit } = props
+/** The business's own text (everything but the question lines), always a text field. */
+function BusinessText(props: { parts: AboutParts; update: (p: AboutParts) => void; name: string }) {
+  const { parts, update, name } = props
   const t = useT()
-  const [editing, setEditing] = useState(false)
-  const open = editing || !parts.profile.trim()
-  // The same line can come twice: the key is its place and its text.
-  const rows = parts.profile
-    .split('\n')
-    .filter(l => l.trim())
-    .map((line, n) => ({ line, id: `${n}:${line}` }))
   return (
-    <div className="kn-block">
-      <div className="kn-block-head">
-        <b>{t('settings.knowledge.business.title')}</b>
-        {parts.profile.trim() && (
-          <Button
-            size="sm"
-            variant="secondary"
-            icon={editing ? 'check' : 'pencil'}
-            disabled={!canEdit}
-            onClick={() => setEditing(!editing)}
-            title={t('settings.knowledge.business.editTip')}
-          >
-            {editing ? t('settings.knowledge.business.done') : t('settings.knowledge.business.edit')}
-          </Button>
-        )}
-      </div>
-      {open ? (
-        <Field id="as-instr" label={t('settings.knowledge.label', { name })}>
-          <TextArea
-            id="as-instr"
-            tall
-            value={parts.profile}
-            onChange={v => update({ ...parts, profile: v })}
-            placeholder={t('settings.knowledge.placeholder')}
-          />
-        </Field>
-      ) : (
-        <div className="kn-read">
-          {rows.map(({ line, id }) => {
-            const label = /^([^:\n]{2,40}:)\s*(.*)$/.exec(line)
-            if (/^\s*[-•]\s/.test(line))
-              return (
-                <div key={id} className="kn-bullet">
-                  {line.replace(/^\s*[-•]\s/, '')}
-                </div>
-              )
-            if (label && !label[2]) return <b key={id}>{label[1]}</b>
-            if (label)
-              return (
-                <div key={id}>
-                  <b>{label[1]}</b> {label[2]}
-                </div>
-              )
-            return <p key={id}>{line}</p>
-          })}
-        </div>
-      )}
-    </div>
+    <Field id="as-instr" label={t('settings.knowledge.label', { name })}>
+      <TextArea
+        id="as-instr"
+        tall
+        value={parts.profile}
+        onChange={v => update({ ...parts, profile: v })}
+        placeholder={t('settings.knowledge.placeholder')}
+      />
+    </Field>
   )
 }
 
@@ -170,24 +122,16 @@ type QuestionsProps = Props & {
   addDraft: (q: AboutQuestion) => void
 }
 
-/** What a help step replaced, to undo it: the rows as they were and the row that was open. */
-type Undo = { parts: AboutParts; key: string }
-
 function Questions(props: QuestionsProps) {
   const { parts, name, canEdit } = props
   const t = useT()
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<Filter>('all')
-  const [open, setOpenRaw] = useState<string | null>(null)
-  const [undo, setUndo] = useState<Undo | null>(null)
-  const setOpen = (key: string | null) => {
-    setUndo(null)
-    setOpenRaw(key)
-  }
+  const [onlyCheck, setOnlyCheck] = useState(false)
+  const [open, setOpen] = useState<string | null>(null)
   // The open row stays open when the text is written and read back (keyAfter).
   const update = (next: AboutParts) => {
     props.update(next)
-    setOpenRaw(key => (key ? keyAfter(next, key) : key))
+    setOpen(key => (key ? keyAfter(next, key) : key))
   }
   const added = useRef(0)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -195,12 +139,10 @@ function Questions(props: QuestionsProps) {
   const flagged = new Set(issues.map(i => i.key))
   const filled = parts.questions.filter(q => q.line || q.question.trim())
   const shown = parts.questions.filter(q => {
-    if ((filter === 'mail' || filter === 'answered') && q.source !== filter) return false
-    if (filter === 'check' && !flagged.has(q.key)) return false
+    if (onlyCheck && !flagged.has(q.key)) return false
     const s = search.trim().toLowerCase()
     return !s || `${q.question} ${q.answer}`.toLowerCase().includes(s)
   })
-  const current = parts.questions.find(q => q.key === open) ?? null
 
   // "/" searches the questions (not while typing somewhere).
   useEffect(() => {
@@ -226,20 +168,24 @@ function Questions(props: QuestionsProps) {
     setOpen(q.key)
   }
 
-  const chips: [Filter, string, number][] = [
-    ['all', t('settings.knowledge.qa.filter.all'), filled.length],
-    ['mail', t('settings.knowledge.qa.filter.mail'), filled.filter(q => q.source === 'mail').length],
-    ['answered', t('settings.knowledge.qa.filter.answered'), filled.filter(q => q.source === 'answered').length],
-    ['check', t('settings.knowledge.qa.filter.check'), flagged.size],
-  ]
+  const [trying, setTrying] = useState(false)
 
   return (
     <div className="kn-block kn-qa">
       <div className="kn-block-head">
         <b>{t('settings.knowledge.qa.title')}</b>
-        {filled.length > 0 && (
-          <span className="kn-sub">{t('settings.knowledge.qa.count', { count: filled.length, name })}</span>
-        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          icon="message"
+          className="kn-head-first"
+          aria-pressed={trying}
+          disabled={!canEdit}
+          onClick={() => setTrying(!trying)}
+          title={t('settings.knowledge.try.tip', { name })}
+        >
+          {t('settings.knowledge.try.open')}
+        </Button>
         <Button
           size="sm"
           variant="secondary"
@@ -251,35 +197,32 @@ function Questions(props: QuestionsProps) {
           {t('settings.knowledge.qa.add')}
         </Button>
       </div>
-      <TryQuestion {...props} onOpen={setOpen} onAdd={add} />
-      {filled.length > 0 && (
+      {trying && <TryQuestion {...props} onOpen={setOpen} onAdd={add} onClose={() => setTrying(false)} />}
+      {(filled.length > SEARCH_FROM || flagged.size > 0) && (
         <div className="kn-toolbar">
-          <Input
-            ref={searchRef}
-            size="sm"
-            className="kn-search"
-            start={<Icon name="search" size={14} />}
-            placeholder={t('settings.knowledge.qa.search')}
-            title={t('settings.knowledge.qa.searchTip')}
-            aria-label={t('settings.knowledge.qa.search')}
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-          <div className="kn-chips" role="group">
-            {chips.map(([f, label, n]) =>
-              f === 'check' && !n ? null : (
-                <button
-                  key={f}
-                  type="button"
-                  aria-pressed={filter === f}
-                  className={cx('kn-chip', filter === f && 'is-on', f === 'check' && 'is-warn')}
-                  onClick={() => setFilter(f)}
-                >
-                  {label} <span>{count(n)}</span>
-                </button>
-              ),
-            )}
-          </div>
+          {filled.length > SEARCH_FROM && (
+            <Input
+              ref={searchRef}
+              size="sm"
+              className="kn-search"
+              start={<Icon name="search" size={14} />}
+              placeholder={t('settings.knowledge.qa.search')}
+              title={t('settings.knowledge.qa.searchTip')}
+              aria-label={t('settings.knowledge.qa.search')}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          )}
+          {flagged.size > 0 && (
+            <button
+              type="button"
+              aria-pressed={onlyCheck}
+              className={cx('kn-chip is-warn', onlyCheck && 'is-on')}
+              onClick={() => setOnlyCheck(!onlyCheck)}
+            >
+              {t('settings.knowledge.qa.filter.check')} <span>{count(flagged.size)}</span>
+            </button>
+          )}
         </div>
       )}
       {parts.questions.length === 0 ? (
@@ -288,45 +231,39 @@ function Questions(props: QuestionsProps) {
         <p className="kn-sub kn-empty">{t('settings.knowledge.qa.noMatch')}</p>
       ) : (
         <div className="kn-qlist">
-          {shown.map(q => (
-            <QuestionRow
-              key={q.key}
-              q={q}
-              issues={issuesOf(issues, q.key)}
-              active={q.key === open}
-              onClick={() => setOpen(q.key === open ? null : q.key)}
-            />
-          ))}
+          {shown.map(q =>
+            q.key === open ? (
+              <QuestionEditor
+                key={q.key}
+                {...props}
+                update={update}
+                q={q}
+                issues={issuesOf(issues, q.key)}
+                onChange={change => setQuestion(q.key, change)}
+                onRemove={() => remove(q.key)}
+                onClose={() => setOpen(null)}
+              />
+            ) : (
+              <QuestionRow key={q.key} q={q} issues={issuesOf(issues, q.key)} onClick={() => setOpen(q.key)} />
+            ),
+          )}
         </div>
-      )}
-      {current && (
-        <QuestionPanel
-          {...props}
-          update={update}
-          undo={undo}
-          onHelped={setUndo}
-          onUndo={() => {
-            if (!undo) return
-            props.update(undo.parts)
-            setOpenRaw(undo.key)
-            setUndo(null)
-          }}
-          q={current}
-          issues={issuesOf(issues, current.key)}
-          onChange={change => setQuestion(current.key, change)}
-          onRemove={() => remove(current.key)}
-          onClose={() => setOpen(null)}
-        />
       )}
     </div>
   )
 }
 
-function QuestionRow(props: { q: AboutQuestion; issues: AboutIssue[]; active: boolean; onClick: () => void }) {
-  const { q, issues, active, onClick } = props
+function QuestionRow(props: { q: AboutQuestion; issues: AboutIssue[]; onClick: () => void }) {
+  const { q, issues, onClick } = props
   const t = useT()
   return (
-    <button type="button" className={cx('kn-qrow', active && 'is-at')} onClick={onClick} aria-expanded={active}>
+    <button
+      type="button"
+      className="kn-qrow"
+      onClick={onClick}
+      aria-expanded={false}
+      title={t('settings.knowledge.qa.editTip')}
+    >
       <span className="kn-qrow-main">
         <b className={cx(!q.question.trim() && 'kn-untitled')}>
           {q.question.trim() || t('settings.knowledge.qa.untitled')}
@@ -342,38 +279,27 @@ function QuestionRow(props: { q: AboutQuestion; issues: AboutIssue[]; active: bo
           </span>
         )}
       </span>
-      <span className="kn-qrow-src" title={t(`settings.knowledge.qa.source.${q.source}`)}>
-        <Icon name={q.source === 'mail' ? 'mail' : 'pencil'} size={14} />
-      </span>
     </button>
   )
 }
 
-// --- Side panel ------------------------------------------------------------------------------
+// --- Editing a row in place ------------------------------------------------------------------
 
-type PanelProps = QuestionsProps & {
+type EditorProps = QuestionsProps & {
   q: AboutQuestion
   issues: AboutIssue[]
   onChange: (change: Partial<AboutQuestion>) => void
   onRemove: () => void
   onClose: () => void
-  undo: Undo | null
-  onHelped: (undo: Undo) => void
-  onUndo: () => void
 }
 
-/** One question and its answer, beside the list (the list stays usable; another row opens in its place). */
-function QuestionPanel(props: PanelProps) {
-  const { q, issues, onChange, onRemove, onClose, name, canEdit, parts, update, undo } = props
+/** One question and its answer, edited where its row is (one row open at a time; Esc or Done closes it). */
+function QuestionEditor(props: EditorProps) {
+  const { q, issues, onChange, onRemove, onClose, canEdit, parts, update } = props
   const t = useT()
   const first = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState<AboutIssue['kind'] | null>(null)
 
-  // On a wide screen the page makes room for the panel, so the list and the Save bar stay in view.
-  useEffect(() => {
-    document.body.classList.add('kn-panel-open')
-    return () => document.body.classList.remove('kn-panel-open')
-  }, [])
   // A new row starts in its question field.
   useEffect(() => {
     if (!q.line) first.current?.focus()
@@ -399,7 +325,6 @@ function QuestionPanel(props: PanelProps) {
         items,
         ...(issue.kind === 'language' ? { language: issue.language } : {}),
       })
-      props.onHelped({ parts, key: q.key })
       update({
         ...parts,
         questions: parts.questions
@@ -415,46 +340,25 @@ function QuestionPanel(props: PanelProps) {
 
   const otherOf = (i: AboutIssue) =>
     i.kind === 'duplicate' ? (parts.questions.find(x => x.key === i.other)?.question ?? '') : ''
-  const panel = (
-    <aside className="kn-panel" aria-label={t('settings.knowledge.panel.title')}>
-      <div className="kn-panel-head">
-        <b>{q.line ? t('settings.knowledge.panel.title') : t('settings.knowledge.panel.new')}</b>
-        <Button
-          size="sm"
-          variant="ghost"
-          icon="close"
-          onClick={onClose}
-          aria-label={t('settings.knowledge.panel.close')}
-          title={t('settings.knowledge.panel.closeTip')}
-        />
-      </div>
-      {undo && (
-        <div className="kn-helped">
-          <Icon name="spark" size={14} />
-          <span>{t('settings.knowledge.issue.helped')}</span>
-          <Button size="sm" variant="ghost" onClick={props.onUndo}>
-            {t('settings.knowledge.issue.undo')}
+  return (
+    <div className="kn-qedit" role="group" aria-label={t('settings.knowledge.panel.title')}>
+      {issues.map(i => (
+        <div key={i.kind} className="kn-issue">
+          <Icon name="warning" size={14} />
+          <span>{t(`settings.knowledge.issue.${i.kind}Text`, { other: otherOf(i) })}</span>
+          <Button
+            size="sm"
+            variant="ghost"
+            icon="spark"
+            busy={busy === i.kind}
+            disabled={!canEdit || (busy !== null && busy !== i.kind)}
+            onClick={() => improve(i)}
+            title={t('settings.knowledge.issue.helpTip')}
+          >
+            {t(`settings.knowledge.issue.${i.kind}Do`)}
           </Button>
         </div>
-      )}
-      {!undo &&
-        issues.map(i => (
-          <div key={i.kind} className="kn-issue">
-            <Icon name="warning" size={14} />
-            <span>{t(`settings.knowledge.issue.${i.kind}Text`, { other: otherOf(i) })}</span>
-            <Button
-              size="sm"
-              variant="ghost"
-              icon="spark"
-              busy={busy === i.kind}
-              disabled={!canEdit || (busy !== null && busy !== i.kind)}
-              onClick={() => improve(i)}
-              title={t('settings.knowledge.issue.helpTip')}
-            >
-              {t(`settings.knowledge.issue.${i.kind}Do`)}
-            </Button>
-          </div>
-        ))}
+      ))}
       <div className="kn-pfield">
         <label htmlFor="kn-question">{t('settings.knowledge.panel.question')}</label>
         <Input
@@ -467,35 +371,32 @@ function QuestionPanel(props: PanelProps) {
       </div>
       <div className="kn-pfield">
         <label htmlFor="kn-answer">{t('settings.knowledge.panel.answer')}</label>
-        <span className="kn-sub">{t('settings.knowledge.panel.answerHelp', { name })}</span>
         <Textarea
           id="kn-answer"
-          rows={8}
+          rows={4}
           value={q.answer}
           disabled={!canEdit}
           onChange={e => onChange({ answer: e.target.value })}
         />
-        <span className="kn-sub kn-chars">{t('settings.knowledge.panel.chars', { count: q.answer.length })}</span>
       </div>
-      <div className="kn-panel-foot">
-        <span className="kn-sub">
-          <Icon name={q.source === 'mail' ? 'mail' : 'pencil'} size={13} />{' '}
-          {t(`settings.knowledge.qa.source.${q.source}`)}
-        </span>
+      <div className="kn-qedit-foot">
         <Button size="sm" variant="ghost" icon="trash" disabled={!canEdit} onClick={onRemove}>
           {t('settings.knowledge.panel.delete')}
         </Button>
+        <Button size="sm" variant="primary" onClick={onClose} title={t('settings.knowledge.panel.closeTip')}>
+          {t('settings.knowledge.panel.done')}
+        </Button>
       </div>
-      <p className="kn-sub">{t('settings.knowledge.panel.saveNote')}</p>
-    </aside>
+    </div>
   )
-  return typeof document === 'undefined' ? panel : createPortal(panel, document.body)
 }
 
 // --- Try a question --------------------------------------------------------------------------
 
 /** What the assistant answers a caller's question, with the text as it is now (saved or not), and the row it used. */
-function TryQuestion(props: QuestionsProps & { onOpen: (key: string) => void; onAdd: (question: string) => void }) {
+function TryQuestion(
+  props: QuestionsProps & { onOpen: (key: string) => void; onAdd: (question: string) => void; onClose: () => void },
+) {
   const { parts, name, canEdit, draft } = props
   const t = useT()
   const [text, setText] = useState('')
@@ -523,16 +424,10 @@ function TryQuestion(props: QuestionsProps & { onOpen: (key: string) => void; on
 
   return (
     <div className="kn-try">
-      <form
-        className="kn-try-row"
-        onSubmit={e => {
-          e.preventDefault()
-          e.stopPropagation()
-          void ask()
-        }}
-      >
-        <Icon name="message" size={15} />
+      {/* Not a form: the settings page is one (a nested form is invalid); Enter asks through onKeyDown. */}
+      <div className="kn-try-row">
         <input
+          autoFocus
           placeholder={t('settings.knowledge.try.placeholder')}
           aria-label={t('settings.knowledge.try.placeholder')}
           value={text}
@@ -543,6 +438,7 @@ function TryQuestion(props: QuestionsProps & { onOpen: (key: string) => void; on
               e.preventDefault()
               void ask()
             }
+            if (e.key === 'Escape') props.onClose()
           }}
         />
         <Button
@@ -555,7 +451,7 @@ function TryQuestion(props: QuestionsProps & { onOpen: (key: string) => void; on
         >
           {t('settings.knowledge.try.ask', { name })}
         </Button>
-      </form>
+      </div>
       {result && (
         <div className="kn-try-answer">
           <p>
