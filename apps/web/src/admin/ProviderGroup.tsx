@@ -152,7 +152,6 @@ export function ProviderGroup({ group, data, lines, health, onOpen, onOneKey, em
       {!embedded && (
         <h2>
           {group.label}
-          {group.id === 'transcript' && <span className="adm-recommended">{t('admin.providers.recommended')}</span>}
           {help && <HelpTip text={help} />}
           {status}
         </h2>

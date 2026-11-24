@@ -466,10 +466,9 @@ const moneyGroups = new Set<string>(
 const guideLines = (provider: ProviderName) => {
   const { label, category } = providerSpec(provider)
   const guide = providerGuide(provider)
-  // After-call transcription is selected only by its own action (provider.setActive refuses it): optionalSteps says how.
   // Connected apps are all in use once set up: nothing to pick.
   const pick =
-    category === 'transcript' || category === 'apps'
+    category === 'apps'
       ? ''
       : ` Then provider_setActive { category: "${category}", provider: "${provider}" } if another one is picked.`
   return [
@@ -955,12 +954,11 @@ function redirectUris(provider: ProviderName): string[] {
 }
 
 /**
- * The groups a first call does not need (sign-in, calendar, connected apps, recording, after-call transcription, business
- * lookup; not billing):
+ * The groups a first call does not need (sign-in, calendar, connected apps, recording, business lookup; not billing):
  * their state and how to set them up through these tools, offered once the needed steps are done. Calendars themselves
  * are connected per business by signing in to Google or Microsoft in the browser (Assistant settings › Booking &
- * calendar), the one part an agent cannot do. After-call transcription is turned on by the admin in the app (Server
- * Server admin › Features › After-call transcription), because recordings leave the server; its key goes through these tools.
+ * calendar), the one part an agent cannot do. After-call transcription is a feature, not a provider: the admin turns it
+ * on in the app (Server admin › Features), with a service already connected for speech to text, model or voice.
  */
 function optionalSteps(groups: GroupStatus[]) {
   const how: Record<string, string[]> = {
@@ -975,12 +973,6 @@ function optionalSteps(groups: GroupStatus[]) {
     recording: [
       'Local disk is the simplest: provider_setActive { category: "recording", provider: "file" } and, on the server, docker compose --profile recording up -d (if you can run commands there, do it).',
       ...guideLines('s3'),
-    ],
-    // Selecting a provider uploads every call's recording to it: the admin turns it on in the app, never pasting a key.
-    transcript: [
-      "Off until the admin selects a provider: then each call's recording file is uploaded to it after the call and the caller's lines of the transcript are corrected. It needs recording. Ask the admin whether they want it; it is optional.",
-      ...guideLines(recommendedProviders.transcript),
-      `Turning it on is the admin's choice in ${webAddress()}/#admin/providers/transcript (app_links.providers_transcript), because recordings leave the server: there they only select the provider, with a key you stored or the key already saved for the same service (ElevenLabs: voice or speech to text; OpenAI: realtime model, speech to text or language model). Say so.`,
     ],
     business: guideLines(recommendedProviders.business),
     // White-label partners' own addresses (Partner › Domain): off until this provider is set up.
@@ -1713,7 +1705,7 @@ function registerTools(server: McpServer, actor: Actor) {
       'providers_list',
       {
         description:
-          'The providers this install can use, by category (telephony, stt, llm, tts, realtime, email, sign_in, recording, transcript, business, apps; billing keys are set only in the app): their fields (name, whether secret, optional), which one is picked, which fields are set (never a value) and help text. Use the field names with provider_setKeys.',
+          'The providers this install can use, by category (telephony, stt, llm, tts, realtime, email, sign_in, recording, business, apps; billing keys are set only in the app): their fields (name, whether secret, optional), which one is picked, which fields are set (never a value) and help text. Use the field names with provider_setKeys.',
         inputSchema: z.object({
           category: z
             .enum(

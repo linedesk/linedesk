@@ -70,26 +70,6 @@ export const providerMeta: Record<ProviderName, Meta> = {
     blurb: msg('admin.provider.blurb.assemblyai_stt'),
     keysUrl: 'https://www.assemblyai.com/dashboard/api-keys',
   },
-  openai_transcript: {
-    mark: { brand: 'openai' },
-    blurb: msg('admin.provider.blurb.openai_transcript'),
-    keysUrl: 'https://platform.openai.com/api-keys',
-  },
-  deepgram_transcript: {
-    mark: { brand: 'deepgram' },
-    blurb: msg('admin.provider.blurb.deepgram_transcript'),
-    keysUrl: 'https://console.deepgram.com/',
-  },
-  assemblyai: {
-    mark: { icon: 'waveform' },
-    blurb: msg('admin.provider.blurb.assemblyai'),
-    keysUrl: 'https://www.assemblyai.com/dashboard/api-keys',
-  },
-  elevenlabs_transcript: {
-    mark: { brand: 'elevenlabs' },
-    blurb: msg('admin.provider.blurb.elevenlabs_transcript'),
-    keysUrl: 'https://elevenlabs.io/app/settings/api-keys',
-  },
   elevenlabs: {
     mark: { brand: 'elevenlabs' },
     blurb: msg('admin.provider.blurb.elevenlabs'),
@@ -235,7 +215,13 @@ export function redirectUris(provider: ProviderName, origin: string): string[] {
   // Calendly allows exactly one redirect URI per app: the calendar one.
   if (provider === 'calendly' || provider === 'calcom') return [`${origin}/v1/calendar/callback/${provider}`]
   if (provider === 'oidc') return [`${origin}/api/auth/oauth2/callback/oidc`]
-  if (provider === 'hubspot' || provider === 'slack' || provider === 'jobber' || provider === 'shopify' || provider === 'zoho')
+  if (
+    provider === 'hubspot' ||
+    provider === 'slack' ||
+    provider === 'jobber' ||
+    provider === 'shopify' ||
+    provider === 'zoho'
+  )
     return [`${origin}/v1/apps/callback/${provider}`]
   return []
 }

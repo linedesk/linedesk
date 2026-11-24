@@ -125,10 +125,6 @@ export const isConfigured = (provider: ProviderStatus) =>
   provider.fields.every(f => f.source !== null || isOptional(provider, f))
 
 /**
- * Categories that are off until an admin selects a provider (no first-set-up fallback): recording storage and
- * after-call transcription. Connecting the first one there selects it, and the dialog can stop using it.
- */
-/**
  * What the dialog does once the keys were tested (LIN-364): a pass closes it with a toast; a failure or a warning keeps
  * it open with the result. `stored`: keys were saved just before; `wasConfigured`: it had keys when Save was pressed;
  * `restarts`: its category applies after the API restarts.
@@ -142,7 +138,11 @@ export function afterTest(
   return { close: true, toast: wasConfigured && !stored ? 'worksToast' : 'connectedToast' }
 }
 
-export const selectsOnConnect = (category: ProviderCategory) => category === 'recording' || category === 'transcript'
+/**
+ * Categories that are off until an admin selects a provider (no first-set-up fallback): recording storage. Connecting
+ * the first one there selects it, and the dialog can stop using it.
+ */
+export const selectsOnConnect = (category: ProviderCategory) => category === 'recording'
 
 /** The form's start: non-secret values as stored, secrets always empty (they never come back). */
 export const initialValues = (provider: ProviderStatus): Record<string, string> =>

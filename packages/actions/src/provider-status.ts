@@ -24,7 +24,6 @@ export const providerGroupIds = [
   'calendar',
   'apps',
   'recording',
-  'transcript',
   'business',
   'domains',
   'billing',
@@ -110,13 +109,6 @@ export const providerGroups: readonly ProviderGroupSpec[] = [
     needed: false,
     categories: ['recording'],
     whyKey: msg('admin.provider.group.recording.why'),
-  },
-  {
-    id: 'transcript',
-    labelKey: msg('admin.provider.group.transcript.label'),
-    needed: false,
-    categories: ['transcript'],
-    whyKey: msg('admin.provider.group.transcript.why'),
   },
   {
     id: 'business',
@@ -535,10 +527,6 @@ export function statusGroups(input: StatusInput, words: Words = english): Status
         return several(configured(providersIn('apps')))
       case 'recording': {
         const used = inUse('recording')
-        return used ? fromLine(used) : empty('off')
-      }
-      case 'transcript': {
-        const used = inUse('transcript')
         return used ? fromLine(used) : empty('off')
       }
       case 'business':

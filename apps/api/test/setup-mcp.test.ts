@@ -1448,20 +1448,17 @@ describe('every key through the agent (LIN-182)', () => {
     // Every group a first call does not need, in the registry's order (a new optional group shows up here on its own).
     // Billing is not offered: its keys decide where money goes, so only an admin in the app sets them.
     const optionalIds = providerGroups.filter(g => !g.needed && g.id !== 'billing').map(g => g.id)
-    expect(optionalIds).toEqual(expect.arrayContaining(['sign-in', 'calendar', 'recording', 'transcript', 'business']))
+    expect(optionalIds).toEqual(expect.arrayContaining(['sign-in', 'calendar', 'recording', 'business']))
     expect(status.optional.map(o => o.id)).toEqual(optionalIds)
     expect(JSON.stringify(data(await call(key, 'providers_list')))).not.toContain('"stripe"')
     // None is set up on a fresh install, and each says how through these tools: never an empty how-to that leaves the
-    // agent to send the admin to the app, and never a tool call the server refuses (transcription is not provider_setActive).
+    // agent to send the admin to the app. After-call transcription is a feature, not a provider group.
     for (const o of status.optional) {
       expect(o.state, o.id).not.toBe('done')
       expect(o.how?.length, o.id).toBeGreaterThan(0)
     }
-    expect(JSON.stringify(status.optional)).not.toMatch(/provider_setActive \{ category: "transcript"/)
-    const transcript = status.optional.find(o => o.id === 'transcript')!.how!.join(' ')
-    expect(transcript).toMatch(/provider_setKeys \{ provider: "elevenlabs_transcript"/)
-    expect(transcript).toContain('#admin/providers/transcript')
-    expect(status.app_links.providers_transcript).toMatch(/#admin\/providers\/transcript$/)
+    expect(status.optional.map(o => o.id)).not.toContain('transcript')
+    expect(JSON.stringify(status)).not.toMatch(/_transcript"|providers\/transcript/)
     const all = JSON.stringify(status)
     expect(all).not.toMatch(/paste (it|the key|them) in the app|cannot change email/i)
     expect(status.app_links.agent_setup).toMatch(/#setup-agent$/)

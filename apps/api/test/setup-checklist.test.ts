@@ -113,7 +113,6 @@ describe('states', () => {
       ['calendar', 'off'],
       ['apps', 'off'],
       ['recording', 'off'],
-      ['transcript', 'off'],
       ['business', 'off'],
       ['domains', 'off'],
       ['billing', 'off'],

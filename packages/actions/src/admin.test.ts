@@ -92,7 +92,6 @@ test('every provider has a category, and the first of each category is the defau
     ['email', ['smtp', 'resend', 'postmark', 'sendgrid', 'brevo', 'mailgun', 'gmail']],
     ['sign_in', ['google', 'microsoft', 'calendly', 'calcom', 'github', 'oidc']],
     ['recording', ['file', 's3']],
-    ['transcript', ['openai_transcript', 'deepgram_transcript', 'assemblyai', 'elevenlabs_transcript']],
     ['business', ['google_places']],
     ['billing', ['stripe']],
     ['apps', ['hubspot', 'slack', 'jobber', 'zoho', 'shopify', 'google_mail']],
@@ -164,16 +163,7 @@ test('OpenRouter refusing a model under the privacy routing is explained by mode
 })
 
 test('where only the account can stop training on calls, the guide says how, before the key is pasted', () => {
-  for (const name of [
-    'openrouter',
-    'gemini',
-    'mistral',
-    'elevenlabs',
-    'elevenlabs_stt',
-    'elevenlabs_transcript',
-    'assemblyai',
-    'assemblyai_stt',
-  ] as const) {
+  for (const name of ['openrouter', 'gemini', 'mistral', 'elevenlabs', 'elevenlabs_stt', 'assemblyai_stt'] as const) {
     const { steps } = providerGuide(name)
     expect(steps.at(-1), name).toMatch(/^Paste/)
     expect(steps.at(-2), name).toMatch(/train|improve/)

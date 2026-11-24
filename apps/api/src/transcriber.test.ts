@@ -111,7 +111,9 @@ describe('Deepgram (Nova-3, recorded audio)', () => {
   })
 
   it('sends each name as a key term and a known language', async () => {
-    const { sent, doFetch } = fakeFetch([json({ results: { channels: [{ alternatives: [{ transcript: 'Hallo.' }] }] } })])
+    const { sent, doFetch } = fakeFetch([
+      json({ results: { channels: [{ alternatives: [{ transcript: 'Hallo.' }] }] } }),
+    ])
     await deepgramTranscriber('dg-key', { doFetch }).transcribe(audio, file, hints)
     const url = new URL(sent[0]!.url)
     expect([url.searchParams.get('language'), url.searchParams.getAll('keyterm')]).toEqual(['de', hints.terms])
@@ -180,7 +182,10 @@ describe('AssemblyAI (Universal)', () => {
       new Response(null, { status: 200 }),
     ])
     await assemblyAiTranscriber('k', { doFetch, wait: async () => {} }).transcribe(audio, file, hints)
-    expect(JSON.parse(sent[1]!.init.body as string)).toMatchObject({ language_code: 'de', keyterms_prompt: hints.terms })
+    expect(JSON.parse(sent[1]!.init.body as string)).toMatchObject({
+      language_code: 'de',
+      keyterms_prompt: hints.terms,
+    })
     expect(JSON.parse(sent[1]!.init.body as string)).not.toHaveProperty('language_detection')
   })
 
@@ -242,11 +247,11 @@ describe('ElevenLabs Scribe', () => {
 
 describe('transcriberFor', () => {
   it('gives each provider of the category its adapter, with a size limit the API process can hold', () => {
-    expect(transcriberFor('openai_transcript', 'k').model).toBe('gpt-transcribe')
-    expect(transcriberFor('deepgram_transcript', 'k').model).toBe('nova-3')
+    expect(transcriberFor('openai', 'k').model).toBe('gpt-transcribe')
+    expect(transcriberFor('deepgram', 'k').model).toBe('nova-3')
     expect(transcriberFor('assemblyai', 'k').model).toBe('universal')
-    expect(transcriberFor('elevenlabs_transcript', 'k').model).toBe('scribe_v2')
-    for (const name of ['openai_transcript', 'deepgram_transcript', 'assemblyai', 'elevenlabs_transcript'] as const)
+    expect(transcriberFor('elevenlabs', 'k').model).toBe('scribe_v2')
+    for (const name of ['openai', 'deepgram', 'assemblyai', 'elevenlabs'] as const)
       expect(transcriberFor(name, 'k').maxBytes).toBe(25 * 1024 * 1024)
   })
 })

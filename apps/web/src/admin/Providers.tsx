@@ -7,13 +7,7 @@
 // calendar tools, the billing switch) are under Settings and Billing; call audio, a status, is under Server.
 // "Show all providers" at the right of the heading opens every group's short list at once (and "Show fewer" folds
 // them again); each list's own "Show more" still works, and the top button follows what the lists show.
-import {
-  type InstallSetupState,
-  isMultiCategory,
-  type ProviderName,
-  providerCategoryLabel,
-  type TranscriptProviderName,
-} from '@linedesk/actions'
+import { type InstallSetupState, isMultiCategory, type ProviderName, providerCategoryLabel } from '@linedesk/actions'
 import { useFormat, useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -123,10 +117,7 @@ export function ProviderDialogFor({ name, data, status, oauthReturn, reload, not
   async function use(provider: ProviderName | null) {
     const before = active.chosen ? active.provider : null
     const set = async (next: ProviderName | null) => {
-      // After-call transcription has its own action (it uploads recordings; audited as an admin change).
-      if (category === 'transcript')
-        await runAdmin('afterCallTranscript.set', { provider: next as TranscriptProviderName | null })
-      else await runAdmin('provider.setActive', { category, provider: next })
+      await runAdmin('provider.setActive', { category, provider: next })
       await reload()
     }
     try {
@@ -136,9 +127,7 @@ export function ProviderDialogFor({ name, data, status, oauthReturn, reload, not
           ? t('admin.providers.use.now', { category: providerCategoryLabel(category, i18n()), provider: opened!.label })
           : category === 'recording'
             ? t('admin.providers.use.recordingOff')
-            : category === 'transcript'
-              ? t('admin.providers.use.transcriptOff')
-              : t('admin.providers.use.default', { category: providerCategoryLabel(category, i18n()) }),
+            : t('admin.providers.use.default', { category: providerCategoryLabel(category, i18n()) }),
         () => set(before),
       )
     } catch (err) {

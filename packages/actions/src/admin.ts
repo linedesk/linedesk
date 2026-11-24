@@ -19,7 +19,6 @@ export type ProviderCategory =
   | 'email'
   | 'sign_in'
   | 'recording'
-  | 'transcript'
   | 'business'
   | 'billing'
   | 'apps'
@@ -34,7 +33,6 @@ export const providerCategoryKeys: Record<ProviderCategory, MessageKey> = {
   email: msg('admin.provider.category.email'),
   sign_in: msg('admin.provider.category.signIn'),
   recording: msg('admin.provider.category.recording'),
-  transcript: msg('admin.provider.category.transcript'),
   business: msg('admin.provider.category.business'),
   billing: msg('admin.provider.category.billing'),
   apps: msg('admin.provider.category.apps'),
@@ -182,41 +180,6 @@ const guides = {
       msg('admin.provider.guide.assemblyai_stt.step3'),
     ],
     costKey: msg('admin.provider.guide.assemblyai_stt.cost'),
-  },
-  // After-call transcription (apps/api/src/after-call-transcript.ts): the recording file goes to the provider.
-  openai_transcript: {
-    url: 'https://platform.openai.com/api-keys',
-    steps: openAiSteps('Paste it here, or use the key already saved for OpenAI as language model or realtime model.'),
-    cost: 'About $0.0045 per call minute with gpt-transcribe.',
-  },
-  deepgram_transcript: {
-    url: 'https://console.deepgram.com/',
-    steps: [
-      'Sign up at console.deepgram.com.',
-      'API Keys → Create a New API Key, role Member. Copy the key.',
-      'Paste it here, or use the key already saved for Deepgram as speech to text.',
-    ],
-    cost: 'About $0.0043 per call minute with Nova-3 for recorded audio.',
-  },
-  assemblyai: {
-    privacyKey: msg('admin.provider.guide.privacy.assemblyai'),
-    url: 'https://www.assemblyai.com/dashboard/api-keys',
-    steps: [
-      'Sign up at assemblyai.com and add a payment method.',
-      'Dashboard → API Keys: copy the key.',
-      'Paste it here.',
-    ],
-    cost: 'About $0.0025 to $0.0035 per call minute with Universal, speaker labels included.',
-  },
-  elevenlabs_transcript: {
-    privacyKey: msg('admin.provider.guide.privacy.elevenlabs'),
-    url: 'https://elevenlabs.io/app/developers/api-keys',
-    steps: [
-      'Sign up at elevenlabs.io.',
-      'Developers → API Keys → Create Key with Speech to Text access. Copy the key.',
-      'Paste it here, or use the key already saved for ElevenLabs.',
-    ],
-    cost: 'Billed per hour of audio on your ElevenLabs plan.',
   },
   openrouter: {
     privacyKey: msg('admin.provider.guide.privacy.openrouter'),
@@ -533,7 +496,6 @@ export const recommendedProviders: Record<ProviderCategory, ProviderName> = {
   email: 'resend',
   sign_in: 'google',
   recording: 'file',
-  transcript: 'elevenlabs_transcript',
   business: 'google_places',
   billing: 'stripe',
   apps: 'hubspot',
@@ -753,36 +715,6 @@ export const providers = {
       },
     },
     helpKey: msg('admin.provider.help.assemblyai_stt'),
-  },
-  // After-call transcription: the recording is uploaded after the call and the caller's lines are corrected. Never
-  // picked on its own: only an instance admin's choice turns it on (no first-set-up fallback, like recording storage).
-  openai_transcript: {
-    label: 'OpenAI',
-    category: 'transcript',
-    guide: guides.openai_transcript,
-    fields: { api_key: apiKey('TRANSCRIPT_OPENAI_API_KEY') },
-    help: 'Each call’s recording file is uploaded to OpenAI after the call. gpt-transcribe: plain text, matched to the call by the assistant’s own lines.',
-  },
-  deepgram_transcript: {
-    label: 'Deepgram',
-    category: 'transcript',
-    guide: guides.deepgram_transcript,
-    fields: { api_key: apiKey('TRANSCRIPT_DEEPGRAM_API_KEY') },
-    help: 'Each call’s recording file is uploaded to Deepgram after the call. Nova-3 for recorded audio, with speaker labels and times.',
-  },
-  assemblyai: {
-    label: 'AssemblyAI',
-    category: 'transcript',
-    guide: guides.assemblyai,
-    fields: { api_key: apiKey('ASSEMBLYAI_API_KEY') },
-    help: 'Each call’s recording file is uploaded to AssemblyAI after the call; its transcript there is deleted once read. Universal, with speaker labels and times.',
-  },
-  elevenlabs_transcript: {
-    label: 'ElevenLabs Scribe',
-    category: 'transcript',
-    guide: guides.elevenlabs_transcript,
-    fields: { api_key: apiKey('TRANSCRIPT_ELEVENLABS_API_KEY') },
-    help: 'Each call’s recording file is uploaded to ElevenLabs after the call. Scribe v2, with speaker labels and times.',
   },
   // The default language model comes first: a category without a pick uses the first provider that is set up.
   openai: { label: 'OpenAI', category: 'llm', guide: guides.openai, fields: llmFields('OPENAI_API_KEY') },

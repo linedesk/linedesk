@@ -1,6 +1,6 @@
-// After-call transcription: the selected provider hears the saved recording again and only the caller's lines change;
-// selecting a provider (off until an admin does; a key saved for an active provider can be reused, an inactive key
-// never counts) and what a failure leaves. Instance-wide: it sets provider keys and instance_settings
+// After-call transcription: the picked service hears the saved recording again and only the caller's lines change;
+// picking a service (off until an admin does; it uses the key connected for that service under Providers, a key only
+// in .env never counts) and what a failure leaves. Instance-wide: it sets provider keys and instance_settings
 // (vitest.config.ts, INSTANCE_WIDE_FILES).
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -19,7 +19,8 @@ import type { PgBoss } from 'pg-boss'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import {
   afterCallTranscriptState,
-  selectTranscriptProvider,
+  AFTER_CALL_TRANSCRIPT_SETTING,
+  selectTranscriptService,
   transcribeCallAgain,
   transcriberInEffect,
 } from '../src/after-call-transcript.ts'
@@ -34,7 +35,7 @@ import { act, agent, asServerAdmin, createWorkspace, getCall, randomNumber, type
 
 let dir: string
 let ws: Workspace
-const envKeyOnly = { OPENAI_API_KEY: 'sk-test-env-only-0000', TRANSCRIPT_OPENAI_API_KEY: 'sk-test-env-only-0001' }
+const envKeyOnly = { OPENAI_API_KEY: 'sk-test-env-only-0000', DEEPGRAM_API_KEY: 'sk-test-env-only-0001' }
 const noEnv = {}
 const ADMIN = 'u_admin'
 const NOW = '2026-11-15T20:00:00.000Z'
@@ -100,7 +101,13 @@ afterAll(() => rm(dir, { recursive: true, force: true }))
 beforeEach(async () => {
   await db
     .delete(instance_settings)
-    .where(or(like(instance_settings.key, 'active_provider.%'), like(instance_settings.key, 'key_from.%')))
+    .where(
+      or(
+        like(instance_settings.key, 'active_provider.%'),
+        like(instance_settings.key, 'key_from.%'),
+        eq(instance_settings.key, AFTER_CALL_TRANSCRIPT_SETTING),
+      ),
+    )
   await db.delete(provider_settings).where(isNull(provider_settings.workspace_id))
   await db.delete(transcript_segments).where(eq(transcript_segments.call_id, ws.call.id))
   await db.insert(transcript_segments).values(
@@ -176,86 +183,79 @@ test('a call still live is tried again later; a call without a recording is skip
     .where(eq(calls.id, ws.call.id))
 })
 
-const optionOf = async (provider: string, env = noEnv) =>
-  (await afterCallTranscriptState(db, env)).options.find(o => o.provider === provider)
+const optionOf = async (service: string, env = noEnv) =>
+  (await afterCallTranscriptState(db, env)).options.find(o => o.service === service)
 
-test('off until an admin selects a provider; a key only in .env never counts', async () => {
+test('off until an admin picks a service; a key only in .env never counts', async () => {
   for (const env of [noEnv, envKeyOnly]) {
     const state = await afterCallTranscriptState(db, env)
     expect(state.selected).toBeNull()
-    expect(state.options.map(o => [o.provider, o.state])).toEqual([
-      ['openai_transcript', 'none'],
-      ['deepgram_transcript', 'none'],
-      ['assemblyai', 'none'],
-      ['elevenlabs_transcript', 'none'],
+    expect(state.options.map(o => [o.service, o.state, o.connectAt])).toEqual([
+      ['elevenlabs', 'none', 'elevenlabs_stt'],
+      ['openai', 'none', 'openai_stt'],
+      ['deepgram', 'none', 'deepgram'],
+      ['assemblyai', 'none', 'assemblyai_stt'],
     ])
     expect(await transcriberInEffect(db, env)).toBeNull()
+    await expect(selectTranscriptService(db, 'deepgram', ADMIN, NOW, env)).rejects.toThrow(/under Providers first/)
   }
 })
 
-test('a key saved for an active provider is selected with one click; an inactive key never counts', async () => {
-  // Deepgram is the active speech to text: its key can be reused. Nothing runs until it is selected.
+test('a service connected under Providers is picked and uses that key; removing the key stops it', async () => {
+  // Deepgram connected once, for speech to text: after-call transcription can use it, but nothing runs until picked.
   await storeKey('deepgram')
-  expect(await optionOf('deepgram_transcript')).toMatchObject({ state: 'reusable', reuseFrom: 'deepgram' })
+  expect(await optionOf('deepgram')).toMatchObject({ state: 'connected', keyFrom: 'deepgram' })
   expect(await transcriberInEffect(db, noEnv)).toBeNull()
 
-  // The same for AssemblyAI's streaming key, once it is the active speech to text.
-  await storeKey('assemblyai_stt')
-  await db.insert(instance_settings).values({ key: 'active_provider.stt', value: 'assemblyai_stt' })
-  expect(await optionOf('assemblyai')).toMatchObject({ state: 'reusable', reuseFrom: 'assemblyai_stt' })
-  await db.delete(instance_settings).where(eq(instance_settings.key, 'active_provider.stt'))
-
-  // An OpenAI key stored for a language model that is not the active one: not offered, and refused.
-  await storeKey('openai')
-  await db.insert(instance_settings).values({ key: 'active_provider.llm', value: 'anthropic' })
-  expect(await optionOf('openai_transcript')).toMatchObject({ state: 'none', reuseFrom: null })
-  await expect(selectTranscriptProvider(db, 'openai_transcript', ADMIN, NOW, noEnv)).rejects.toThrow(/key first/)
-
-  await selectTranscriptProvider(db, 'deepgram_transcript', ADMIN, NOW, noEnv)
-  expect(await optionOf('deepgram_transcript')).toMatchObject({ state: 'in_use' })
-  expect((await afterCallTranscriptState(db, noEnv)).selected).toBe('deepgram_transcript')
+  await selectTranscriptService(db, 'deepgram', ADMIN, NOW, noEnv)
+  expect(await optionOf('deepgram')).toMatchObject({ state: 'in_use' })
+  expect((await afterCallTranscriptState(db, noEnv)).selected).toBe('deepgram')
   expect((await transcriberInEffect(db, noEnv))?.model).toBe('nova-3')
-  // A reference to the stored key, not a copy.
-  const [link] = await db
-    .select()
-    .from(instance_settings)
-    .where(eq(instance_settings.key, 'key_from.deepgram_transcript'))
-  expect(link?.value).toBe('deepgram')
+  // No key of its own and no link: the speech to text key is the one key.
+  const links = await db.select().from(instance_settings).where(like(instance_settings.key, 'key_from.%'))
+  expect(links).toEqual([])
 
-  await selectTranscriptProvider(db, null, ADMIN, NOW, noEnv)
-  expect(await transcriberInEffect(db, noEnv)).toBeNull()
-})
-
-test("the realtime model's OpenAI key serves OpenAI transcription", async () => {
-  await storeKey('openai_realtime')
-  expect(await optionOf('openai_transcript')).toMatchObject({ state: 'reusable', reuseFrom: 'openai_realtime' })
-  await selectTranscriptProvider(db, 'openai_transcript', ADMIN, NOW, noEnv)
-  expect((await transcriberInEffect(db, noEnv))?.model).toBe('gpt-transcribe')
-})
-
-test('a provider connected with its own key; removing the key stops it', async () => {
-  await storeKey('assemblyai')
-  expect(await optionOf('assemblyai')).toMatchObject({ state: 'connected' })
-  await selectTranscriptProvider(db, 'assemblyai', ADMIN, NOW, noEnv)
-  expect((await transcriberInEffect(db, noEnv))?.model).toBe('universal')
-  await db.delete(provider_settings).where(eq(provider_settings.provider, 'assemblyai'))
+  await db.delete(provider_settings).where(eq(provider_settings.provider, 'deepgram'))
   expect(await transcriberInEffect(db, noEnv)).toBeNull()
   expect((await afterCallTranscriptState(db, noEnv)).selected).toBeNull()
 })
 
-test('the generic provider switch never selects it: only its own action does', async () => {
-  await storeKey('assemblyai')
+test('any connected provider of the service counts, active or not, in the registry order', async () => {
+  // OpenAI connected only for the realtime model, ElevenLabs only for the voice, AssemblyAI for speech to text.
+  await storeKey('openai_realtime')
+  await storeKey('elevenlabs')
+  await storeKey('assemblyai_stt')
+  expect(await optionOf('openai')).toMatchObject({ state: 'connected', keyFrom: 'openai_realtime' })
+  expect(await optionOf('elevenlabs')).toMatchObject({ state: 'connected', keyFrom: 'elevenlabs' })
+  expect(await optionOf('assemblyai')).toMatchObject({ state: 'connected', keyFrom: 'assemblyai_stt' })
+  // ElevenLabs speech to text connected too: its key comes first.
+  await storeKey('elevenlabs_stt')
+  expect(await optionOf('elevenlabs')).toMatchObject({ keyFrom: 'elevenlabs_stt' })
+
+  await selectTranscriptService(db, 'openai', ADMIN, NOW, noEnv)
+  expect((await transcriberInEffect(db, noEnv))?.model).toBe('gpt-transcribe')
+  await selectTranscriptService(db, 'elevenlabs', ADMIN, NOW, noEnv)
+  expect((await transcriberInEffect(db, noEnv))?.model).toBe('scribe_v2')
+  await selectTranscriptService(db, null, ADMIN, NOW, noEnv)
+  expect(await transcriberInEffect(db, noEnv)).toBeNull()
+})
+
+test('the action picks a service; the old transcript provider category is gone', async () => {
+  await storeKey('assemblyai_stt')
   await asServerAdmin(ws.owner, async () => {
-    const res = await act(ws.owner, 'provider.setActive', { category: 'transcript', provider: 'assemblyai' })
-    expect(res.status).toBe(409)
-    expect((await act(ws.owner, 'afterCallTranscript.set', { provider: 'assemblyai' })).status).toBe(200)
+    expect((await act(ws.owner, 'provider.setActive', { category: 'transcript', provider: 'assemblyai' })).status).toBe(
+      422,
+    )
+    const res = await act(ws.owner, 'afterCallTranscript.set', { service: 'assemblyai' })
+    expect(res.status).toBe(200)
+    expect(res.body.data.selected).toBe('assemblyai')
   })
   expect((await transcriberInEffect(db, noEnv))?.model).toBe('universal')
 })
 
 test('only an instance admin reads or sets it', async () => {
   expect((await act(ws.owner, 'afterCallTranscript.get', {})).status).toBe(403)
-  expect((await act(ws.owner, 'afterCallTranscript.set', { provider: null })).status).toBe(403)
+  expect((await act(ws.owner, 'afterCallTranscript.set', { service: null })).status).toBe(403)
 })
 
 // The call's news waits for the corrected transcript (call-news.ts): call.finish holds it, call.finalize or the
@@ -276,7 +276,7 @@ async function liveCall(lines: readonly { speaker: string; text: string }[] = LI
 
 async function transcriptionOn() {
   await storeKey('openai_realtime')
-  await selectTranscriptProvider(db, 'openai_transcript', ADMIN, NOW, noEnv)
+  await selectTranscriptService(db, 'openai', ADMIN, NOW, noEnv)
 }
 
 const first = {

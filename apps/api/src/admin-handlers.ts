@@ -381,9 +381,6 @@ export const adminHandlers: Record<string, Handler> = {
   },
 
   'provider.setActive': async ({ tx, actor, now, onCommit }, input) => {
-    // After-call transcription uploads recordings: only its own action selects it (afterCallTranscript.set).
-    if (input.category === 'transcript')
-      throw new Reject('select after-call transcription with afterCallTranscript.set')
     if (moneyCategories.includes(input.category)) refuseMoneyKeysChange(actor)
     if (input.provider) await shareOpenAiKey(tx, input.provider, actor.actorId, now)
     await setActiveProvider(tx, input.category, input.provider, actor.actorId, now)

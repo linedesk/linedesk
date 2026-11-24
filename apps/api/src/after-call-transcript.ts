@@ -1,15 +1,14 @@
 // After-call transcription. During the call the caller is transcribed live (speech to text, or the realtime model's
 // transcriber): fast, but it mishears, and a noise can turn into a word of another language. Once the call's
 // recording is saved (call.setRecording), the `call.transcribe` job uploads the recording file to the transcription
-// provider an instance admin selected and replaces the caller's lines with what it heard (transcript-align.ts). The
+// service an instance admin picked and replaces the caller's lines with what it heard (transcript-align.ts). The
 // assistant's lines stay: they are the text its voice spoke. Workspace members just see the better transcript.
 //
-// Server admin › Features › After-call transcription (the registry's `transcript` category): OpenAI gpt-transcribe,
-// Deepgram Nova-3, AssemblyAI Universal or ElevenLabs Scribe. Off until an admin selects one (no first-set-up
-// fallback, no variable picks it). A provider without a key of its own can use, with one click, the key saved for
-// the active provider of the same service (`REUSE_FROM`): a reference to that stored key, as one-key mode does, never
-// a copy, never a key only in .env, never the key of a provider that is not active. Removing the provider or its
-// key, or selecting none, stops the job. A failure leaves the live transcript as it is.
+// Server admin › Features › After-call transcription: a feature, not a provider. ElevenLabs Scribe, OpenAI
+// gpt-transcribe, Deepgram Nova-3 or AssemblyAI Universal, each with the key stored for that service under Providers
+// (`transcriptKeyFrom`: speech to text, language model or voice); never a key of its own, never a key only in .env.
+// Off until an admin picks one (instance_settings `after_call_transcript`; no first-set-up fallback, no variable
+// picks it). Removing the service's key, or picking none, stops the job. A failure leaves the live transcript as it is.
 
 import { createWriteStream, openAsBlob } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -19,38 +18,29 @@ import { pipeline } from 'node:stream/promises'
 import {
   type AfterCallTranscriptData,
   type AfterCallTranscriptOption,
-  type ProviderCategory,
   type ProviderName,
-  type TranscriptProviderName,
+  type TranscriptService,
+  transcriptKeyFrom,
   transcriptModels,
-  transcriptProviders,
+  transcriptServices,
 } from '@linedesk/actions'
-import { calls, type Tx, transcript_segments } from '@linedesk/db'
+import { calls, instance_settings, type Tx, transcript_segments } from '@linedesk/db'
 import { and, asc, eq, isNull } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
-import { activeProvider, keySource, linkProviderKey, resolveProvider, setActiveProvider } from './provider-settings.ts'
+import { activeProvider, resolveProvider } from './provider-settings.ts'
 import { ownRecordingKey, recordingContentType } from './recording-route.ts'
 import type { RecordingStore } from './recording-store.ts'
-import { type Heard, isTranscriptProvider, type Transcriber, TranscriberError, transcriberFor } from './transcriber.ts'
+import { type Heard, type Transcriber, TranscriberError, transcriberFor } from './transcriber.ts'
 import { alignCallerLines, type StoredLine } from './transcript-align.ts'
 import { NO_HINTS, transcriptHints } from './transcript-hints.ts'
 
 type Env = Record<string, string | undefined>
 
-/** The active providers whose stored key a transcription provider of the same service may use, in this order. */
-export const REUSE_FROM: Record<TranscriptProviderName, readonly [ProviderCategory, ProviderName][]> = {
-  openai_transcript: [
-    ['stt', 'openai_stt'],
-    ['realtime', 'openai_realtime'],
-    ['llm', 'openai'],
-  ],
-  deepgram_transcript: [['stt', 'deepgram']],
-  assemblyai: [['stt', 'assemblyai_stt']],
-  elevenlabs_transcript: [
-    ['stt', 'elevenlabs_stt'],
-    ['tts', 'elevenlabs'],
-  ],
-}
+/** The instance setting that holds the picked service; no row: off. */
+export const AFTER_CALL_TRANSCRIPT_SETTING = 'after_call_transcript'
+
+const isTranscriptService = (value: string | null | undefined): value is TranscriptService =>
+  !!value && (transcriptServices as readonly string[]).includes(value)
 
 /** A key stored in the admin area (its own, or linked to another stored key); a key only in .env does not count. */
 async function storedKey(tx: Tx, provider: ProviderName, env?: Env): Promise<string | null> {
@@ -58,39 +48,47 @@ async function storedKey(tx: Tx, provider: ProviderName, env?: Env): Promise<str
   return key?.source === 'app' && key.value ? key.value : null
 }
 
-/** The first of `provider`'s sources that is the active provider of its category with a stored key. */
-async function reusableSource(tx: Tx, provider: TranscriptProviderName, env?: Env): Promise<ProviderName | null> {
-  for (const [category, source] of REUSE_FROM[provider]) {
-    const active = await activeProvider(tx, category, env)
-    if (active?.provider === source && (await storedKey(tx, source, env))) return source
+/** The first provider of `service` with a stored key, and that key; null: the service is not connected. */
+async function serviceKey(tx: Tx, service: TranscriptService, env?: Env) {
+  for (const provider of transcriptKeyFrom[service]) {
+    const key = await storedKey(tx, provider, env)
+    if (key) return { provider, key }
   }
   return null
 }
 
-/** The selected provider (instance_settings `active_provider.transcript`), or null: off. */
-async function selected(tx: Tx, env?: Env): Promise<TranscriptProviderName | null> {
-  const active = await activeProvider(tx, 'transcript', env)
-  return active && isTranscriptProvider(active.provider) ? active.provider : null
+/** The picked service, or null: off. */
+async function picked(tx: Tx): Promise<TranscriptService | null> {
+  const [row] = await tx
+    .select({ value: instance_settings.value })
+    .from(instance_settings)
+    .where(eq(instance_settings.key, AFTER_CALL_TRANSCRIPT_SETTING))
+  return isTranscriptService(row?.value) ? row.value : null
 }
 
 export async function afterCallTranscriptState(tx: Tx, env?: Env): Promise<AfterCallTranscriptData> {
-  const inUse = await selected(tx, env)
+  const inUse = await picked(tx)
   const options: AfterCallTranscriptOption[] = []
-  for (const provider of transcriptProviders) {
-    const connected = !!(await storedKey(tx, provider, env))
-    const source = connected ? null : await reusableSource(tx, provider, env)
-    const state = provider === inUse && connected ? 'in_use' : connected ? 'connected' : source ? 'reusable' : 'none'
-    options.push({ provider, model: transcriptModels[provider], state, reuseFrom: source })
+  for (const service of transcriptServices) {
+    const key = await serviceKey(tx, service, env)
+    const state = !key ? 'none' : service === inUse ? 'in_use' : 'connected'
+    options.push({
+      service,
+      model: transcriptModels[service],
+      state,
+      keyFrom: key?.provider ?? null,
+      connectAt: transcriptKeyFrom[service][0],
+    })
   }
   const recording = !!(await activeProvider(tx, 'recording', env))
-  return { selected: inUse && (await storedKey(tx, inUse, env)) ? inUse : null, recording, options }
+  return { selected: options.some(o => o.state === 'in_use') ? inUse : null, recording, options }
 }
 
-/** The transcriber to use for a call now: the selected provider with its stored key, else null (off). */
+/** The transcriber to use for a call now: the picked service with its stored key, else null (off). */
 export async function transcriberInEffect(tx: Tx, env?: Env, doFetch?: typeof fetch): Promise<Transcriber | null> {
-  const provider = await selected(tx, env)
-  const key = provider && (await storedKey(tx, provider, env))
-  return provider && key ? transcriberFor(provider, key, { doFetch }) : null
+  const service = await picked(tx)
+  const key = service && (await serviceKey(tx, service, env))
+  return service && key ? transcriberFor(service, key.key, { doFetch }) : null
 }
 
 /** Whether a call whose recording was just saved is transcribed again. Never throws: an unreadable key means no. */
@@ -103,30 +101,27 @@ export async function transcribesAfterCalls(tx: Tx): Promise<boolean> {
   }
 }
 
-/**
- * Selects a provider (or none: off). One without a key of its own gets a reference to the stored key of its active
- * source; one with neither is refused (connect it with its key first).
- */
-export async function selectTranscriptProvider(
+/** Picks a service (or none: off). A service not connected under Providers is refused. */
+export async function selectTranscriptService(
   tx: Tx,
-  provider: TranscriptProviderName | null,
+  service: TranscriptService | null,
   actorId: string,
   now: string,
   env?: Env,
 ) {
-  if (provider && !(await storedKey(tx, provider, env))) {
-    const source = await reusableSource(tx, provider, env)
-    if (!source) throw new Reject(`connect ${provider} with its key first`)
-    // The key's owner: a source that itself uses another provider's key passes that one on.
-    await linkProviderKey(tx, provider, (await keySource(tx, source)) ?? source, actorId, now)
-  }
-  await setActiveProvider(tx, 'transcript', provider, actorId, now)
+  if (service && !(await serviceKey(tx, service, env)))
+    throw new Reject(`connect ${service} under Providers first (${transcriptKeyFrom[service][0]})`)
+  await tx.delete(instance_settings).where(eq(instance_settings.key, AFTER_CALL_TRANSCRIPT_SETTING))
+  if (service)
+    await tx
+      .insert(instance_settings)
+      .values({ key: AFTER_CALL_TRANSCRIPT_SETTING, value: service, updated_at: now, updated_by: actorId })
 }
 
 export const afterCallTranscriptHandlers: Record<string, Handler> = {
   'afterCallTranscript.get': async ({ tx }) => ({ rows: {}, data: await afterCallTranscriptState(tx) }),
-  'afterCallTranscript.set': async ({ tx, actor, now }, input: { provider: TranscriptProviderName | null }) => {
-    await selectTranscriptProvider(tx, input.provider, actor.actorId, now)
+  'afterCallTranscript.set': async ({ tx, actor, now }, input: { service: TranscriptService | null }) => {
+    await selectTranscriptService(tx, input.service, actor.actorId, now)
     return { rows: {}, data: await afterCallTranscriptState(tx) }
   },
 }

@@ -1296,6 +1296,13 @@
       "when": 1795500111406,
       "tag": "0185_billing_rules_drop_fee_waiver",
       "breakpoints": true
+    },
+    {
+      "idx": 185,
+      "version": "7",
+      "when": 1795500342652,
+      "tag": "0186_after_call_transcript_feature",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,7 @@
 // The admin overview: how much the install is used, what that roughly costs per provider, and
 // whether its parts (API, LiveKit, SIP, voice agent, email) work. Numbers are cheap SQL; health is
 // a separate request because LiveKit and SMTP can take seconds to answer.
-import { english, type Words } from '@linedesk/actions'
+import { english, type TranscriptService, transcriptServiceLabels, type Words } from '@linedesk/actions'
 import {
   categoryNames,
   type ProviderCategory,
@@ -11,6 +11,7 @@ import {
 } from '@linedesk/actions'
 import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
+import { afterCallTranscriptState } from './after-call-transcript.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { type InstallType, installType } from './install-type.ts'
@@ -40,11 +41,6 @@ export const pricePerMinute: Record<ProviderName, number> = {
   // gpt-realtime (the default), audio in and out with a call's growing context, measured on test calls (2026-11-13):
   // about $0.12 a minute; gpt-realtime-mini about $0.03. In place of the three stages.
   openai_realtime: 0.12,
-  // After-call transcription, per minute of the recording (only the selected one runs).
-  openai_transcript: 0.0045,
-  deepgram_transcript: 0.0043,
-  assemblyai: 0.0035,
-  elevenlabs_transcript: 0.0067,
   // Recording storage is billed per stored byte, not per call minute: not part of this estimate.
   file: 0,
   s3: 0,
@@ -78,8 +74,19 @@ export const pricePerMinute: Record<ProviderName, number> = {
   cloudflare_saas: 0,
 }
 
+/** After-call transcription, per minute of the recording (only the picked service runs). */
+export const transcriptPricePerMinute: Record<TranscriptService, number> = {
+  elevenlabs: 0.0067,
+  openai: 0.0045,
+  deepgram: 0.0043,
+  assemblyai: 0.0035,
+}
+
+/** A part of the cost: a provider category, or after-call transcription (a feature that uses a connected service). */
+export type CostPart = ProviderCategory | 'transcript'
+
 export type ProviderCost = {
-  category: ProviderCategory
+  category: CostPart
   provider: ProviderName | null
   label: string | null
   minutes7d: number
@@ -138,7 +145,7 @@ function people(tx: Tx) {
   )
 }
 
-type ActiveRate = { category: ProviderCategory; provider: ProviderName | null; rate: number }
+type ActiveRate = { category: CostPart; provider: ProviderName | null; label?: string; rate: number }
 
 /** The active provider of each billed category and its price per minute (0 when none is set up). */
 async function activeRates(tx: Tx): Promise<ActiveRate[]> {
@@ -154,13 +161,21 @@ async function activeRates(tx: Tx): Promise<ActiveRate[]> {
     'bot_check',
     'domains',
     ...((await realtimeInUse(tx)) ? ['stt', 'llm', 'tts'] : ['realtime']),
-    // After-call transcription only while an admin has selected a provider (off by default).
-    ...((await activeProvider(tx, 'transcript').catch(() => null)) ? [] : ['transcript']),
   ]
   for (const category of categoryNames.filter(c => !skipped.includes(c))) {
     const active = await activeProvider(tx, category).catch(() => null)
     rates.push({ category, provider: active?.provider ?? null, rate: active ? pricePerMinute[active.provider] : 0 })
   }
+  // After-call transcription only while an admin has picked a connected service (off by default).
+  const transcript = await afterCallTranscriptState(tx).catch(() => null)
+  const used = transcript?.options.find(o => o.state === 'in_use')
+  if (used?.keyFrom)
+    rates.push({
+      category: 'transcript',
+      provider: used.keyFrom,
+      label: transcriptServiceLabels[used.service],
+      rate: transcriptPricePerMinute[used.service],
+    })
   return rates
 }
 
@@ -180,12 +195,12 @@ export async function costEstimate(tx: Tx): Promise<CostEstimate> {
 export async function adminOverview(tx: Tx): Promise<AdminOverview> {
   const [t, p, failures] = await Promise.all([callTotals(tx), people(tx), listProviderFailures(tx)])
   const costs: ProviderCost[] = []
-  for (const { category, provider, rate } of await activeRates(tx)) {
+  for (const { category, provider, label, rate } of await activeRates(tx)) {
     const [sec7d, secMonth] = category === 'telephony' ? [t.phone_sec_7d, t.phone_sec_month] : [t.sec_7d, t.sec_month]
     costs.push({
       category,
       provider,
-      label: provider ? providerSpec(provider).label : null,
+      label: label ?? (provider ? providerSpec(provider).label : null),
       minutes7d: minutes(sec7d),
       cost7d: dollars((sec7d / 60) * rate),
       costMonth: dollars((secMonth / 60) * rate),

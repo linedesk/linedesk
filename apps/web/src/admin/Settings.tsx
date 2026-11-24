@@ -1,8 +1,6 @@
 // Server admin › Features (LIN-747): what workspaces get on this server, the Calls, Phone numbers and Tools sections
 // before. Billing › Sign-up is in Billing.tsx. Services are connected under Providers; a setting that needs one links there.
-import { type ProviderName } from '@linedesk/actions'
 import { T, useT } from '@linedesk/i18n/react'
-import { useState } from 'react'
 import { appLink } from '../ui/AppLink.tsx'
 import { Card } from '../ui/form.tsx'
 import { SkeletonRows } from '../ui/LoadStates.tsx'
@@ -12,7 +10,6 @@ import { CalendarTools } from './CalendarTools.tsx'
 import { CallQualityCard } from './CallQuality.tsx'
 import { InternationalTransfers } from './InternationalTransfers.tsx'
 import type { Notify } from './notify.ts'
-import { ProviderDialogFor } from './Providers.tsx'
 import type { ProviderStatusState } from './providerStatus.ts'
 import { ZAPIER_SETTING } from './route.ts'
 import { GermanNumbers, VoiceCloning, Zapier } from './SettingsCards.tsx'
@@ -25,27 +22,12 @@ type ProvidersProps = {
   notify: Notify
 }
 
-/** After-call transcription: off, or which provider transcribes recordings again; a provider's key opens its dialog. */
-function TranscriptCard({ data, status, reload, notify }: ProvidersProps) {
+/** After-call transcription: off, or which connected service transcribes recordings again (connected under Providers). */
+function TranscriptCard({ data }: Pick<ProvidersProps, 'data'>) {
   const t = useT()
-  const [open, setOpen] = useState<ProviderName | null>(null)
   return (
     <Card title={t('admin.afterCallTranscript.title')}>
-      {data ? (
-        <AfterCallTranscript data={data} onOpen={setOpen} />
-      ) : (
-        <SkeletonRows rows={3} columns={2} className="adm-sk-rows" />
-      )}
-      {open && data && (
-        <ProviderDialogFor
-          name={open}
-          data={data}
-          status={status}
-          reload={reload}
-          notify={notify}
-          onClose={() => setOpen(null)}
-        />
-      )}
+      {data ? <AfterCallTranscript data={data} /> : <SkeletonRows rows={3} columns={2} className="adm-sk-rows" />}
     </Card>
   )
 }
@@ -71,7 +53,7 @@ export function Features({ focus, ...providers }: ProvidersProps & { focus?: str
   return (
     <>
       <CallQualityCard notify={providers.notify} />
-      <TranscriptCard {...providers} />
+      <TranscriptCard data={providers.data} />
       <InternationalTransfers />
       <GermanNumbers />
       <VoiceCloning />

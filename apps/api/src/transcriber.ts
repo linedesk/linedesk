@@ -2,7 +2,7 @@
 // lives only in the adapters below; the rest of the API talks to `Transcriber`. Each adapter says the largest file it
 // takes (checked before the recording is read) and never puts a response body into an error: a successful body is
 // the caller's words. The recording comes as a Blob: a file on this server is not read into memory (openAsBlob).
-import { type TranscriptProviderName, transcriptModels, transcriptProviders } from '@linedesk/actions'
+import { type TranscriptService, transcriptModels } from '@linedesk/actions'
 import { NO_HINTS, type TranscribeHints } from './transcript-hints.ts'
 
 /** One speaker's turn, as a service with speaker labels hears it. `start` and `end` in milliseconds. */
@@ -57,7 +57,7 @@ const asText = (value: unknown, status: number) => {
 /** OpenAI gpt-transcribe: its recommended file transcription model. Plain text only; 25 MB at most. */
 export function openAiTranscriber(apiKey: string, { doFetch = fetch }: Options = {}): Transcriber {
   return {
-    model: transcriptModels.openai_transcript,
+    model: transcriptModels.openai,
     maxBytes: MAX_FILE,
     async transcribe(audio, file, { terms, language } = NO_HINTS) {
       const form = new FormData()
@@ -81,7 +81,7 @@ export function openAiTranscriber(apiKey: string, { doFetch = fetch }: Options =
 /** Deepgram Nova-3 for recorded audio, with speaker labels (diarize) and turns (utterances). */
 export function deepgramTranscriber(apiKey: string, { doFetch = fetch }: Options = {}): Transcriber {
   return {
-    model: transcriptModels.deepgram_transcript,
+    model: transcriptModels.deepgram,
     maxBytes: MAX_FILE,
     async transcribe(audio, file, { terms, language } = NO_HINTS) {
       // Without a language Deepgram hears English only: `multi` when the call may be in several.
@@ -210,7 +210,7 @@ export function assemblyAiTranscriber(
 /** ElevenLabs Scribe v2, with speaker labels (diarize) and word times; turns are the words of one speaker in a row. */
 export function elevenLabsTranscriber(apiKey: string, { doFetch = fetch }: Options = {}): Transcriber {
   return {
-    model: transcriptModels.elevenlabs_transcript,
+    model: transcriptModels.elevenlabs,
     maxBytes: MAX_FILE,
     async transcribe(audio, file, { terms, language } = NO_HINTS) {
       const form = new FormData()
@@ -254,19 +254,16 @@ export function elevenLabsTranscriber(apiKey: string, { doFetch = fetch }: Optio
   }
 }
 
-/** The adapter of a transcription provider, with its key. */
-export function transcriberFor(provider: TranscriptProviderName, apiKey: string, options: Options = {}): Transcriber {
-  switch (provider) {
-    case 'openai_transcript':
+/** The adapter of a transcription service, with its key. */
+export function transcriberFor(service: TranscriptService, apiKey: string, options: Options = {}): Transcriber {
+  switch (service) {
+    case 'openai':
       return openAiTranscriber(apiKey, options)
-    case 'deepgram_transcript':
+    case 'deepgram':
       return deepgramTranscriber(apiKey, options)
     case 'assemblyai':
       return assemblyAiTranscriber(apiKey, options)
-    case 'elevenlabs_transcript':
+    case 'elevenlabs':
       return elevenLabsTranscriber(apiKey, options)
   }
 }
-
-export const isTranscriptProvider = (name: string | null | undefined): name is TranscriptProviderName =>
-  !!name && (transcriptProviders as readonly string[]).includes(name)

@@ -90,7 +90,11 @@ function Costs({ overview }: { overview: AdminOverview }) {
           <tbody>
             {overview.costs.map(c => (
               <tr key={c.category}>
-                <th scope="row">{providerCategoryLabel(c.category, i18n())}</th>
+                <th scope="row">
+                  {c.category === 'transcript'
+                    ? t('admin.afterCallTranscript.title')
+                    : providerCategoryLabel(c.category, i18n())}
+                </th>
                 <td>{c.label ?? <span className="help">{t('admin.overview.costs.notSetUp')}</span>}</td>
                 <td className="adm-num">{count(c.minutes7d)}</td>
                 <td className="adm-num">{c.provider ? money(c.cost7d) : EMPTY}</td>

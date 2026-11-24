@@ -321,28 +321,41 @@ export type CallQualityAdminData = {
 
 /**
  * After-call transcription (apps/api/src/after-call-transcript.ts): once a call's recording is saved, it is uploaded
- * to the transcription provider an instance admin selected (Server admin › Features › After-call transcription) and
- * the caller's lines are replaced with what it heard. Off until an admin selects one.
+ * to the service an instance admin picked (Server admin › Features › After-call transcription) and the caller's lines
+ * are replaced with what it heard. Off until an admin picks one. A feature, not a provider: each service is connected
+ * once under Providers (speech to text, language model or voice), and its transcription uses that stored key.
  */
-export const transcriptProviders = [
-  'openai_transcript',
-  'deepgram_transcript',
-  'assemblyai',
-  'elevenlabs_transcript',
-] as const satisfies readonly ProviderName[]
-export type TranscriptProviderName = (typeof transcriptProviders)[number]
-/** The model each one uses. */
-export const transcriptModels: Record<TranscriptProviderName, string> = {
-  openai_transcript: 'gpt-transcribe',
-  deepgram_transcript: 'nova-3',
+export const transcriptServices = ['elevenlabs', 'openai', 'deepgram', 'assemblyai'] as const
+export type TranscriptService = (typeof transcriptServices)[number]
+/** The model each service transcribes recordings with. */
+export const transcriptModels: Record<TranscriptService, string> = {
+  elevenlabs: 'scribe_v2',
+  openai: 'gpt-transcribe',
+  deepgram: 'nova-3',
   assemblyai: 'universal',
-  elevenlabs_transcript: 'scribe_v2',
+}
+/** Each service's name (a brand: the same in every language). */
+export const transcriptServiceLabels: Record<TranscriptService, string> = {
+  elevenlabs: 'ElevenLabs',
+  openai: 'OpenAI',
+  deepgram: 'Deepgram',
+  assemblyai: 'AssemblyAI',
+}
+/**
+ * The providers whose stored key a service's transcription uses, in this order. The first is where the feature sends
+ * an admin to connect the service.
+ */
+export const transcriptKeyFrom: Record<TranscriptService, readonly [ProviderName, ...ProviderName[]]> = {
+  elevenlabs: ['elevenlabs_stt', 'elevenlabs'],
+  openai: ['openai_stt', 'openai_realtime', 'openai'],
+  deepgram: ['deepgram'],
+  assemblyai: ['assemblyai_stt'],
 }
 
 export const afterCallTranscriptGet = defineAction({
   name: 'afterCallTranscript.get',
   description:
-    'The transcription providers for finished calls: which one is selected (none: off), which are connected, and which can use a key already saved for an active provider.',
+    'After-call transcription: which service transcribes finished calls again from their recording (none: off), and which services are connected under Providers.',
   input: z.object({}),
   permission: 'instance:admin',
   readOnly: true,
@@ -350,23 +363,24 @@ export const afterCallTranscriptGet = defineAction({
 export const afterCallTranscriptSet = defineAction({
   name: 'afterCallTranscript.set',
   description:
-    'Select the provider that transcribes each finished call again from its recording (the recording file is uploaded to it), or null to turn it off. A provider without a key of its own uses the key saved for the active provider of the same service (OpenAI language model or realtime model, Deepgram or ElevenLabs).',
-  input: z.object({ provider: z.enum(transcriptProviders).nullable() }),
+    'Pick the service that transcribes each finished call again from its recording (the recording file is uploaded to it), or null to turn it off. It uses the key stored for that service under Providers (ElevenLabs, OpenAI, Deepgram or AssemblyAI); a service not connected there is refused.',
+  input: z.object({ service: z.enum(transcriptServices).nullable() }),
   permission: 'instance:admin',
 })
 /**
- * One transcription provider: `in_use` (selected), `connected` (has a key, its own or linked), `reusable` (a key
- * saved for the active provider `reuseFrom` can be used with one click) or `none` (connect it with its key).
+ * One service: `in_use` (picked), `connected` (a key is stored for it under Providers, `keyFrom`) or `none` (connect
+ * it first, at `connectAt`).
  */
 export type AfterCallTranscriptOption = {
-  provider: TranscriptProviderName
+  service: TranscriptService
   model: string
-  state: 'in_use' | 'connected' | 'reusable' | 'none'
-  reuseFrom: ProviderName | null
+  state: 'in_use' | 'connected' | 'none'
+  keyFrom: ProviderName | null
+  connectAt: ProviderName
 }
 /** `data` of `afterCallTranscript.get` and `.set`. `recording`: a recording store is in use (else nothing to hear). */
 export type AfterCallTranscriptData = {
-  selected: TranscriptProviderName | null
+  selected: TranscriptService | null
   recording: boolean
   options: AfterCallTranscriptOption[]
 }

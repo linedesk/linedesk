@@ -26,7 +26,7 @@ import {
   type StatusGroups,
   type StatusInput,
   type StoredTest,
-  type TranscriptProviderName,
+  type TranscriptService,
   type TryOutKind,
   type PromptTextKey,
   providers as providerRegistry,
@@ -148,7 +148,8 @@ export type AdminOverview = {
   calls: { today: number; last7d: number; month: number }
   minutes: { today: number; last7d: number; month: number }
   costs: {
-    category: ProviderCategory
+    /** A provider category, or after-call transcription (a feature using a connected service). */
+    category: ProviderCategory | 'transcript'
     provider: ProviderName | null
     label: string | null
     minutes7d: number
@@ -332,7 +333,7 @@ export type AdminInputs = {
   'systemPrompt.setPart': { key: PromptTextKey; text: string }
   'systemPrompt.resetPart': { key: PromptTextKey }
   'afterCallTranscript.get': Record<string, never>
-  'afterCallTranscript.set': { provider: TranscriptProviderName | null }
+  'afterCallTranscript.set': { service: TranscriptService | null }
   'calendarTools.get': Record<string, never>
   'calendarTools.set': { tool: CalendarTool; mode: CalendarToolMode }
   'setupEmails.get': Record<string, never>

@@ -217,7 +217,6 @@ const EFFECTS: Partial<Record<ProviderGroupId, string>> = {
   'sign-in': 'signIn',
   calendar: 'calendar',
   recording: 'recording',
-  transcript: 'transcript',
   billing: 'billing',
 }
 
