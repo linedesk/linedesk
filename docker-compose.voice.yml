@@ -1,0 +1,97 @@
+# A further voice server: one more agent worker for one Linedesk install (docs/hosting.md, "Separate voice servers").
+# On that server only, as its whole stack: COMPOSE_FILE=docker-compose.voice.yml in its .env. The app server runs the
+# web app, the API and the database (with docker-compose.voice-link.yml); voice server 1 runs LiveKit, SIP, egress and
+# an agent (docker-compose.yml with docker-compose.voice-media.yml).
+#
+# The agent is the agent of docker-compose.yml: same image, same short list of variables (never the whole .env), same
+# health check and drain on update; apps/agent/src/compose-env.test.ts keeps the two in step. (Not `extends`: compose
+# would then need every variable of the main stack, its database and Electric secrets too, on this server.) What
+# differs: where it finds the API and LiveKit, both over WireGuard (plain HTTP and WebSocket, so never without it):
+# the API at the app server's voice link (LINEDESK_MAIN_HOST:3100) and LiveKit at voice server 1's voice link
+# (LINEDESK_LIVEKIT_HOST:7880). The worker registers with that LiveKit, which hands it calls like any other worker;
+# call audio goes to LiveKit's public address directly.
+#
+# Capacity: one call at once takes about 0.33 vCPU and 0.3 GB, so a 4 vCPU, 8 GB server takes about 10. The load
+# threshold, the cores and the memory are required here, because the single-server defaults (never refuse a call, one
+# shared core, 672m) are wrong for a server that does nothing else.
+name: linedesk-voice
+
+services:
+  agent:
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+    build: { context: ., target: agent }
+    image: linedesk-agent
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    environment:
+      AGENT_API_TOKEN: ${AGENT_API_TOKEN:-}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env, this server's own key from voice server 1's LINEDESK_VOICE_LIVEKIT_KEYS}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET in .env, this server's own secret from voice server 1's LINEDESK_VOICE_LIVEKIT_KEYS}
+      # Speech, language model and voice providers: keys set in Linedesk under Providers, or here (apps/agent/src/config.ts).
+      # The models come from the call quality levels, the voice from each assistant.
+      STT_PROVIDER: ${STT_PROVIDER:-}
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      ELEVENLABS_STT_API_KEY: ${ELEVENLABS_STT_API_KEY:-}
+      OPENAI_STT_API_KEY: ${OPENAI_STT_API_KEY:-}
+      ASSEMBLYAI_STT_API_KEY: ${ASSEMBLYAI_STT_API_KEY:-}
+      ASSEMBLYAI_STT_WAIT_FOR_CALLER: ${ASSEMBLYAI_STT_WAIT_FOR_CALLER:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_ZERO_DATA_RETENTION: ${OPENROUTER_ZERO_DATA_RETENTION:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      TTS_PROVIDER: ${TTS_PROVIDER:-}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      CARTESIA_API_KEY: ${CARTESIA_API_KEY:-}
+      # A realtime model instead of the three above, in use once it has a key: set in Linedesk under Providers, or here.
+      OPENAI_REALTIME_API_KEY: ${OPENAI_REALTIME_API_KEY:-}
+      # Where calls are recorded comes from the API (Providers > Recording storage, or the API's RECORDING_STORE and S3_*).
+      RECORDING_STORE: ${RECORDING_STORE:-}
+      # The call test (apps/agent/src/call-test.ts) and its on-call stand-in; empty on most installs.
+      CALL_TEST_FROM: ${CALL_TEST_FROM:-}
+      CALL_TEST_TO: ${CALL_TEST_TO:-}
+      CALL_TEST_ONCALL: ${CALL_TEST_ONCALL:-}
+      TEST_CALLER_VOICE_ID: ${TEST_CALLER_VOICE_ID:-}
+      # Above it this worker takes no new call and LiveKit gives it to another worker (apps/agent/src/worker-load.ts).
+      # The same value as on voice server 1, where it is also LiveKit's agents.target_load.
+      AGENT_LOAD_THRESHOLD: ${AGENT_LOAD_THRESHOLD:?set AGENT_LOAD_THRESHOLD in .env (e.g. 0.8), the same as on voice server 1}
+      AGENT_INIT_TIMEOUT_MS: ${AGENT_INIT_TIMEOUT_MS:-}
+      # Error tracking (apps/agent/src/error-reporting.ts): off while SENTRY_DSN is empty.
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+      # Which carriers' signaling addresses the SIP trunk accepts (setup-sip.ts, inbound-allowlist.ts).
+      LIVEKIT_SIP_ALLOWED_ADDRESSES: ${LIVEKIT_SIP_ALLOWED_ADDRESSES:-}
+      LIVEKIT_SIP_TLS: ${LIVEKIT_SIP_TLS:-}
+      # The app server's voice link (docker-compose.voice-link.yml): its Caddy hands this to the proxy's internal
+      # listener (which retries while the API is updated).
+      LINEDESK_API_URL: http://${LINEDESK_MAIN_HOST:?set LINEDESK_MAIN_HOST in .env to the app server's WireGuard address}:3100
+      # Voice server 1's voice link (docker-compose.voice-media.yml): its LiveKit.
+      LIVEKIT_URL: ws://${LINEDESK_LIVEKIT_HOST:?set LINEDESK_LIVEKIT_HOST in .env to voice server 1's WireGuard address}:7880
+      AGENT_IDLE_PROCESSES: ${AGENT_IDLE_PROCESSES:-1}
+      GREETING_CACHE_DIR: /var/cache/linedesk/greetings
+    volumes: ["greetings:/var/cache/linedesk/greetings"]
+    # Healthy = connected and registered with voice server 1's LiveKit (ops/server: linedesk-agent-check alerts on it).
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8081/').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+      start_interval: 1s
+    # On SIGTERM the worker takes no new calls and finishes the ones it has (draining a voice server: docs/hosting.md).
+    stop_grace_period: ${LINEDESK_AGENT_DRAIN:-130m}
+    # Pinned cores, not a quota (a quota stalls real-time audio): all of them on a voice server, e.g. 0-3 on 4 vCPUs.
+    cpuset: ${LINEDESK_VOICE_CPUSET:?set LINEDESK_VOICE_CPUSET in .env to the cores the agent may use, e.g. 0-3}
+    # About 0.8 GB at rest plus 0.3 GB per call at once; e.g. 6g on an 8 GB server.
+    mem_limit: ${LINEDESK_AGENT_MEM:?set LINEDESK_AGENT_MEM in .env, e.g. 6g on an 8 GB server}
+
+volumes:
+  greetings:

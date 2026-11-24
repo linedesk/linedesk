@@ -1,0 +1,135 @@
+#!/bin/bash
+# Capacity of this server, every minute (linedesk-capacity.timer): calls at once, CPU and memory, and the signs that a
+# call failed or may fail because the server is full. One line per minute in $STATE_DIRECTORY/samples.jsonl (8 days):
+#   {"t":<unix>,"calls":<live calls, only where postgres runs>,"cpu":<% busy this minute>,"mem":<% used>,"ev":{...}}
+# Events (counts this minute; only the ones that happened):
+#   no_agent    LiveKit found no agent worker for a call (the caller hears no assistant)                 critical
+#   oom         the kernel killed a process for memory (a container or the host)                         critical
+#   egress_cpu  a recording was refused: not enough CPU                                                  critical
+#   agent_full  the agent worker reported itself full (AGENT_LOAD_THRESHOLD): new calls go elsewhere or nowhere
+#   cpu_high    the agent warned that the host CPU is above 95 %
+# A critical event sends an email and an urgent phone push (LINEDESK_PUSH_URL) at once, at most one per kind every
+# 30 minutes; a busy server (agent_full or cpu_high, CPU at 85 % or more for 10 minutes, memory at 90 % or more) one
+# email every 6 hours. With LINEDESK_CAPACITY_PUSH=<user@host> (setup.sh --capacity-push) the new lines go to the
+# intranet every 5 minutes over SSH with /root/.ssh/linedesk_capacity_push (a forced command there takes them).
+set -u
+[ -r /etc/linedesk/ops.env ] && . /etc/linedesk/ops.env
+app=${LINEDESK_APP_DIR:?set LINEDESK_APP_DIR in /etc/linedesk/ops.env}
+dir=${STATE_DIRECTORY:-/var/lib/linedesk-capacity}
+mkdir -p "$dir"
+cd "$app" || exit 1
+
+now=$(date +%s)
+since=$(cat "$dir/last" 2>/dev/null || echo $((now - 60)))
+# A gap (the server was off, the timer stopped) is not read back further than 10 minutes.
+[ "$since" -ge $((now - 600)) ] 2>/dev/null || since=$((now - 600))
+iso() { date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ; }
+
+services=$(docker compose ps --status running --format '{{.Service}}' 2>/dev/null)
+has() { grep -qx "$1" <<<"$services"; }
+logs() { docker compose logs --no-log-prefix --since "$(iso "$since")" --until "$(iso "$now")" "$1" 2>/dev/null; }
+count() { grep -Eci -- "$1" || true; }
+
+declare -A ev=()
+if has livekit; then
+  # A room job (the agent for a call) with no worker. Participant and publisher jobs are logged the same way for
+  # every call (the agent takes room jobs only): not counted.
+  ev[no_agent]=$(logs livekit | grep -i 'no worker is available' | count '"JT_ROOM"')
+fi
+if has agent; then
+  agent_log=$(logs agent)
+  ev[agent_full]=$(count 'worker is at full capacity' <<<"$agent_log")
+  ev[cpu_high]=$(count 'Host CPU load is' <<<"$agent_log")
+fi
+has livekit-egress && ev[egress_cpu]=$(logs livekit-egress | count 'not enough cpu')
+# Memory kills: Docker's oom events name the container; the kernel log also sees the host's own processes.
+oom_docker=$(docker events --since "$since" --until "$now" --filter event=oom --format '{{.Actor.Attributes.name}}' 2>/dev/null)
+oom_kernel=$(journalctl -k -q --since "@$since" --until "@$now" 2>/dev/null | count 'Out of memory: Killed process')
+oom=$(grep -c . <<<"$oom_docker" || true)
+[ "$oom" -ge "$oom_kernel" ] || oom=$oom_kernel
+ev[oom]=$oom
+
+calls=null
+if has postgres; then
+  # shellcheck disable=SC2016 # the variables are the postgres container's own
+  n=$(echo "select count(*) from calls where status = 'live'" |
+    docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tA' 2>/dev/null | tr -d '[:space:]')
+  [[ $n =~ ^[0-9]+$ ]] && calls=$n
+fi
+
+# CPU busy since the last run, from /proc/stat (user nice system idle iowait irq softirq steal).
+read -r _ u n s i w q sq st _ < /proc/stat
+total=$((u + n + s + i + w + q + sq + st)) idle=$((i + w))
+read -r ptotal pidle 2>/dev/null < "$dir/cpu" || { ptotal=0 pidle=0; }
+echo "$total $idle" > "$dir/cpu"
+cpu=null
+[ "$ptotal" -gt 0 ] && [ "$total" -gt "$ptotal" ] && cpu=$(( (100 * ((total - ptotal) - (idle - pidle))) / (total - ptotal) ))
+mem=$(awk '/MemTotal/ { t = $2 } /MemAvailable/ { a = $2 } END { printf "%d", (t - a) * 100 / t }' /proc/meminfo)
+
+events=''
+for k in "${!ev[@]}"; do
+  [[ ${ev[$k]} =~ ^[0-9]+$ ]] && [ "${ev[$k]}" -gt 0 ] && events="$events${events:+,}\"$k\":${ev[$k]}"
+done
+printf '{"t":%d,"calls":%s,"cpu":%s,"mem":%s,"ev":{%s}}\n' "$now" "$calls" "$cpu" "$mem" "$events" >> "$dir/samples.jsonl"
+echo "$now" > "$dir/last"
+# Once an hour: keep 8 days.
+if [ $((now / 60 % 60)) = 0 ]; then
+  awk -v min=$((now - 8 * 86400)) -F'[:,]' '$2 >= min' "$dir/samples.jsonl" > "$dir/samples.tmp" && mv "$dir/samples.tmp" "$dir/samples.jsonl"
+fi
+
+# Alerts. alert <kind> <every seconds> <subject> <text> <push priority>: at most one per kind in that time.
+host=$(hostname)
+alert() {
+  local stamp="$dir/alerted.$1"
+  [ $((now - $(cat "$stamp" 2>/dev/null || echo 0))) -ge "$2" ] || return 0
+  echo "$now" > "$stamp"
+  /usr/local/sbin/linedesk-alert-text "$3" "$4" || echo "linedesk-capacity: email failed" >&2
+  /usr/local/sbin/linedesk-push "$3" "$4" "$5" || true
+}
+at=$(date -u -d "@$now" '+%F %T UTC')
+[ "${ev[no_agent]:-0}" -gt 0 ] &&
+  alert no_agent 1800 "Call without an assistant: no agent worker free" \
+    "$at on $host: LiveKit found no free agent worker for ${ev[no_agent]} call(s); the caller heard no assistant. The agent servers are full (CPU at AGENT_LOAD_THRESHOLD) or down: add an agent server or a bigger one (docs/hosting.md, Separate voice servers)." urgent
+[ "${ev[oom]:-0}" -gt 0 ] &&
+  alert oom 1800 "Out of memory: a process was killed" \
+    "$at on $host: the kernel killed ${ev[oom]} process(es) for memory${oom_docker:+ (containers: $(tr '\n' ' ' <<<"$oom_docker"))}. Calls on it may have dropped. Memory now ${mem}% used. Raise the container's memory limit or use a bigger server." urgent
+[ "${ev[egress_cpu]:-0}" -gt 0 ] &&
+  alert egress_cpu 1800 "Recording refused: not enough CPU" \
+    "$at on $host: LiveKit egress refused ${ev[egress_cpu]} recording(s) for lack of CPU. Those calls have no recording. CPU this minute: ${cpu}%." urgent
+busy=''
+[ "${ev[agent_full]:-0}" -gt 0 ] && busy="$busy the agent worker reported itself full (AGENT_LOAD_THRESHOLD);"
+[ "${ev[cpu_high]:-0}" -gt 0 ] && busy="$busy the agent warned that the host CPU is above 95 %;"
+# CPU at 85 % or more in each of the last 10 minutes.
+if [ "$(tail -n 10 "$dir/samples.jsonl" | grep -cE '"cpu":(8[5-9]|9[0-9]|100),')" = 10 ]; then
+  busy="$busy CPU at 85 % or more for 10 minutes;"
+fi
+[ "$mem" -ge 90 ] && busy="$busy memory ${mem}% used;"
+[ -z "$busy" ] ||
+  alert busy 21600 "Server busy: time for more capacity?" \
+    "$at on $host:$busy$([ "$calls" = null ] || echo " calls now: $calls,") CPU this minute: ${cpu}%, memory ${mem}%. New calls may get no assistant or a slow one. Compare the intranet's Capacity view and plan a bigger server or another agent server." default
+
+# The intranet copy: every 5 minutes, the lines it does not have yet (at most a day of them).
+# The alerts every script recorded (linedesk-alert-text, linedesk-alert-queue) go along: new ones at once, not only
+# every 5 minutes. They leave the queue once the intranet took them; without a push, after 7 days.
+push_key=/root/.ssh/linedesk_capacity_push
+queue=/usr/local/sbin/linedesk-alert-queue
+if [ -n "${LINEDESK_CAPACITY_PUSH:-}" ] && [ -r "$push_key" ]; then
+  "$queue" read "$dir/alert-names" > "$dir/push-alerts.tmp" 2>/dev/null || : > "$dir/push-alerts.tmp"
+  if [ $((now / 60 % 5)) = 0 ] || [ -s "$dir/push-alerts.tmp" ]; then
+    pushed=$(cat "$dir/pushed" 2>/dev/null || echo 0)
+    { awk -v min="$pushed" -F'[:,]' '$2 > min' "$dir/samples.jsonl" | tail -n 1440; cat "$dir/push-alerts.tmp"; } > "$dir/push.tmp"
+    if [ -s "$dir/push.tmp" ] &&
+      timeout 60 ssh -T -i "$push_key" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 \
+        "$LINEDESK_CAPACITY_PUSH" < "$dir/push.tmp" > /dev/null; then
+      grep -v '"alert":' "$dir/push.tmp" | tail -n 1 | sed -E 's/^\{"t":([0-9]+).*/\1/' | grep . > "$dir/pushed.new" &&
+        mv "$dir/pushed.new" "$dir/pushed"
+      rm -f "$dir/pushed.new"
+      "$queue" remove "$dir/alert-names" 2>/dev/null || true
+    fi
+    rm -f "$dir/push.tmp"
+  fi
+  rm -f "$dir/push-alerts.tmp"
+elif [ $((now / 60 % 60)) = 0 ]; then
+  "$queue" prune 2>/dev/null || true
+fi
+printf 'calls %s, cpu %s%%, mem %s%%, events {%s}\n' "$calls" "$cpu" "$mem" "$events"

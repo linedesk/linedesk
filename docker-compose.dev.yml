@@ -1,0 +1,91 @@
+# Dev mode, for a test server: api, web and agent run from this checkout (mounted into the containers)
+# and restart or hot-reload on a change, instead of running built images. A change shows within seconds
+# and an update is a `git merge` (scripts/deploy-dev.sh). Not for production or self-hosting (dev
+# dependencies, the Vite dev server, restarts instead of start-first updates). Docs: docs/dev-mode.md.
+#
+# Switch on in .env, then run scripts/deploy.sh (switch off: empty LINEDESK_MODE, scripts/deploy.sh):
+#   LINEDESK_MODE=dev
+#   COMPOSE_FILE=docker-compose.yml${LINEDESK_MODE:+:docker-compose.$LINEDESK_MODE.yml}
+#
+# Every one of the three runs under docker/dev-run.mjs: installs the dependencies when pnpm-lock.yaml
+# changed (node_modules is one volume for the three), restarts the command when a watched directory
+# changes, and starts it again when it crashes.
+# - api: restarts on a change to the API or the packages (~1-2 s); Caddy holds and retries requests
+#   meanwhile (docker/Caddyfile). Each start runs the migrations (docker/api-entrypoint.sh).
+# - web: the Vite dev server with hot reload behind the same Caddy: same origin (cookies), and the
+#   hot-reload WebSocket goes over the public URL (apps/web/vite.config.ts).
+# - agent: restarts on a change to the agent or the packages. A restart ends its running calls (test calls
+#   included) after 5 s; a change elsewhere leaves it alone. `docker compose stop` still lets calls finish.
+# - proxy: the same, but skips a container that failed a request for 1 s instead of 10 s (docker/Caddyfile).
+# Everything else (postgres, electric, LiveKit, SIP, egress, redis) is the same as in image mode.
+
+x-dev: &dev
+  build: { context: ., target: dev }
+  image: linedesk-dev
+  user: "0:0" # writes the workspace packages' node_modules links into the checkout
+  working_dir: /app
+  entrypoint: ["node", "/app/docker/dev-run.mjs"]
+
+services:
+  api:
+    <<: *dev
+    command: [apps/api/src, packages, --, sh, docker/api-entrypoint.sh]
+    environment:
+      NODE_ENV: production # as in the image: secure cookies on https
+    volumes:
+      - .:/app
+      - dev_node_modules:/app/node_modules
+      - recordings:/recordings
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3100/healthz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 600s # the very first start installs the dependencies
+      start_interval: 1s
+    mem_limit: ${LINEDESK_DEV_API_MEM:-768m} # ~0.5 GB of it only while it installs dependencies
+    cpus: ${LINEDESK_DEV_API_CPUS:-1}
+
+  web:
+    <<: *dev
+    working_dir: /app/apps/web
+    command: [--, node, node_modules/vite/bin/vite.js]
+    environment:
+      LINEDESK_DEV_PUBLIC_URL: ${PUBLIC_URL:-http://localhost}
+    volumes:
+      - .:/app # read-write: it installs the dependencies too, and Vite keeps its cache in apps/web/node_modules
+      - /dev/null:/app/.env:ro # the checkout's .env stays out of sight, as in image mode
+      - dev_node_modules:/app/node_modules
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1/').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 600s
+      start_interval: 1s
+    mem_limit: ${LINEDESK_DEV_WEB_MEM:-768m}
+    cpus: ${LINEDESK_DEV_WEB_CPUS:-1}
+
+  agent:
+    <<: *dev
+    working_dir: /app/apps/agent
+    command: [apps/agent/src, packages, --, node, src/worker.ts, start]
+    environment:
+      NODE_ENV: production
+      LINEDESK_DEV_INSTALL: wait # the checkout is read-only: the api or web container installs (docker/dev-run.mjs)
+    volumes:
+      # Read-only and without .env: the process that handles caller audio and LLM tool calls cannot change
+      # the code the other services run, nor read the keys it is not given (docker-compose.yml).
+      - .:/app:ro
+      - /dev/null:/app/.env:ro
+      - dev_node_modules:/app/node_modules
+      - greetings:/var/cache/linedesk/greetings
+    mem_limit: ${LINEDESK_DEV_AGENT_MEM:-896m}
+
+  proxy:
+    environment:
+      # The Vite dev server's inline preamble and injected styles; set it to override.
+      LINEDESK_CSP_DEV: ${LINEDESK_CSP_DEV:-'unsafe-inline'}
+
+volumes:
+  dev_node_modules:

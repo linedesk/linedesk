@@ -1,0 +1,1 @@
+ALTER TABLE "workspace_settings" ADD COLUMN "recording_retention_days" integer DEFAULT 90;

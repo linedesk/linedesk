@@ -1,0 +1,13 @@
+[Unit]
+Description=Linedesk: LiveKit SIP reads a renewed TLS certificate (scripts/deploy.sh --sip-cert)
+OnFailure=linedesk-alert@%n.service
+[Service]
+Type=oneshot
+User=@USER@
+WorkingDirectory=@APP_DIR@
+# The lock the deploy receivers take (deploy.lock next to the app directory): never at the same time as a deploy.
+# Exit 75: calls kept running, the next run tries again (no alert). A certificate missing or ending within 14 days fails the run: an alert.
+# At most 10 minutes for a quiet moment (not a deploy's 30), so it never holds the lock long; a busy lock: exit 75 too.
+Environment=LINEDESK_DEPLOY_QUIET_WAIT=600
+ExecStart=/usr/bin/flock -w 1800 -E 75 @APP_DIR@/../deploy.lock @APP_DIR@/scripts/deploy.sh --sip-cert
+SuccessExitStatus=75

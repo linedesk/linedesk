@@ -1,0 +1,685 @@
+// Integrations (#integrations): the catalog of everything Linedesk connects to, by category, without React. Only what
+// works today opens something: Zapier, Make and n8n (through the assistant's webhooks), the assistant's webhooks, the
+// calendar providers (Booking & calendar; one this server does not offer says so), API keys, the REST API and the MCP
+// server. Each opens its detail view here (`#integrations/<id>`) or the place where it is set up, also as a link
+// (`#integrations/make` goes to the webhooks). HubSpot, Zoho CRM, Slack, Jobber and Shopify are connected apps (OAuth, docs/crm-sync.md):
+// their detail view connects them. Gmail and Outlook connect the business's support mailboxes, read only (LIN-637),
+// one card each; both pages show what the support mail shows (all mailboxes together).
+// One that is not built (ServiceTitan) shows as "Coming soon" and opens nothing.
+// Phone carriers are not here: they are Server admin's (provider keys).
+// To add one (a CLI, once it has an install command): one entry in CATALOG, its name and line in
+// settings.json (settings.integrations.card.<id>.*), and its status in statusOf.
+import { type MessageKey, msg } from '@linedesk/i18n'
+import {
+  APP_SETTINGS,
+  type BusinessKind,
+  type BusinessTrait,
+  traitsOf,
+  type AppConnectError,
+  type AppSettingId,
+  appSettingOn,
+  type ConnectableApp,
+  claudeConnectorLink,
+  cursorMcpInstallLink,
+  isAppConnectError,
+  isMailConnectError,
+  type MailConnectError,
+  type MailProviderId,
+  vscodeMcpInstallLink,
+} from '@linedesk/actions'
+import type { AppConnection, AppErrorCode } from '@linedesk/db/types'
+import type { ProviderId } from '../settings/calendarModel.ts'
+
+export type CategoryId = 'automation' | 'calendars' | 'crm' | 'commerce' | 'chat' | 'email' | 'developers'
+export const CATEGORIES: readonly CategoryId[] = [
+  'automation',
+  'calendars',
+  'crm',
+  'commerce',
+  'chat',
+  'email',
+  'developers',
+]
+
+export const CATEGORY_LABEL: Record<CategoryId, MessageKey> = {
+  automation: msg('settings.integrations.category.automation'),
+  calendars: msg('settings.integrations.category.calendars'),
+  crm: msg('settings.integrations.category.crm'),
+  commerce: msg('settings.integrations.category.commerce'),
+  chat: msg('settings.integrations.category.chat'),
+  email: msg('settings.integrations.category.email'),
+  developers: msg('settings.integrations.category.developers'),
+}
+
+/** Integrations with a detail view on this page; every other card opens the place where it is set up. */
+export const DETAIL_IDS = [
+  'zapier',
+  'hubspot',
+  'slack',
+  'jobber',
+  'shopify',
+  'zoho',
+  'gmail',
+  'outlook-mail',
+  'api-keys',
+  'rest-api',
+  'mcp',
+] as const
+export type DetailId = (typeof DETAIL_IDS)[number]
+
+/** The mailbox provider each support email card connects. */
+export const MAIL_CARD_PROVIDER = { gmail: 'google', 'outlook-mail': 'microsoft' } as const satisfies Record<
+  string,
+  MailProviderId
+>
+export const mailCardOf = (provider: MailProviderId) => (provider === 'google' ? 'gmail' : 'outlook-mail')
+
+/** Not built yet: shown as "Coming soon", they open nothing. */
+export const IN_PROGRESS_IDS = ['servicetitan'] as const
+export type InProgressId = (typeof IN_PROGRESS_IDS)[number]
+
+export type IntegrationId = DetailId | 'make' | 'n8n' | 'webhooks' | ProviderId | InProgressId
+
+/**
+ * A card's logo (no hotlinked images): a sign-in mark the app already ships (calendars), a Simple Icons path from
+ * admin/logos.ts in the brand's colour, an icon of ours, or a monogram where no free mark exists.
+ */
+export type Mark =
+  | { kind: 'brand'; brand: 'google' | 'microsoft' | 'calcom' | 'calendly' | 'icloud' }
+  | {
+      kind: 'logo'
+      logo:
+        | 'zapier'
+        | 'make'
+        | 'n8n'
+        | 'hubspot'
+        | 'zoho'
+        | 'slack'
+        | 'shopify'
+        | 'modelcontextprotocol'
+        | 'gmail'
+        | 'microsoftoutlook'
+      color: string
+    }
+  | { kind: 'icon'; icon: 'globe' | 'server' | 'shield' | 'mail' }
+  | { kind: 'monogram'; text: string; color: string }
+
+export type Integration = {
+  id: IntegrationId
+  category: CategoryId
+  mark: Mark
+  /** Where the card goes: its detail view here, or a place in the app (a hash route); null while it is being built. */
+  opens: string | null
+  /** Extra words search finds it by (not shown). */
+  keywords: string
+}
+
+const detail = (id: DetailId) => `#integrations/${id}`
+const WEBHOOKS = '#assistant/advanced/webhook'
+const BOOKING = '#assistant/booking'
+
+export const CATALOG: readonly Integration[] = [
+  {
+    id: 'zapier',
+    category: 'automation',
+    mark: { kind: 'logo', logo: 'zapier', color: '#FF4F00' },
+    opens: detail('zapier'),
+    keywords: 'zap automation triggers actions',
+  },
+  {
+    id: 'make',
+    category: 'automation',
+    mark: { kind: 'logo', logo: 'make', color: '#6D00CC' },
+    opens: WEBHOOKS,
+    keywords: 'integromat scenario webhook automation',
+  },
+  {
+    id: 'n8n',
+    category: 'automation',
+    mark: { kind: 'logo', logo: 'n8n', color: '#EA4B71' },
+    opens: WEBHOOKS,
+    keywords: 'workflow webhook automation self-hosted',
+  },
+  {
+    id: 'webhooks',
+    category: 'automation',
+    mark: { kind: 'icon', icon: 'globe' },
+    opens: WEBHOOKS,
+    keywords: 'http post url signed call start during after lookup',
+  },
+  {
+    id: 'google',
+    category: 'calendars',
+    mark: { kind: 'brand', brand: 'google' },
+    opens: BOOKING,
+    keywords: 'gmail workspace calendar booking appointments',
+  },
+  {
+    id: 'microsoft',
+    category: 'calendars',
+    mark: { kind: 'brand', brand: 'microsoft' },
+    opens: BOOKING,
+    keywords: 'outlook office 365 exchange calendar booking appointments',
+  },
+  {
+    id: 'caldav',
+    category: 'calendars',
+    mark: { kind: 'brand', brand: 'icloud' },
+    opens: BOOKING,
+    keywords: 'apple icloud caldav fastmail nextcloud calendar booking',
+  },
+  {
+    id: 'calcom',
+    category: 'calendars',
+    mark: { kind: 'brand', brand: 'calcom' },
+    opens: BOOKING,
+    keywords: 'cal.com scheduling event types booking',
+  },
+  {
+    id: 'calendly',
+    category: 'calendars',
+    mark: { kind: 'brand', brand: 'calendly' },
+    opens: BOOKING,
+    keywords: 'scheduling event types booking',
+  },
+  {
+    id: 'hubspot',
+    category: 'crm',
+    mark: { kind: 'logo', logo: 'hubspot', color: '#FF7A59' },
+    opens: detail('hubspot'),
+    keywords: 'crm contacts call log sync',
+  },
+  {
+    id: 'zoho',
+    category: 'crm',
+    mark: { kind: 'logo', logo: 'zoho', color: '#E42527' },
+    opens: detail('zoho'),
+    keywords: 'zoho crm contacts call log sync',
+  },
+  {
+    id: 'jobber',
+    category: 'crm',
+    mark: { kind: 'monogram', text: 'J', color: '#7DB00E' },
+    opens: detail('jobber'),
+    keywords: 'field service jobs clients requests home service',
+  },
+  {
+    id: 'servicetitan',
+    category: 'crm',
+    mark: { kind: 'monogram', text: 'ST', color: '#0B57D0' },
+    opens: null,
+    keywords: 'field service jobs bookings customers hvac plumbing',
+  },
+  {
+    id: 'shopify',
+    category: 'commerce',
+    mark: { kind: 'logo', logo: 'shopify', color: '#7AB55C' },
+    opens: detail('shopify'),
+    keywords: 'store shop ecommerce online orders products returns customers',
+  },
+  {
+    id: 'slack',
+    category: 'chat',
+    mark: { kind: 'logo', logo: 'slack', color: '#4A154B' },
+    opens: detail('slack'),
+    keywords: 'team chat channel notify message',
+  },
+  {
+    id: 'gmail',
+    category: 'email',
+    mark: { kind: 'logo', logo: 'gmail', color: '#EA4335' },
+    opens: detail('gmail'),
+    keywords: 'google workspace email inbox mailbox support customer service faq',
+  },
+  {
+    id: 'outlook-mail',
+    category: 'email',
+    mark: { kind: 'logo', logo: 'microsoftoutlook', color: '#0078D4' },
+    opens: detail('outlook-mail'),
+    keywords: 'microsoft 365 office exchange email inbox mailbox support customer service faq',
+  },
+  {
+    id: 'api-keys',
+    category: 'developers',
+    mark: { kind: 'icon', icon: 'shield' },
+    opens: detail('api-keys'),
+    keywords: 'token bearer key developer',
+  },
+  {
+    id: 'rest-api',
+    category: 'developers',
+    mark: { kind: 'icon', icon: 'server' },
+    opens: detail('rest-api'),
+    keywords: 'http openapi actions developer curl',
+  },
+  {
+    id: 'mcp',
+    category: 'developers',
+    mark: { kind: 'logo', logo: 'modelcontextprotocol', color: 'currentColor' },
+    opens: detail('mcp'),
+    keywords: 'model context protocol ai agent claude code cursor codex llm',
+  },
+]
+
+const isInProgress = (id: IntegrationId): id is InProgressId => (IN_PROGRESS_IDS as readonly string[]).includes(id)
+
+// i18n-dynamic: settings.integrations.card.*
+export const nameKey = (id: IntegrationId) => `settings.integrations.card.${id}.name` as MessageKey
+export const lineKey = (id: IntegrationId) => `settings.integrations.card.${id}.line` as MessageKey
+
+/** The cards whose name, line, category or keywords contain every word of `query` (any case). */
+export function searchIntegrations(
+  list: readonly Integration[],
+  query: string,
+  text: (key: MessageKey) => string,
+): Integration[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  if (!words.length) return [...list]
+  return list.filter(i => {
+    const haystack = [text(nameKey(i.id)), text(lineKey(i.id)), text(CATEGORY_LABEL[i.category]), i.id, i.keywords]
+      .join(' ')
+      .toLowerCase()
+    return words.every(w => haystack.includes(w))
+  })
+}
+
+/**
+ * What each trait of a business (business-kind.ts) is served by, the one to suggest first first (LIN-767): the one place
+ * that ties integrations to kinds of business. A calendar when callers book, field-service software when the business
+ * goes out to them, the shop system when it sells online, a support mailbox when customers also write in.
+ */
+export const SUGGESTED_FOR_TRAIT: Record<BusinessTrait, readonly IntegrationId[]> = {
+  site_visits: ['jobber', 'servicetitan'],
+  online_orders: ['shopify'],
+  appointments: ['google', 'microsoft', 'calcom', 'calendly', 'caldav'],
+  email_support: ['gmail', 'outlook-mail'],
+}
+/** The order traits are suggested in: what sets a kind apart (field service, a shop) before what most have (a calendar). */
+const TRAIT_ORDER: readonly BusinessTrait[] = ['site_visits', 'online_orders', 'appointments', 'email_support']
+/** For every business, when its traits give fewer than SUGGESTED_MAX: a general CRM. */
+const SUGGESTED_FOR_ALL: readonly IntegrationId[] = ['hubspot']
+export const SUGGESTED_MAX = 3
+
+/** Set up already (a connected one that needs fixing too): its trait is done, nothing to suggest for it. */
+const isSetUp = (kind: Status['kind']) => kind === 'connected' || kind === 'needsAttention'
+
+/**
+ * The integrations suggested for a kind of business, at most SUGGESTED_MAX: one per trait it has, in TRAIT_ORDER, the
+ * first of SUGGESTED_FOR_TRAIT this server offers (else the first at all, which then says to ask the server admin);
+ * none for a trait already set up, none that is coming soon; then SUGGESTED_FOR_ALL. None without a kind.
+ */
+export function suggestedFor(
+  kind: BusinessKind | null | undefined,
+  status: (id: IntegrationId) => Status['kind'],
+  list: readonly Integration[] = CATALOG,
+): Integration[] {
+  if (!kind) return []
+  const traits = traitsOf(kind)
+  const open = (id: IntegrationId) => {
+    const s = status(id)
+    return s !== 'inProgress' && !isSetUp(s) && list.some(i => i.id === id && i.opens !== null)
+  }
+  const ids: IntegrationId[] = []
+  for (const trait of TRAIT_ORDER) {
+    if (!traits.has(trait)) continue
+    const serving = SUGGESTED_FOR_TRAIT[trait]
+    if (serving.some(id => isSetUp(status(id)))) continue
+    const candidates = serving.filter(open)
+    const pick = candidates.find(id => status(id) !== 'unavailable') ?? candidates[0]
+    if (pick) ids.push(pick)
+  }
+  for (const id of SUGGESTED_FOR_ALL)
+    if (ids.length < SUGGESTED_MAX && !ids.includes(id) && open(id) && status(id) !== 'unavailable') ids.push(id)
+  return ids.slice(0, SUGGESTED_MAX).map(id => list.find(i => i.id === id)!)
+}
+
+/**
+ * What the catalog shows (LIN-767): the suggested ones on top (only for All, not while searching), the categories with
+ * what this server offers, and the ones it does not offer folded into one line at the end (in catalog order). `chips`:
+ * the categories that have something this server offers; a category with nothing else is no chip.
+ */
+export function catalogView(
+  found: readonly Integration[],
+  {
+    only,
+    searching,
+    kind,
+    status,
+  }: {
+    only: CategoryId | null
+    searching: boolean
+    kind: BusinessKind | null | undefined
+    status: (id: IntegrationId) => Status['kind']
+  },
+) {
+  const offered = (i: Integration) => status(i.id) !== 'unavailable'
+  return {
+    suggested: searching || only ? [] : suggestedFor(kind, status),
+    groups: byCategory(found.filter(offered), only),
+    folded: byCategory(
+      found.filter(i => !offered(i)),
+      only,
+    ).flatMap(g => g.items),
+    chips: CATEGORIES.filter(c => CATALOG.some(i => i.category === c && offered(i))),
+  }
+}
+
+/** The cards by category, in catalog order; `only` keeps one category; empty categories are left out. */
+export function byCategory(
+  list: readonly Integration[],
+  only: CategoryId | null = null,
+): { category: CategoryId; items: Integration[] }[] {
+  return CATEGORIES.filter(c => only === null || c === only)
+    .map(category => ({ category, items: list.filter(i => i.category === category) }))
+    .filter(g => g.items.length > 0)
+}
+
+/**
+ * What the workspace has set up, as far as this person can read it: `undefined` while it loads, `null` where they
+ * can't read it (a member: Zaps and keys are for owners and admins).
+ */
+export type Facts = {
+  /** Zapier subscriptions (owners and admins). */
+  zaps: number | null | undefined
+  /** Working API keys (owners and admins). */
+  apiKeys: number | null | undefined
+  /** The assistants' webhook addresses (synced; only admins get the rows). */
+  webhookUrls: readonly string[] | null | undefined
+  /** Calendar accounts by provider (synced). */
+  calendars: Partial<Record<ProviderId, number>> | undefined
+  /**
+   * The calendar providers this server can connect (Server admin switches CalDAV, Cal.com and Calendly on; Google and
+   * Microsoft need their app); null while not known.
+   */
+  calendarProviders: readonly ProviderId[] | null
+  /** The state of each connected app (synced); an app missing here is not connected. */
+  apps: Partial<Record<ConnectableApp, AppConnection['status']>> | undefined
+  /** The support mailboxes (synced) per provider: how many, and how many need connecting again. */
+  mailboxes: Record<MailProviderId, { count: number; needsReconnect: number }> | undefined
+}
+
+export type Status =
+  /** Set up: `count` things (Zaps, keys, accounts, webhooks) when it says how many. */
+  | { kind: 'connected'; count?: number }
+  | { kind: 'notConnected' }
+  /** Connected, but the app refused the grant or calls failed several times in a row (a connected app). */
+  | { kind: 'needsAttention' }
+  /** Nothing to connect: works with an API key (REST API, MCP). */
+  | { kind: 'ready' }
+  | { kind: 'loading' }
+  /** Only owners and admins can see it (this person is a member). */
+  | { kind: 'adminsOnly' }
+  /** Not built yet: nothing to connect. */
+  | { kind: 'inProgress' }
+  /** A calendar provider this server does not offer (Server admin can switch it on). */
+  | { kind: 'unavailable' }
+
+const counted = (n: number | null | undefined): Status =>
+  n === undefined
+    ? { kind: 'loading' }
+    : n === null
+      ? { kind: 'adminsOnly' }
+      : n > 0
+        ? { kind: 'connected', count: n }
+        : { kind: 'notConnected' }
+
+/** Whether a webhook address belongs to the service (Make: hook.<zone>.make.com; n8n Cloud: <name>.app.n8n.cloud). */
+const HOOK_HOSTS: Record<'make' | 'n8n', RegExp> = { make: /(^|\.)make\.com$/i, n8n: /(^|\.)n8n\.cloud$/i }
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return ''
+  }
+}
+
+export function statusOf(id: IntegrationId, facts: Facts): Status {
+  if (isInProgress(id)) return { kind: 'inProgress' }
+  switch (id) {
+    case 'zapier':
+      return counted(facts.zaps)
+    case 'api-keys':
+      return counted(facts.apiKeys)
+    case 'rest-api':
+    case 'mcp':
+      return { kind: 'ready' }
+    case 'hubspot':
+    case 'slack':
+    case 'jobber':
+    case 'shopify':
+    case 'zoho': {
+      if (facts.apps === undefined) return { kind: 'loading' }
+      const state = facts.apps[id]
+      return state === 'connected'
+        ? { kind: 'connected' }
+        : state === 'needs_attention'
+          ? { kind: 'needsAttention' }
+          : { kind: 'notConnected' }
+    }
+    case 'gmail':
+    case 'outlook-mail': {
+      if (facts.mailboxes === undefined) return { kind: 'loading' }
+      const own = facts.mailboxes[MAIL_CARD_PROVIDER[id]]
+      if (own.needsReconnect > 0) return { kind: 'needsAttention' }
+      return counted(own.count)
+    }
+    case 'webhooks':
+      return counted(facts.webhookUrls === null ? null : facts.webhookUrls?.length)
+    case 'make':
+    case 'n8n':
+      // Connected when a webhook goes to the service's own host; a self-hosted n8n can't be told apart.
+      if (facts.webhookUrls === undefined) return { kind: 'loading' }
+      if (facts.webhookUrls === null) return { kind: 'adminsOnly' }
+      return facts.webhookUrls.some(u => HOOK_HOSTS[id].test(hostOf(u)))
+        ? { kind: 'connected' }
+        : { kind: 'notConnected' }
+    default:
+      if (facts.calendarProviders && !facts.calendarProviders.includes(id)) return { kind: 'unavailable' }
+      return facts.calendars === undefined || facts.calendarProviders === null
+        ? { kind: 'loading' }
+        : counted(facts.calendars[id] ?? 0)
+  }
+}
+
+/**
+ * The page's place in the hash: the catalog, one integration's detail view (`#integrations/zapier`), the place in the
+ * app where a card without a detail view is set up (`#integrations/make` goes to the assistant's webhooks), or a note
+ * that there is nothing at that address (an unknown id, one not built yet, a path below a detail view).
+ */
+export type IntegrationsPlace =
+  | { view: 'catalog' }
+  | { view: 'detail'; id: DetailId }
+  | { view: 'elsewhere'; to: string }
+  | { view: 'missing'; section: string }
+
+export function placeOf(hash: string): IntegrationsPlace {
+  const path = hash.replace(/^#/, '').split('?')[0]!.replace(/\/+$/, '')
+  const [page, id, ...rest] = path.split('/')
+  if (page !== 'integrations' || !id) return { view: 'catalog' }
+  const section = [id, ...rest].join('/')
+  if (rest.length) return { view: 'missing', section }
+  if ((DETAIL_IDS as readonly string[]).includes(id)) return { view: 'detail', id: id as DetailId }
+  // The one Support email card before Gmail and Outlook had a card each: its links (and a connect started then) go to Gmail.
+  if (id === 'support-email')
+    return { view: 'elsewhere', to: `#integrations/gmail${hash.includes('?') ? `?${hash.split('?')[1]}` : ''}` }
+  const opens = CATALOG.find(i => i.id === id)?.opens
+  return opens ? { view: 'elsewhere', to: opens } : { view: 'missing', section }
+}
+
+/**
+ * What the OAuth callback of a connected app put into the hash (`#integrations/hubspot?app=connected` or
+ * `…?app=error&reason=<code>`): whether it worked and why not, or null when the hash carries no result. Only the
+ * known codes count: any other reason (a link someone made up) is the generic `failed`, never shown as text.
+ */
+export function appConnectResult(hash: string): { ok: true } | { ok: false; reason: AppConnectError } | null {
+  const query = hash.split('?')[1]
+  if (!query) return null
+  const params = new URLSearchParams(query)
+  const result = params.get('app')
+  if (result === 'connected') return { ok: true }
+  if (result === 'error') {
+    const reason = params.get('reason')
+    return { ok: false, reason: isAppConnectError(reason) ? reason : 'failed' }
+  }
+  return null
+}
+
+const CONNECT_ERROR: Record<AppConnectError, MessageKey> = {
+  denied: msg('settings.integrations.app.error.denied'),
+  signed_out: msg('settings.integrations.app.error.signedOut'),
+  expired: msg('settings.integrations.app.error.expired'),
+  not_yours: msg('settings.integrations.app.error.notYours'),
+  scope: msg('settings.integrations.app.error.scope'),
+  no_grant: msg('settings.integrations.app.error.noGrant'),
+  not_set_up: msg('settings.integrations.app.error.notSetUp'),
+  setup_needed: msg('settings.integrations.app.error.setupNeeded'),
+  no_secrets_key: msg('settings.integrations.app.error.noSecretsKey'),
+  not_connected: msg('settings.integrations.app.error.notConnected'),
+  shop: msg('settings.integrations.app.error.shop'),
+  verify: msg('settings.integrations.app.error.verify'),
+  failed: msg('settings.integrations.app.connectFailed'),
+}
+
+/**
+ * The text (with `{name}`) for why connecting or disconnecting an app did not work: the callback's reason or the
+ * `code` of an action's rejection. Anything else gets `fallback`.
+ */
+export const appConnectErrorKey = (code: unknown, fallback: MessageKey = CONNECT_ERROR.failed): MessageKey =>
+  isAppConnectError(code) ? CONNECT_ERROR[code] : fallback
+
+const PUSH_ERROR: Record<AppErrorCode, MessageKey> = {
+  auth: msg('settings.integrations.app.pushError.auth'),
+  rate_limited: msg('settings.integrations.app.pushError.rateLimited'),
+  unavailable: msg('settings.integrations.app.pushError.unavailable'),
+  invalid: msg('settings.integrations.app.pushError.invalid'),
+  not_found: msg('settings.integrations.app.pushError.notFound'),
+  call_deleted: msg('settings.integrations.app.pushError.callDeleted'),
+  no_caller_id: msg('settings.integrations.app.pushError.noCallerId'),
+  internal: msg('settings.integrations.app.pushError.internal'),
+  calls_off: msg('settings.integrations.app.pushError.callsOff'),
+  no_contact: msg('settings.integrations.app.pushError.noContact'),
+  channel_not_found: msg('settings.integrations.app.pushError.channelNotFound'),
+  channel_archived: msg('settings.integrations.app.pushError.channelArchived'),
+  not_urgent: msg('settings.integrations.app.pushError.notUrgent'),
+}
+
+/**
+ * The switches app.updateSettings gets when one of them changes: every switch of the app, as shown, with the one
+ * changed. Whole, so the optimistic row is whole too (the server merges them into what is stored).
+ */
+export const appSettingsWith = (
+  app: ConnectableApp,
+  stored: Readonly<Record<string, boolean>> | null | undefined,
+  id: AppSettingId,
+  on: boolean,
+): Record<AppSettingId, boolean> =>
+  Object.fromEntries(APP_SETTINGS[app].map(s => [s, s === id ? on : appSettingOn(stored, s, app)])) as Record<
+    AppSettingId,
+    boolean
+  >
+
+/** The text (with `{name}`) for why a call did not go to a connected app; an unknown code is `internal`'s. */
+/** Codes whose words differ per app: Jobber calls a contact a client, Shopify a customer. */
+const APP_PUSH_ERROR: Partial<Record<ConnectableApp, Partial<Record<AppErrorCode, MessageKey>>>> = {
+  jobber: {
+    not_found: msg('settings.integrations.app.jobber.pushError.notFound'),
+    no_caller_id: msg('settings.integrations.app.jobber.pushError.noCallerId'),
+    no_contact: msg('settings.integrations.app.jobber.pushError.noContact'),
+  },
+  shopify: {
+    not_found: msg('settings.integrations.app.shopify.pushError.notFound'),
+    no_caller_id: msg('settings.integrations.app.shopify.pushError.noCallerId'),
+    no_contact: msg('settings.integrations.app.shopify.pushError.noContact'),
+  },
+}
+
+export const appPushErrorKey = (code: string, app?: ConnectableApp): MessageKey =>
+  (app && APP_PUSH_ERROR[app]?.[code as AppErrorCode]) ?? PUSH_ERROR[code as AppErrorCode] ?? PUSH_ERROR.internal
+
+/** The MCP server and REST API addresses of this install. */
+export const mcpAddress = (origin: string) => `${origin}/mcp`
+export const openApiAddress = (origin: string) => `${origin}/v1/openapi.json`
+
+/** The environment variable the setup snippets read the key from, so no key is ever written into them. */
+export const KEY_VARIABLE = 'LINEDESK_KEY'
+
+/** Adding the MCP server to Claude Code: one command; the first use signs in with OAuth in the browser (LIN-126). */
+export const claudeCodeCommand = (origin: string) => `claude mcp add --transport http linedesk ${mcpAddress(origin)}`
+
+/** Adding it to Codex: Codex signs in with OAuth on its own (`codex mcp login linedesk` signs in again). */
+export const codexCommand = (origin: string) => `codex mcp add linedesk --url ${mcpAddress(origin)}`
+
+/** Adding it to Gemini CLI: it finds the OAuth sign-in from the server's 401. */
+export const geminiCommand = (origin: string) => `gemini mcp add --transport http linedesk ${mcpAddress(origin)}`
+
+/** Cursor's one-click install link (agent-client-links.ts): the address alone, the sign-in is OAuth. */
+export const cursorInstallLink = (origin: string) => cursorMcpInstallLink('linedesk', mcpAddress(origin))
+
+/**
+ * Claude's install link (agent-client-links.ts): opens Add custom connector with the install's name and the address
+ * filled in, the sign-in is OAuth. `admin`: the organization's connector settings, for an owner of Claude Team or
+ * Enterprise.
+ */
+export const claudeInstallLink = (origin: string, name: string, admin = false) =>
+  claudeConnectorLink(name, mcpAddress(origin), admin)
+
+/** VS Code's (or VS Code Insiders') one-click install link: the address alone, the sign-in is OAuth. */
+export const vscodeInstallLink = (origin: string, insiders = false) =>
+  vscodeMcpInstallLink('linedesk', mcpAddress(origin), insiders)
+
+/** With an API key instead of the sign-in (a client that cannot do OAuth): Claude Code. */
+export const claudeCodeKeyCommand = (origin: string) =>
+  `${claudeCodeCommand(origin)} --header "Authorization: Bearer $${KEY_VARIABLE}"`
+
+/** With an API key instead of the sign-in: clients that read an `mcpServers` JSON file. */
+export function mcpJson(origin: string): string {
+  // i18n-ignore: the client's header value, not UI text
+  const authorization = `Bearer \${env:${KEY_VARIABLE}}`
+  return JSON.stringify(
+    { mcpServers: { linedesk: { url: mcpAddress(origin), headers: { Authorization: authorization } } } },
+    null,
+    2,
+  )
+}
+
+/** A first REST call: the key's workspace (GET /v1/api-key). */
+export const curlExample = (origin: string) =>
+  `curl ${origin}/v1/api-key \\\n  -H "Authorization: Bearer $${KEY_VARIABLE}"`
+
+/**
+ * What the OAuth callback of a mailbox connect put into the hash (`#integrations/gmail?mail=connected` or
+ * `…?mail=error&reason=<code>`), like appConnectResult: only the known codes count.
+ */
+export function mailConnectResult(hash: string): { ok: true } | { ok: false; reason: MailConnectError } | null {
+  const query = hash.split('?')[1]
+  if (!query) return null
+  const params = new URLSearchParams(query)
+  const result = params.get('mail')
+  if (result === 'connected') return { ok: true }
+  if (result === 'error') {
+    const reason = params.get('reason')
+    return { ok: false, reason: isMailConnectError(reason) ? reason : 'failed' }
+  }
+  return null
+}
+
+const MAIL_ERROR: Record<MailConnectError, MessageKey> = {
+  denied: msg('settings.integrations.mail.error.denied'),
+  signed_out: msg('settings.integrations.mail.error.signedOut'),
+  expired: msg('settings.integrations.mail.error.expired'),
+  other_workspace: msg('settings.integrations.mail.error.otherWorkspace'),
+  scope: msg('settings.integrations.mail.error.scope'),
+  no_grant: msg('settings.integrations.mail.error.noGrant'),
+  not_set_up: msg('settings.integrations.mail.error.notSetUp'),
+  no_secrets_key: msg('settings.integrations.mail.error.noSecretsKey'),
+  api_disabled: msg('settings.integrations.mail.error.apiDisabled'),
+  app_refused: msg('settings.integrations.mail.error.appRefused'),
+  account_refused: msg('settings.integrations.mail.error.accountRefused'),
+  unavailable: msg('settings.integrations.mail.error.unavailable'),
+  not_connected: msg('settings.integrations.mail.error.notConnected'),
+  failed: msg('settings.integrations.mail.connectFailed'),
+}
+
+/** The text (with `{provider}`) for why connecting or disconnecting a mailbox did not work; anything else: `fallback`. */
+export const mailConnectErrorKey = (code: unknown, fallback: MessageKey = MAIL_ERROR.failed): MessageKey =>
+  isMailConnectError(code) ? MAIL_ERROR[code] : fallback

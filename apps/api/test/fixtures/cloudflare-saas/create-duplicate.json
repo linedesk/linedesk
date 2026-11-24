@@ -1,0 +1,6 @@
+{
+  "success": false,
+  "errors": [{ "code": 1406, "message": "Duplicate custom hostname found." }],
+  "messages": [],
+  "result": null
+}

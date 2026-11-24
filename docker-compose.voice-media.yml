@@ -1,0 +1,92 @@
+# Voice server 1: LiveKit, SIP, egress and an agent worker, for an install whose app server runs
+# docker-compose.voice-link.yml (docs/hosting.md, "Separate voice servers"). On voice server 1 only:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.voice-media.yml
+# Further voice servers run docker-compose.voice.yml alone (an agent worker only).
+#
+# The call services are the ones of docker-compose.yml, unchanged (same images, same settings, same updates through
+# scripts/deploy.sh); this file only turns off what belongs on the app server (Postgres, Electric, the API, Caddy, the
+# web app) and adds the voice link. So compose still reads docker-compose.yml as a whole: ELECTRIC_SECRET must be set
+# in .env, to any value (nothing here uses it).
+#
+# The voice link (this server's): LiveKit's port 7880 (worker registration and dispatch, room signalling, the LiveKit
+# API) on LINEDESK_VOICE_LINK_IP, this server's WireGuard address. The app server reaches it (the API: test calls, the
+# voice status check, SIP setup; Caddy: /rtc for the browser) and so do the agent workers of the other voice servers.
+# Plain HTTP and WebSocket, so only inside WireGuard, and only from the addresses in /etc/linedesk/voice-nodes.txt
+# (ops/server: linedesk-voice-link-firewall, the same checks in scripts/deploy.sh as on the app server). Call audio
+# and SIP do not pass here: they reach LiveKit's public address (LIVEKIT_NODE_IP) as on a single server.
+#
+# More than one agent worker: each must stop taking calls when it is full, and LiveKit must know the same threshold
+# (agents.target_load in docker-compose.yml). So AGENT_LOAD_THRESHOLD is required here.
+
+services:
+  postgres:
+    profiles: [on-app-server]
+  electric:
+    profiles: [on-app-server]
+  api:
+    profiles: [on-app-server]
+  proxy:
+    profiles: [on-app-server]
+  web:
+    profiles: [on-app-server]
+
+  agent:
+    environment:
+      # The app server's voice link (its docker-compose.voice-link.yml): the API's internal listener.
+      LINEDESK_API_URL: http://${LINEDESK_MAIN_HOST:?set LINEDESK_MAIN_HOST in .env to the app server's WireGuard address}:3100
+      AGENT_LOAD_THRESHOLD: ${AGENT_LOAD_THRESHOLD:?set AGENT_LOAD_THRESHOLD in .env (e.g. 0.8), the same on every voice server}
+    depends_on: !override
+      livekit: { condition: service_started }
+
+  voice-link:
+    image: caddy:2-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+    entrypoint: ["/bin/sh", "-c"]
+    # flush_interval -1: LiveKit signalling is long-lived. No admin endpoint, no certificates, no saved config: the
+    # container is read-only. Only what the app server and the agent workers use; the rest of LiveKit's API is refused.
+    command:
+      - |
+        cat > /tmp/Caddyfile <<'EOF'
+        {
+          admin off
+          auto_https off
+          persist_config off
+        }
+        :7880 {
+          @livekit path /agent /rtc /rtc/* /twirp/livekit.RoomService/* /twirp/livekit.SIP/* /twirp/livekit.Egress/* /twirp/livekit.AgentDispatchService/*
+          handle @livekit {
+            reverse_proxy livekit:7880 {
+              flush_interval -1
+            }
+          }
+          handle {
+            respond 404
+          }
+        }
+        EOF
+        exec caddy run --adapter caddyfile --config /tmp/Caddyfile
+    environment:
+      XDG_CONFIG_HOME: /tmp
+      XDG_DATA_HOME: /tmp
+    ports:
+      - "${LINEDESK_VOICE_LINK_IP:?set LINEDESK_VOICE_LINK_IP in .env to this server's WireGuard address (docs/hosting.md)}:7880:7880"
+    user: "1000:1000"
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    depends_on:
+      livekit: { condition: service_started }
+    mem_limit: ${LINEDESK_VOICE_LINK_MEM:-48m}
+    cpus: ${LINEDESK_VOICE_LINK_CPUS:-0.1}
+
+  # LiveKit's keys: the main one (the app server, SIP, egress and this server's agent) and, optional, one per further
+  # voice server, so one can be shut out on its own (docs/hosting.md, "Remove or shut out a voice server").
+  # LINEDESK_VOICE_LIVEKIT_KEYS: `voice-2: <secret>, voice-3: <secret>`, each secret at least 32 characters of letters
+  # and digits (openssl rand -hex 32). LIVEKIT_KEYS replaces the `keys:` of LiveKit's config, so it names the main key too.
+  livekit:
+    environment:
+      LIVEKIT_KEYS: '{"${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env (see .env.example)}": "${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET in .env (see .env.example)}"${LINEDESK_VOICE_LIVEKIT_KEYS:+, ${LINEDESK_VOICE_LIVEKIT_KEYS}}}'

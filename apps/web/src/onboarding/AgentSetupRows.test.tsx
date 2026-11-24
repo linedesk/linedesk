@@ -1,0 +1,248 @@
+import type { AgentSetupState } from '@linedesk/actions'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { expect, test, vi } from 'vitest'
+import {
+  AgentEndedNote,
+  NEW_WORKSPACE,
+  openWorkspaceFromHere,
+  partnerOrder,
+  StepAction,
+  WorkspacePicker,
+  withTestCallMade,
+  WorkspaceHeading,
+  workspaceOptions,
+} from './AgentSetup.tsx'
+import { draftOpenedFrom } from './flow.ts'
+import type { ResumeAction } from './resume-after-switch.ts'
+
+type Step = AgentSetupState['progress']['steps'][number]
+const step = (id: string, state: Step['state']): Step => ({ id, label: id, group: 'business', state })
+const workspace = { id: 'ws_1', account: 'u_1' }
+/** One row's action: `here` is the workspace shown when it is this tab's; `onSwitch` when it is another one. */
+const row = (
+  s: Step,
+  here: typeof workspace | null = workspace,
+  onSwitch: ((action: ResumeAction) => void) | null = null,
+  more: Partial<
+    Pick<
+      Parameters<typeof StepAction>[0],
+      'switching' | 'resume' | 'trial' | 'activatePartnerId' | 'onAddClient' | 'clientsFull'
+    >
+  > = {},
+) =>
+  renderToStaticMarkup(
+    <StepAction
+      step={s}
+      workspace={here}
+      onSwitch={onSwitch}
+      {...more}
+      assistantName="Maya"
+      onCalled={() => {}}
+      reload={async () => {}}
+    />,
+  )
+
+test('the test call is made right on the setup page: "Call Maya now", never "do this in the app"', () => {
+  // A row's button is secondary: the page's one black primary is the setup link's (2026-11-18).
+  const open = row(step('test_call', 'admin_only'))
+  expect(open).not.toContain('k-btn-primary')
+  expect(open).toMatch(/k-btn-secondary[^>]*>.*Call Maya now/)
+  expect(open).not.toMatch(/in the app/)
+  // Done: a quiet Call again, so a call still running keeps its panel.
+  const done = row(step('test_call', 'done'))
+  expect(done).toContain('Call again')
+  expect(done).not.toContain('k-btn-primary')
+  // Before the workspace exists there is nothing to call yet.
+  expect(row(step('test_call', 'admin_only'), null)).toContain('once the workspace exists')
+  expect(row(step('test_call', 'done'), null)).toBe('')
+})
+
+test('the buttons always act on the workspace shown: another than the active one is opened first, never hidden (LIN-237)', () => {
+  const switchTo = () => {}
+  const call = row(step('test_call', 'admin_only'), null, switchTo)
+  expect(call).toMatch(/k-btn-secondary[^>]*>.*Call Maya now/)
+  expect(call).toContain('Opens this workspace in this tab, then calls')
+  expect(call).not.toMatch(/tab of your first workspace/)
+  const forwarding = row(step('forwarding', 'todo'), null, switchTo)
+  expect(forwarding).toContain('Set up forwarding')
+  expect(forwarding).toContain('Opens this workspace in this tab, then its forwarding settings')
+  expect(row(step('forwarding', 'done'), null, switchTo)).toBe('')
+  expect(row(step('test_call', 'done'), null, switchTo)).toBe('')
+})
+
+test('one click is enough: the clicked button is busy while the tab switches, the other one waits (LIN-237)', () => {
+  const switchTo = () => {}
+  const busy = /<button[^>]*aria-busy="true"/
+  const disabled = /<button[^>]*disabled/
+  // The test call was clicked: it spins, forwarding cannot start a second switch.
+  const calling = row(step('test_call', 'admin_only'), null, switchTo, { switching: 'test_call' })
+  expect(calling).toMatch(busy)
+  const forwardingWaits = row(step('forwarding', 'todo'), null, switchTo, { switching: 'test_call' })
+  expect(forwardingWaits).not.toMatch(busy)
+  expect(forwardingWaits).toMatch(disabled)
+  expect(row(step('forwarding', 'todo'), null, switchTo, { switching: 'forwarding' })).toMatch(busy)
+  // Nothing under way: both can be clicked.
+  expect(row(step('forwarding', 'todo'), null, switchTo)).not.toMatch(disabled)
+  expect(row(step('test_call', 'admin_only'), null, switchTo)).not.toMatch(disabled)
+})
+
+test('the workspace dropdown lists every workspace with how far it got, and New workspace… last (LIN-237)', () => {
+  const two = [
+    { id: 'ws_1', name: 'Brightwater Plumbing & Heating', done: 8, total: 8 },
+    { id: 'ws_2', name: 'Brightwater Salem', done: 2, total: 8 },
+  ]
+  expect(workspaceOptions(two)).toEqual([
+    { value: 'ws_1', label: 'Brightwater Plumbing & Heating', description: 'Set up' },
+    { value: 'ws_2', label: 'Brightwater Salem', description: '2 of 8 done' },
+    { value: NEW_WORKSPACE, label: 'New workspace…', description: 'Another business or location' },
+  ])
+  // None yet: said so, and a new one can be made right here.
+  expect(workspaceOptions([]).map(o => o.label)).toEqual(['No workspace yet', 'New workspace…'])
+  // A partner owner's page: client workspaces, and a new one is a seat on the partner bill (before the Checkout a
+  // free draft).
+  expect(workspaceOptions([], true).at(-1)).toEqual({
+    value: '__new',
+    label: 'Add client…',
+    description: 'Adds a seat to your partner bill',
+  })
+  expect(workspaceOptions([], true, true).at(-1)?.description).toBe('Free draft until you activate White-label Cloud')
+  // The dropdown heads the workspace steps and shows the picked one; while switching it waits.
+  const html = renderToStaticMarkup(
+    <WorkspacePicker workspaces={two} selectedId="ws_2" busy={null} onPick={() => {}} />,
+  )
+  expect(html).toContain('id="as-group-business"')
+  expect(html).toMatch(/aria-label="Workspace whose steps are shown: Brightwater Salem"/)
+  expect(html).not.toMatch(/<button[^>]*disabled/)
+  const busy = renderToStaticMarkup(
+    <WorkspacePicker workspaces={two} selectedId="ws_2" busy="ws_1" onPick={() => {}} />,
+  )
+  expect(busy).toMatch(/<button[^>]*disabled/)
+  expect(busy).toContain('Brightwater Plumbing &amp; Heating')
+})
+
+test('call forwarding opens its settings dialog on the page while it is open; the agent steps have no action', () => {
+  expect(row(step('forwarding', 'todo'))).toContain('Set up forwarding')
+  expect(row(step('forwarding', 'done'))).toBe('')
+  for (const id of ['answering', 'telephony', 'email', 'call-audio', 'business', 'phone'])
+    expect(row(step(id, 'todo'))).toBe('')
+})
+
+test('a test call answered here shows the step done at once', () => {
+  const steps = [step('phone', 'done'), step('test_call', 'admin_only')]
+  expect(withTestCallMade(steps, false)).toEqual(steps)
+  expect(withTestCallMade(steps, true)[1]).toMatchObject({ id: 'test_call', state: 'done' })
+})
+
+test('the page says when the agent ended its own access', () => {
+  const at = new Date()
+  at.setHours(17, 58, 0, 0)
+  const html = renderToStaticMarkup(<AgentEndedNote at={at.toISOString()} />)
+  expect(html).toMatch(/Your agent ended its access at 5:58\s?PM\./)
+  expect(html).toContain('Create a new link any time')
+})
+
+test('after the reload into the clicked workspace the row carries on by itself: dialog opening, call starting (LIN-237)', () => {
+  // Not clicked before: the plain buttons.
+  expect(row(step('forwarding', 'todo'))).not.toMatch(/aria-busy="true"/)
+  expect(row(step('test_call', 'admin_only'))).not.toMatch(/aria-busy="true"/)
+  // Clicked before the switch: the workspace's store opens at once for the dialog or the call (busy meanwhile).
+  expect(row(step('forwarding', 'todo'), workspace, null, { resume: 'forwarding' })).toMatch(/aria-busy="true"/)
+  expect(row(step('test_call', 'admin_only'), workspace, null, { resume: 'test_call' })).toMatch(/aria-busy="true"/)
+  // Only the row it was clicked on.
+  expect(row(step('forwarding', 'todo'), workspace, null, { resume: 'test_call' })).not.toMatch(/aria-busy="true"/)
+})
+
+test("a workspace owner's page names its one workspace: no dropdown, no New workspace, no server part", () => {
+  const heading = renderToStaticMarkup(<WorkspaceHeading name="Brightwater Plumbing & Heating" />)
+  expect(heading).toContain('Business')
+  expect(heading).toContain('as-ws-name')
+  // Made by sign-up and not named yet: no placeholder name.
+  expect(renderToStaticMarkup(<WorkspaceHeading name="My business" unnamed />)).toContain(
+    'Your business · not named yet',
+  )
+  expect(heading).not.toContain('k-select')
+  expect(heading).not.toContain('New workspace')
+})
+
+test("Start your free trial: the owner's own row once the free steps are done, never before and never without the trial", () => {
+  const activation = {
+    planCents: 1100,
+    interval: 'month',
+    trialDays: 14,
+    firstChargeAt: null,
+    reminderDays: [7, 1],
+    includedMinutes: 50,
+    standardMicrosPerMinute: 50_000,
+    terms: null,
+  }
+  const me = { workspace: { id: 'ws_1', name: 'Brightwater', activation } } as never
+  const trial = { me, onTermsChanged: () => {} }
+  expect(row(step('activate', 'admin_only'), workspace, null, { trial })).toMatch(
+    /k-btn-secondary[^>]*>.*Start free trial/,
+  )
+  expect(row(step('activate', 'todo'), workspace, null, { trial })).toBe('')
+  expect(row(step('activate', 'admin_only'))).toBe('')
+  const plan = {
+    me: { workspace: { id: 'ws_1', name: 'B', activation: { ...activation, trialDays: null } } } as never,
+    onTermsChanged: () => {},
+  }
+  expect(row(step('activate', 'admin_only'), workspace, null, { trial: plan })).toContain('Start plan')
+})
+
+test("a partner page before Checkout: agency, brand, clients, the client's steps, Activate last; Team waits", () => {
+  const p = (id: string, state: Step['state'] = 'todo') => ({ ...step(id, state), group: 'partner' as const })
+  const w = (id: string) => ({ ...step(id, 'todo'), group: 'business' as const })
+  const steps = [p('company', 'done'), p('brand'), p('team'), p('clients'), p('plan', 'admin_only'), w('business')]
+  expect(partnerOrder(steps).map(s => s.id)).toEqual(['company', 'brand', 'clients', 'business', 'plan'])
+  // Once paid, Team is back in its place and nothing moves.
+  const paid = steps.map(s => (s.id === 'plan' ? p('plan', 'done') : s))
+  expect(partnerOrder(paid).map(s => s.id)).toEqual(['company', 'brand', 'team', 'clients', 'plan', 'business'])
+})
+
+test("Activate White-label Cloud: the partner owner's own row while unpaid, gone once paid (setup before payment)", () => {
+  const plan = (state: Step['state']) => ({ ...step('plan', state), group: 'partner' as const })
+  const open = row(plan('admin_only'), null, null, { activatePartnerId: 'ptn_1' })
+  expect(open).toMatch(/k-btn-secondary[^>]*>(<[^>]+>)*Activate</)
+  // It opens the setup's one Activate step (the drafts, the total, Checkout), never a Checkout of its own.
+  expect(open).toContain('Your clients and the total, then Stripe Checkout')
+  expect(row(plan('done'), null, null, { activatePartnerId: 'ptn_1' })).toBe('')
+  // Not a partner owner's page: no button.
+  expect(row(plan('admin_only'), null)).toBe('')
+})
+
+test('Add client on a partner page: greyed at the draft cap before Checkout, saying more come after activating', () => {
+  const clients = { ...step('clients', 'done'), group: 'partner' as const }
+  const open = row(clients, null, null, { onAddClient: () => {} })
+  expect(open).not.toContain('disabled=""')
+  const full = row(clients, null, null, { onAddClient: () => {}, clientsFull: true })
+  expect(full).toContain('disabled=""')
+  expect(full).toContain('You can add more after you activate.')
+})
+
+test("a client draft opened from the partner's agent page comes back there at its last step, not to the partner area", async () => {
+  const memory = new Map<string, string>()
+  vi.stubGlobal('sessionStorage', {
+    getItem: (k: string) => memory.get(k) ?? null,
+    setItem: (k: string, v: string) => memory.set(k, v),
+  })
+  try {
+    const open = vi.fn(async () => {})
+    await openWorkspaceFromHere('ws_draft', '#partner/agent', open)
+    expect(open).toHaveBeenCalledWith('ws_draft', null)
+    expect(draftOpenedFrom('ws_draft')).toBe('#partner/agent')
+    // From an owner's or the install's page: nothing partner-like to go back to.
+    await openWorkspaceFromHere('ws_own', '#setup-agent', open)
+    expect(draftOpenedFrom('ws_own')).toBeNull()
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
+test("a partner's Team row offers Invite, which opens the partner area's team; never for a client or once done", () => {
+  const team = (state: Step['state']): Step => ({ id: 'team', label: 'Team', group: 'partner', state })
+  const invite = row(team('todo'), workspace, null, { activatePartnerId: 'p_1' })
+  expect(invite).toMatch(/k-btn-secondary[^>]*>.*Invite/)
+  expect(invite).toContain('Invite your team in the partner area')
+  expect(row(team('done'), workspace, null, { activatePartnerId: 'p_1' })).not.toContain('Invite')
+  expect(row(team('todo'), workspace, null)).not.toContain('>Invite')
+})

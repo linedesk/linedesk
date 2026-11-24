@@ -1,0 +1,55 @@
+{
+  "id": "call_3f2a9c1d7e4b5a6c8d90",
+  "event": "call_finished",
+  "call_id": "call_3f2a9c1d7e4b5a6c8d90",
+  "workspace_id": "ws_brightwater",
+  "assistant_id": "as_maya",
+  "assistant_name": "Maya",
+  "direction": "in",
+  "from_number": "+15035550123",
+  "to_number": "+15035550100",
+  "started_at": "2026-11-12T16:02:11.000Z",
+  "ended_at": "2026-11-12T16:03:46.000Z",
+  "duration_sec": 95,
+  "outcome": "message",
+  "urgency": "normal",
+  "title": "Water heater leaking",
+  "summary": "Sam Taylor reports a leaking water heater and asks for a visit tomorrow morning.",
+  "next_steps": [{ "text": "Call Sam back to schedule a visit tomorrow", "kind": "message" }],
+  "fields": [{ "label": "Issue", "value": "Leaking water heater" }],
+  "caller": {
+    "contact_id": "ct_sam",
+    "name": "Sam Taylor",
+    "name_confirmed": true,
+    "company": null,
+    "email": "sam@example.com"
+  },
+  "caller_details": null,
+  "transcript": [
+    {
+      "speaker": "agent",
+      "text": "Thanks for calling Brightwater Plumbing & Heating, this is Maya. How can I help?",
+      "at_ms": 0
+    },
+    {
+      "speaker": "caller",
+      "text": "Hi, this is Sam. My water heater is leaking, can someone come by tomorrow?",
+      "at_ms": 4200
+    }
+  ],
+  "transcript_text": "Maya: Thanks for calling Brightwater Plumbing & Heating, this is Maya. How can I help?\nCaller: Hi, this is Sam. My water heater is leaking, can someone come by tomorrow?",
+  "bookings": [],
+  "transfer": null,
+  "call_url": "https://app.linedesk.ai/#call/call_3f2a9c1d7e4b5a6c8d90",
+  "recording_url": null,
+  "recording_expires_at": null,
+  "caller_name": "Sam Taylor",
+  "caller_company": null,
+  "caller_email": "sam@example.com",
+  "caller_contact_id": "ct_sam",
+  "next_steps_text": "Call Sam back to schedule a visit tomorrow",
+  "fields_text": "Issue: Leaking water heater",
+  "booking_start_at": null,
+  "booking_end_at": null,
+  "booking_title": null
+}

@@ -1,11 +1,9 @@
-# Code of Conduct
+# Code of conduct
 
-Linedesk follows the [Contributor Covenant, version 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/).
+Linedesk adopts the [Contributor Covenant, version 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/) as its code of conduct. It applies to everyone in every project space: issues, pull requests, discussions, chat and events.
 
-In short: be respectful, be patient with newcomers, criticise ideas and not people, and do not harass anyone. This applies in issues, pull requests, discussions and every other project space.
+In short: be welcoming and respectful, accept constructive criticism, focus on what is best for the community, and no harassment, insults or publishing other people's private information.
 
 ## Reporting
 
-If someone behaves in a way that breaks this code, email [conduct@linedesk.ai](mailto:conduct@linedesk.ai). Reports are handled confidentially.
-
-Maintainers may remove comments, commits and contributions that break this code, and may ban contributors temporarily or permanently.
+Report unacceptable behaviour to [hello@linedesk.ai](mailto:hello@linedesk.ai). All reports are reviewed promptly and handled confidentially. Maintainers enforce the code following the Contributor Covenant's enforcement guidelines (correction, warning, temporary ban, permanent ban).

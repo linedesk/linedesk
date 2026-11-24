@@ -1,0 +1,493 @@
+import { actions } from '@linedesk/actions'
+import { account, agent_setup_keys, api_keys, app_connections, assistants, auth_events, calendar_connections, integration_subscriptions, invitation, member, passkey, personal_keys, phone_numbers, session, user, webhook_endpoints } from '@linedesk/db'
+import { DEFAULT_TRANSFERS } from '@linedesk/db/types'
+import { APIError } from 'better-auth/api'
+import { and, eq, inArray } from 'drizzle-orm'
+import { afterEach, expect, test, vi } from 'vitest'
+import {
+  dropUnprovenAccessOf,
+  refuseSessionWithoutItsSignIn,
+} from '../src/account-linking.ts'
+import { mustConfirmEmail } from '../src/auth-methods.ts'
+import { hashApiKey } from '../src/api-keys.ts'
+import { db } from '../src/db.ts'
+import { emailSender } from '../src/email.ts'
+import { NEEDS_CONFIRMED_EMAIL } from '../src/run-action.ts'
+import { auth, confirmationCodeEmail } from '../src/auth.ts'
+import { CLIENT_IP_HEADER } from '../src/client-ip.ts'
+import { addressAndIpKey, codeFailures, countSignInFailures, limitSignIns } from '../src/sign-in-limits.ts'
+import { act, anonymous, createWorkspace, FROM, randomIp, request, signUp } from './helpers.ts'
+
+afterEach(() => vi.restoreAllMocks())
+
+/** A transfer contact with a number and the number forwarding every call, as someone could have set them up before confirmation was required. */
+const PLANTED_CONTACT = {
+  id: 'oncall', name: 'On-call', number: '+15035550142', condition: 'Urgent', hours_only: false,
+  ring_seconds: 25, if_no_answer: 'message' as const, enabled: true,
+}
+const plantCallRouting = async (ws: { assistant: { id: string }; number: string }) => {
+  await db.update(assistants).set({ transfers: [PLANTED_CONTACT] }).where(eq(assistants.id, ws.assistant.id))
+  await db.update(phone_numbers).set({ mode: 'forward_all' }).where(eq(phone_numbers.e164, ws.number))
+}
+const callRoutingOf = async (ws: { assistant: { id: string }; number: string }) => {
+  const [a] = await db.select().from(assistants).where(eq(assistants.id, ws.assistant.id))
+  const [n] = await db.select().from(phone_numbers).where(eq(phone_numbers.e164, ws.number))
+  return { transfers: a!.transfers, mode: n!.mode }
+}
+const PLANTED = { transfers: [PLANTED_CONTACT], mode: 'forward_all' }
+
+const bearer = (key: string) => ({ headers: { authorization: `Bearer ${key}` } })
+
+test('unconfirmed members cannot perform sensitive actions, and their own confirmation preserves access', async () => {
+  const ws = await createWorkspace('Confirmation')
+  expect((await act(ws.owner, 'apiKey.create', { name: 'Existing', role: 'admin' })).status).toBe(200)
+  await db.update(user).set({ emailVerified: false }).where(eq(user.id, ws.owner.userId))
+  const [owner] = await db.select().from(user).where(eq(user.id, ws.owner.userId))
+  expect((await request(ws.owner, 'GET', '/v1/me')).body.emailUnconfirmed).toBe(true)
+  // A partner owner's actions need the partner permission first; setup-mcp-partner.test.ts checks them with a partner owner.
+  const partnerOwnerOnly = [...NEEDS_CONFIRMED_EMAIL].filter(action => actions.get(action)?.permission === 'partner')
+  expect(partnerOwnerOnly).toEqual(['agentSetup.createPartnerKey'])
+  for (const action of NEEDS_CONFIRMED_EMAIL) {
+    if (partnerOwnerOnly.includes(action)) continue
+    expect(await act(ws.owner, action, {})).toMatchObject({ status: 403, body: { code: 'EMAIL_NOT_VERIFIED' } })
+  }
+  // Calendar connections, forwarding and the call export are in the list; the assistant's warm transfer is refused only when it is set.
+  for (const action of ['calendar.connectStart', 'calendar.connectFinish', 'calendar.connectWithPassword', 'phoneNumber.update', 'call.export'])
+    expect(NEEDS_CONFIRMED_EMAIL).toContain(action)
+  const assistantId = ws.assistant.id
+  const contact = { ...PLANTED_CONTACT, number: '+15035550199' }
+  for (const transfer of [{ transfers: [contact] }, { transfers: [{ ...contact, hours_only: true }, { ...contact, id: 'b', name: 'B', enabled: false }] }])
+    expect(await act(ws.owner, 'assistant.update', { assistantId, ...transfer })).toMatchObject({
+      status: 403,
+      body: { code: 'EMAIL_NOT_VERIFIED' },
+    })
+  // Contacts switched off or without a number put nobody through.
+  for (const allowed of [{ greeting: 'Hi, Brightwater Plumbing.' }, { transfers: [{ ...contact, enabled: false }] }, { transfers: [{ ...contact, number: null }] }, { transfers: [] }])
+    expect((await act(ws.owner, 'assistant.update', { assistantId, ...allowed })).status).toBe(200)
+  const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
+  await plantCallRouting(ws)
+  const sendCode = () =>
+    request(
+      ws.owner,
+      'POST',
+      '/api/auth/email-otp/send-verification-otp',
+      { email: owner!.email, type: 'email-verification' },
+      { [FROM]: randomIp() },
+    )
+  expect((await sendCode()).status).toBe(200)
+  await vi.waitFor(() => expect(send).toHaveBeenCalled())
+  const otp = send.mock.calls.at(-1)![0].subject.slice(0, 6)
+  const before = await db.select().from(account).where(eq(account.userId, ws.owner.userId))
+  expect(
+    (
+      await request(
+        ws.owner,
+        'POST',
+        '/api/auth/email-otp/verify-email',
+        { email: owner!.email, otp },
+        { [FROM]: randomIp() },
+      )
+    ).status,
+  ).toBe(200)
+  expect((await request(ws.owner, 'GET', '/v1/me')).body.emailUnconfirmed).toBe(false)
+  // Confirmed in their own session: warm transfer and forwarding stay as they are.
+  expect(await callRoutingOf(ws)).toEqual(PLANTED)
+  expect(await db.select().from(account).where(eq(account.userId, ws.owner.userId))).toEqual(before)
+  expect(await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.id, ws.webhookEndpoint.id))).toHaveLength(
+    1,
+  )
+  const key = await act(ws.owner, 'apiKey.create', { name: 'Confirmed', role: 'admin' })
+  expect(key.status).toBe(200)
+  expect(await db.select().from(api_keys).where(eq(api_keys.created_by, ws.owner.userId))).toHaveLength(2)
+  expect(
+    (await db.select().from(api_keys).where(eq(api_keys.created_by, ws.owner.userId))).every(
+      key => key.revoked_at === null,
+    ),
+  ).toBe(true)
+  // An already-confirmed account cannot run confirmation again to trigger cleanup.
+  expect((await sendCode()).status).toBe(403)
+  expect(await db.select().from(api_keys).where(eq(api_keys.created_by, ws.owner.userId))).toHaveLength(2)
+})
+
+test('confirmation codes require a session of that address, including when redeeming a valid code', async () => {
+  const ws = await createWorkspace('Confirmation isolation')
+  await db.update(user).set({ emailVerified: false }).where(eq(user.id, ws.owner.userId))
+  const other = await createWorkspace('Other confirmation')
+  const [owner] = await db.select().from(user).where(eq(user.id, ws.owner.userId))
+  const payload = { email: owner!.email, type: 'email-verification' }
+  const extra = () => ({ origin: 'http://localhost:5173', [FROM]: randomIp() })
+  const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
+  for (const caller of [anonymous, other.owner])
+    expect((await request(caller, 'POST', '/api/auth/email-otp/send-verification-otp', payload, extra())).status).toBe(
+      403,
+    )
+  expect(send).not.toHaveBeenCalled()
+  expect((await request(ws.owner, 'POST', '/api/auth/email-otp/send-verification-otp', payload, extra())).status).toBe(
+    200,
+  )
+  await vi.waitFor(() => expect(send).toHaveBeenCalled())
+  const otp = send.mock.calls.at(-1)![0].subject.slice(0, 6)
+  for (const caller of [anonymous, other.owner])
+    expect(
+      (await request(caller, 'POST', '/api/auth/email-otp/verify-email', { email: owner!.email, otp }, extra())).status,
+    ).toBe(403)
+  expect(
+    (await request(ws.owner, 'POST', '/api/auth/email-otp/verify-email', { email: owner!.email, otp }, extra())).status,
+  ).toBe(200)
+})
+
+test('an admin signed in as an unconfirmed member can neither ask for nor redeem their confirmation code', async () => {
+  const ws = await createWorkspace('Confirmation impersonated')
+  await db.update(user).set({ emailVerified: false }).where(eq(user.id, ws.owner.userId))
+  const admin = await createWorkspace('Confirming admin')
+  const [owner] = await db.select().from(user).where(eq(user.id, ws.owner.userId))
+  const extra = () => ({ origin: 'http://localhost:5173', [FROM]: randomIp() })
+  const askForCode = () =>
+    request(
+      ws.owner,
+      'POST',
+      '/api/auth/email-otp/send-verification-otp',
+      { email: owner!.email, type: 'email-verification' },
+      extra(),
+    )
+  const redeem = (otp: string) =>
+    request(ws.owner, 'POST', '/api/auth/email-otp/verify-email', { email: owner!.email, otp }, extra())
+  const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
+  // A valid code, asked for by the member themselves.
+  expect((await askForCode()).status).toBe(200)
+  await vi.waitFor(() => expect(send).toHaveBeenCalled())
+  const otp = send.mock.calls.at(-1)![0].subject.slice(0, 6)
+  send.mockClear()
+  const impersonate = (by: string | null) =>
+    db.update(session).set({ impersonatedBy: by }).where(eq(session.userId, ws.owner.userId))
+  await impersonate(admin.owner.userId)
+  expect(await askForCode()).toMatchObject({ status: 403, body: { code: 'NOT_WHILE_IMPERSONATING' } })
+  expect(send).not.toHaveBeenCalled()
+  expect(await redeem(otp)).toMatchObject({ status: 403, body: { code: 'NOT_WHILE_IMPERSONATING' } })
+  expect((await db.select().from(user).where(eq(user.id, ws.owner.userId)))[0]!.emailVerified).toBe(false)
+  // Sign-in codes go through the same endpoint and stay as they were.
+  expect(
+    (
+      await request(
+        ws.owner,
+        'POST',
+        '/api/auth/email-otp/send-verification-otp',
+        { email: owner!.email, type: 'sign-in' },
+        extra(),
+      )
+    ).status,
+  ).toBe(200)
+  // The refused attempt left the member's own code alone.
+  await impersonate(null)
+  expect((await redeem(otp)).status).toBe(200)
+  expect((await db.select().from(user).where(eq(user.id, ws.owner.userId)))[0]!.emailVerified).toBe(true)
+})
+
+test('code sign-in removes legacy access only while the address is unconfirmed', async () => {
+  const ws = await createWorkspace('Code recovery')
+  expect((await act(ws.owner, 'apiKey.create', { name: 'Legacy', role: 'admin' })).status).toBe(200)
+  const [owner] = await db.select().from(user).where(eq(user.id, ws.owner.userId))
+  const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
+  const signIn = async () => {
+    send.mockClear()
+    const extra = () => ({ origin: 'http://localhost:5173', [FROM]: randomIp() })
+    expect(
+      (
+        await request(
+          anonymous,
+          'POST',
+          '/api/auth/email-otp/send-verification-otp',
+          { email: owner!.email, type: 'sign-in' },
+          extra(),
+        )
+      ).status,
+    ).toBe(200)
+    await vi.waitFor(() => expect(send).toHaveBeenCalled())
+    const otp = send.mock.calls.at(-1)![0].subject.slice(0, 6)
+    expect(
+      (await request(anonymous, 'POST', '/api/auth/sign-in/email-otp', { email: owner!.email, otp }, extra())).status,
+    ).toBe(200)
+  }
+  // Another workspace the account is only a member of keeps its routing.
+  const other = await createWorkspace('Not theirs')
+  await auth.api.addMember({ body: { userId: ws.owner.userId, organizationId: other.id, role: 'member' } })
+  await plantCallRouting(ws)
+  await plantCallRouting(other)
+  const resets = () => db.select().from(auth_events).where(and(eq(auth_events.user_id, ws.owner.userId), eq(auth_events.event, 'call_routing_reset')))
+  const calendarsOf = () =>
+    db.select().from(calendar_connections).where(eq(calendar_connections.connected_by, ws.owner.userId))
+  await signIn()
+  expect(await calendarsOf()).toHaveLength(1)
+  // Confirmed already: nothing is reset.
+  expect(await callRoutingOf(ws)).toEqual(PLANTED)
+  expect(await resets()).toHaveLength(0)
+  expect((await db.select().from(api_keys).where(eq(api_keys.created_by, ws.owner.userId)))[0]!.revoked_at).toBeNull()
+  expect(
+    await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.created_by, ws.owner.userId)),
+  ).toHaveLength(1)
+  await db.update(user).set({ emailVerified: false }).where(eq(user.id, ws.owner.userId))
+  await signIn()
+  expect(
+    (await db.select().from(api_keys).where(eq(api_keys.created_by, ws.owner.userId)))[0]!.revoked_at,
+  ).not.toBeNull()
+  expect(
+    await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.created_by, ws.owner.userId)),
+  ).toHaveLength(0)
+  expect(await db.select().from(account).where(eq(account.userId, ws.owner.userId))).toHaveLength(0)
+  // A calendar connected before the address was proven would receive bookings with callers' details.
+  expect(await calendarsOf()).toHaveLength(0)
+  // Warm transfer and forwarding go back to the defaults in the workspace it owns, logged per workspace.
+  expect(await callRoutingOf(ws)).toEqual({ transfers: DEFAULT_TRANSFERS, mode: 'forward_conditional' })
+  expect((await resets()).map(e => e.workspace_id)).toEqual([ws.id])
+  expect(await callRoutingOf(other)).toEqual(PLANTED)
+  expect((await request(ws.owner, 'GET', '/v1/me')).status).toBe(401)
+})
+
+test("an unconfirmed owner added to someone else's workspace: their first confirmation leaves its call routing alone", async () => {
+  // Defense in depth: membership.add invites unconfirmed accounts and a transfer refuses them owner, but an older add
+  // could have made one owner. Only the workspaces the account created (it was their first member) are reset. One
+  // owner per workspace: the creator is an admin by then.
+  const ws = await createWorkspace('Owner Added Later Plumbing')
+  const added = await signUp()
+  await db.update(member).set({ role: 'admin' }).where(eq(member.organizationId, ws.id))
+  await db.insert(member).values({
+    id: `m_${crypto.randomUUID().slice(0, 12)}`,
+    organizationId: ws.id,
+    userId: added.userId,
+    role: 'owner',
+    createdAt: new Date(Date.now() + 1000),
+  })
+  const own = await createWorkspace('Own Business', false)
+  await plantCallRouting(ws)
+  await plantCallRouting(own)
+  await dropUnprovenAccessOf(added.userId)
+  expect(await callRoutingOf(ws)).toEqual(PLANTED)
+  // The creator's own unproven workspace is still reset.
+  await dropUnprovenAccessOf(own.owner.userId)
+  expect(await callRoutingOf(own)).toEqual({ transfers: DEFAULT_TRANSFERS, mode: 'forward_conditional' })
+})
+
+test("an unconfirmed account's API keys lose their Zapier subscriptions with them; another account's keep theirs", async () => {
+  const ws = await createWorkspace('Zap of unconfirmed')
+  const other = await createWorkspace('Zap of someone else')
+  const subscribe = async (owner: typeof ws.owner, workspaceId: string) => {
+    const made = await act(owner, 'apiKey.create', { name: 'Zapier', role: 'member' })
+    expect(made.status).toBe(200)
+    const id = `isub_${crypto.randomUUID().slice(0, 12)}`
+    await db.insert(integration_subscriptions).values({
+      id,
+      workspace_id: workspaceId,
+      api_key_id: made.body.data.apiKeyId,
+      source: 'zapier',
+      event: 'call_finished',
+      target_url: 'https://hooks.zapier.com/hooks/standard/1/abc',
+    })
+    return id
+  }
+  const theirs = await subscribe(ws.owner, ws.id)
+  const kept = await subscribe(other.owner, other.id)
+  const row = (id: string) => db.select().from(integration_subscriptions).where(eq(integration_subscriptions.id, id))
+  await dropUnprovenAccessOf(ws.owner.userId)
+  expect(await row(theirs)).toHaveLength(0)
+  expect(await row(kept)).toHaveLength(1)
+})
+
+test('the invitations an unproven account sent are cancelled, one audit line each (LIN-504)', async () => {
+  const ws = await createWorkspace('Unproven inviter')
+  const id = `inv_${crypto.randomUUID().slice(0, 12)}`
+  const email = `invited-${crypto.randomUUID().slice(0, 8)}@example.com`
+  await db.insert(invitation).values({
+    id,
+    organizationId: ws.id,
+    email,
+    role: 'admin',
+    status: 'pending',
+    expiresAt: new Date(Date.now() + 86_400_000),
+    inviterId: ws.owner.userId,
+  })
+  await dropUnprovenAccessOf(ws.owner.userId)
+  expect((await db.select().from(invitation).where(eq(invitation.id, id)))[0]!.status).toBe('canceled')
+  const lines = await db
+    .select()
+    .from(auth_events)
+    .where(and(eq(auth_events.user_id, ws.owner.userId), eq(auth_events.event, 'invitation_withdrawn')))
+  expect(lines).toHaveLength(1)
+  expect(lines[0]).toMatchObject({ workspace_id: ws.id, method: email })
+})
+
+test('every key, link, webhook and connection an unproven account set up gets an audit line where it was (LIN-523)', async () => {
+  const ws = await createWorkspace('Unproven setup')
+  const userId = ws.owner.userId
+  const id = (p: string) => `${p}_${crypto.randomUUID().slice(0, 12)}`
+  const keyId = id('ak')
+  await db.insert(api_keys).values({
+    id: keyId,
+    workspace_id: ws.id,
+    name: 'Zapier',
+    prefix: 'ld_unproven',
+    key_hash: hashApiKey(crypto.randomUUID()),
+    role: 'member',
+    created_by: userId,
+  })
+  await db.insert(integration_subscriptions).values({
+    id: id('isub'),
+    workspace_id: ws.id,
+    api_key_id: keyId,
+    source: 'zapier',
+    event: 'call_finished',
+    target_url: 'https://hooks.zapier.com/hooks/standard/1/secret-token',
+  })
+  await db.insert(personal_keys).values({
+    id: id('pk'),
+    user_id: userId,
+    name: 'Laptop',
+    prefix: 'ldp_unprove',
+    key_hash: hashApiKey(crypto.randomUUID()),
+  })
+  await db.insert(agent_setup_keys).values({
+    id: id('ask'),
+    prefix: 'lds_x',
+    key_hash: `h-${crypto.randomUUID()}`,
+    created_by: userId,
+    workspace_id: ws.id,
+    expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+  })
+  // The receiver's token in the path stays out of the log: the host only.
+  await db.insert(webhook_endpoints).values({
+    id: id('we'),
+    workspace_id: ws.id,
+    url: 'https://hooks.example.com/in/secret-token',
+    created_by: userId,
+  })
+  await db.insert(calendar_connections).values({
+    id: id('cc'),
+    workspace_id: ws.id,
+    provider: 'google',
+    account_email: 'mike@brightwater.example',
+    connected_by: userId,
+  })
+  await db.insert(app_connections).values({
+    id: id('appc'),
+    workspace_id: ws.id,
+    provider: 'hubspot',
+    account_id: '42',
+    account_name: 'portal-42.example',
+    connected_by: userId,
+  })
+  const dropped = [
+    'api_key_dropped',
+    'personal_key_dropped',
+    'zapier_subscription_dropped',
+    'setup_link_dropped',
+    'webhook_dropped',
+    'calendar_dropped',
+    'app_dropped',
+  ] as const
+  const lines = () =>
+    db
+      .select({ event: auth_events.event, method: auth_events.method, workspace: auth_events.workspace_id })
+      .from(auth_events)
+      .where(and(eq(auth_events.user_id, userId), inArray(auth_events.event, [...dropped])))
+  // The workspace's own webhook from createWorkspace is the owner's too.
+  const ownWebhooks = (await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.created_by, userId))).length
+  await dropUnprovenAccessOf(userId)
+  const logged = await lines()
+  expect(logged).toEqual(
+    expect.arrayContaining([
+      { event: 'api_key_dropped', method: 'Zapier', workspace: ws.id },
+      { event: 'personal_key_dropped', method: 'Laptop', workspace: null },
+      { event: 'zapier_subscription_dropped', method: 'call_finished', workspace: ws.id },
+      { event: 'setup_link_dropped', method: null, workspace: ws.id },
+      { event: 'webhook_dropped', method: 'hooks.example.com', workspace: ws.id },
+      { event: 'calendar_dropped', method: 'google', workspace: ws.id },
+      { event: 'app_dropped', method: 'hubspot', workspace: ws.id },
+    ]),
+  )
+  expect(logged.filter(l => l.event === 'webhook_dropped')).toHaveLength(ownWebhooks)
+  expect(logged.some(l => l.method?.includes('secret-token'))).toBe(false)
+  // Nothing left to remove: a second run writes nothing.
+  await dropUnprovenAccessOf(userId)
+  expect(await lines()).toHaveLength(logged.length)
+})
+
+test('an API key whose creator is unconfirmed cannot run sensitive actions; public actions still work', async () => {
+  const ws = await createWorkspace('Key of unconfirmed')
+  const made = await act(ws.owner, 'apiKey.create', { name: 'Before', role: 'admin' })
+  expect(made.status).toBe(200)
+  await db.update(user).set({ emailVerified: false }).where(eq(user.id, ws.owner.userId))
+  const key = bearer(made.body.data.key)
+  // None of them is open to API keys at all (public API only); the email rule stands behind that.
+  for (const action of NEEDS_CONFIRMED_EMAIL) expect((await act(key, action, {})).status).toBe(403)
+  expect((await act(key, 'call.markNotSpam', { callId: ws.call.id })).status).toBe(200)
+})
+
+test('without email delivery nobody is asked to confirm (no code could arrive)', () => {
+  expect(mustConfirmEmail(false, { EMAIL_TO_LOG: 'true' })).toBe(true)
+  expect(mustConfirmEmail(false, {})).toBe(false)
+  expect(mustConfirmEmail(true, { EMAIL_TO_LOG: 'true' })).toBe(false)
+})
+
+test('a password sign-in gets no session once a confirmation removed the password (sign-in race)', async () => {
+  const ws = await createWorkspace('Race', false)
+  const created = { userId: ws.owner.userId }
+  const passwordSignIn = { path: '/sign-in/email' }
+  await expect(refuseSessionWithoutItsSignIn(created, passwordSignIn)).resolves.toBeUndefined()
+  // The code sign-in removed the password between Better Auth's password check and the session.
+  await db.delete(account).where(eq(account.userId, ws.owner.userId))
+  await expect(refuseSessionWithoutItsSignIn(created, passwordSignIn)).rejects.toMatchObject({ statusCode: 401 })
+  // Other sign-ins (the code itself, a provider) are not affected.
+  await expect(refuseSessionWithoutItsSignIn(created, { path: '/sign-in/email-otp' })).resolves.toBeUndefined()
+})
+
+test('wrong confirmation codes count like wrong sign-in codes (per address and network), and block confirming', async () => {
+  const ws = await createWorkspace('Wrong confirmation codes', false)
+  const [owner] = await db.select().from(user).where(eq(user.id, ws.owner.userId))
+  const email = owner!.email.toLowerCase()
+  // Addresses rotate inside one IPv6 /64: our limit is per /64 (Better Auth's own allows 3 tries a minute there).
+  const net = `2001:db8:${Math.floor(Math.random() * 65536).toString(16)}:7`
+  let n = 0
+  const post = (path: string, body: object) =>
+    request(ws.owner, 'POST', path, { email: owner!.email, ...body }, { [FROM]: `${net}::${++n}` })
+  const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
+  expect((await post('/api/auth/email-otp/send-verification-otp', { type: 'email-verification' })).status).toBe(200)
+  await vi.waitFor(() => expect(send).toHaveBeenCalled())
+  const otp = send.mock.calls.at(-1)![0].subject.slice(0, 6) as string
+  const wrong = otp === '000000' ? '111111' : '000000'
+  // Three wrong codes over HTTP count...
+  for (let i = 0; i < 3; i++) expect((await post('/api/auth/email-otp/verify-email', { otp: wrong })).status).toBe(400)
+  const at = (ip: string, returned?: unknown) =>
+    ({ path: '/email-otp/verify-email', body: { email, otp: wrong }, headers: new Headers({ [CLIENT_IP_HEADER]: ip }), context: { returned } }) as never
+  // ...so seven more make ten: confirming from that network is refused, from another one it is not.
+  for (let i = 0; i < 7; i++) await countSignInFailures(at(`${net}::${100 + i}`, new APIError('BAD_REQUEST', { code: 'INVALID_OTP' })))
+  expect(codeFailures.blocked(addressAndIpKey(email, `${net}::1`))).toBe(true)
+  await expect(limitSignIns(at(`${net}::200`))).rejects.toMatchObject({ statusCode: 429 })
+  // From another network the same address passes the limit (and meets the session check: this call has no session).
+  await expect(limitSignIns(at('198.51.100.77'))).rejects.toMatchObject({ statusCode: 403 })
+})
+
+test('a passkey sign-in gets no session once a confirmation removed every passkey (sign-in race)', async () => {
+  const ws = await createWorkspace('Passkey race', false)
+  const created = { userId: ws.owner.userId }
+  const passkeySignIn = { path: '/passkey/verify-authentication' }
+  await db
+    .insert(passkey)
+    .values({
+      id: `pk_${crypto.randomUUID().slice(0, 12)}`,
+      userId: ws.owner.userId,
+      publicKey: 'cHVibGlj',
+      credentialID: `cred-${crypto.randomUUID()}`,
+      counter: 0,
+      deviceType: 'singleDevice',
+      backedUp: false,
+    })
+  await expect(refuseSessionWithoutItsSignIn(created, passkeySignIn)).resolves.toBeUndefined()
+  await db.delete(passkey).where(eq(passkey.userId, ws.owner.userId))
+  await expect(refuseSessionWithoutItsSignIn(created, passkeySignIn)).rejects.toMatchObject({ statusCode: 401 })
+})
+
+test('the confirmation email names the site and warns not to share the code', () => {
+  const mail = confirmationCodeEmail('123456', { PUBLIC_URL: 'https://desk.brightwater.test' })
+  expect(mail.subject).toBe('123456 is your Linedesk confirmation code')
+  expect(mail.text).toContain('https://desk.brightwater.test')
+  expect(mail.text).toContain("Don't share this code with anyone; Linedesk staff will never ask for it.")
+})

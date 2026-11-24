@@ -1,0 +1,1 @@
+ALTER TABLE "calls" ADD COLUMN "voice_failures" jsonb DEFAULT '[]'::jsonb NOT NULL;

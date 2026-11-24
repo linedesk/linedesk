@@ -1,0 +1,545 @@
+// Team management: invitations, roles and removal, as registry handlers. Members and invitations
+// are Better Auth's tables; accepting an invitation is Better Auth's endpoint (see auth.ts).
+// Better Auth's own endpoints for inviting and changing members are switched off there, so these
+// handlers are the only write path and the rules below always apply.
+import { randomBytes } from 'node:crypto'
+import { avatarUrlOf, INVITATION_DAYS, type TeamData, type TeamInvitation, type TeamMember } from '@linedesk/actions'
+import {
+  invitation,
+  member,
+  organization,
+  partners,
+  type Tx,
+  user,
+  user_avatars,
+  workspace_settings,
+} from '@linedesk/db'
+import { getT } from '@linedesk/i18n/server'
+import { and, asc, eq, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
+import { insertAuthEvent, invitationSubject, memberSubject } from './audit.ts'
+import { billOnWorkspaceHandOver } from './billing-owner.ts'
+import type { Actor } from './context.ts'
+import { emailSender } from './email.ts'
+import { refuseAdminFromPartner, refusePartnerMembership } from './partner-refusals.ts'
+import { invitationLocale } from './email-locale.ts'
+import { addedToWorkspaceEmail, emailSafeName, invitationEmail } from './emails/templates.ts'
+import { Forbidden, type Handler, Reject, said } from './handler-context.ts'
+import { queueWorkspaceDeletedEmails } from './jobs.ts'
+import { forgetMember, ownerJoined } from './memberships.ts'
+import {
+  LEAVE_SIGN_IN_AGAIN,
+  leaveNeedsFreshSignIn,
+  REMOVE_SIGN_IN_AGAIN,
+  removeNeedsFreshSignIn,
+} from './owner-step-up.ts'
+import { invitedByPartnerTeam } from './partner-invited.ts'
+import { revokeMemberSetupKeys, revokeWorkspaceSetupKeys } from './passkey-enrolment.ts'
+import { createRateLimiter } from './rate-limit.ts'
+import { deleteAccountWithoutWorkspace } from './workspace-delete.ts'
+import { appOrigin, emailBrandOf, withWorkspaceBrand } from './partner-brand.ts'
+
+const DAY_MS = 86_400_000
+
+// Invitation emails go to any address, so a workspace can send a limited number: 30 an hour,
+// and one address gets at most 3 an hour (from any workspace), so nobody is flooded.
+const allowEmailFor = createRateLimiter({ max: 30, windowMs: 3_600_000 })
+const allowEmailTo = createRateLimiter({ max: 3, windowMs: 3_600_000 })
+
+export { emailSafeName }
+
+/** Unguessable: the id is the secret in the invitation link. */
+const newInvitationId = () => randomBytes(24).toString('base64url')
+/** The invitation's link at the workspace's address (appOrigin: a partner's own address for its clients, S5). */
+export const invitationLink = (id: string, origin: string) => `${origin}/?invite=${encodeURIComponent(id)}`
+
+function workspaceOf(actor: Actor) {
+  if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
+  return actor.workspaceId
+}
+
+/** A pending invitation to `email` (lower case), open for INVITATION_DAYS. Not sent: see sendInvitation. */
+export async function insertInvitation(
+  tx: Tx,
+  invite: { organizationId: string; email: string; role: string; inviterId: string; joinOnSignIn?: boolean },
+  now: string,
+) {
+  const [row] = await tx
+    .insert(invitation)
+    .values({
+      id: newInvitationId(),
+      organizationId: invite.organizationId,
+      email: invite.email,
+      role: invite.role,
+      status: 'pending',
+      expiresAt: new Date(Date.parse(now) + INVITATION_DAYS * DAY_MS),
+      createdAt: new Date(now),
+      inviterId: invite.inviterId,
+      joinOnSignIn: invite.joinOnSignIn ?? false,
+    })
+    .returning()
+  return row!
+}
+
+/** A pending invitation to `email` in this workspace, if there is one. */
+export async function pendingInvitationTo(tx: Tx, workspaceId: string, email: string) {
+  const [pending] = await tx
+    .select({ id: invitation.id })
+    .from(invitation)
+    .where(
+      and(
+        eq(invitation.organizationId, workspaceId),
+        eq(invitation.status, 'pending'),
+        sql`lower(${invitation.email}) = ${email.toLowerCase()}`,
+      ),
+    )
+  return pending ?? null
+}
+
+/**
+ * The email names the member who sent the invitation (`inviterId`), also when someone else resends it. `addedAs`:
+ * a server admin added the address (Server admin › Users › Add user), so the email says so and names the role.
+ */
+export async function sendInvitation(
+  tx: Tx,
+  invite: { id: string; email: string; organizationId: string; inviterId: string },
+  addedAs?: string,
+) {
+  if (emailSender.kind === 'none') throw Reject.t('server.api.team.emailNotSetUp')
+  if (!allowEmailFor(invite.organizationId)) throw Reject.t('server.api.team.tooManyInvitations')
+  // The same answer whether or not the address has an account anywhere.
+  if (!allowEmailTo(invite.email.toLowerCase())) throw Reject.t('server.api.team.tooManyInvitationsTo')
+  const [ws] = await tx
+    .select({ name: organization.name })
+    .from(organization)
+    .where(eq(organization.id, invite.organizationId))
+  const [inviter] = await tx.select({ name: user.name }).from(user).where(eq(user.id, invite.inviterId))
+  // The workspace's language when the web app has it, else the inviter's (email-locale.ts).
+  const locale = await invitationLocale(tx, invite.organizationId, invite.inviterId)
+  const { t } = getT(locale)
+  const content = {
+    inviter: emailSafeName(inviter?.name, addedAs ? t('email.fallback.serverAdmin') : t('email.fallback.teammate')),
+    workspace: emailSafeName(ws?.name, t('email.fallback.team')),
+    email: invite.email,
+    url: invitationLink(invite.id, await appOrigin(invite.organizationId, tx)),
+    days: INVITATION_DAYS,
+  }
+  try {
+    // With the workspace's brand: a white-label partner's client is invited under the partner's name (partner-brand.ts).
+    await withWorkspaceBrand(
+      invite.organizationId,
+      () =>
+        emailSender.send({
+          to: invite.email,
+          ...(addedAs
+            ? addedToWorkspaceEmail({ ...content, role: addedAs }, undefined, locale)
+            : invitationEmail(content, undefined, locale)),
+        }),
+      tx,
+    )
+  } catch (err) {
+    console.error('invitation email failed', err)
+    throw Reject.t('server.api.team.invitationEmailFailed')
+  }
+}
+
+async function loadPendingInvitation(tx: Tx, workspaceId: string, invitationId: string) {
+  const [row] = await tx
+    .select()
+    .from(invitation)
+    .where(
+      and(
+        eq(invitation.id, invitationId),
+        eq(invitation.organizationId, workspaceId),
+        eq(invitation.status, 'pending'),
+      ),
+    )
+    .for('update')
+  if (!row) throw Reject.t('server.api.team.invitationNotFound')
+  return row
+}
+
+/** Locked: a role change or removal decided on this row cannot overwrite a change committed meanwhile. */
+async function loadMember(tx: Tx, workspaceId: string, memberId: string) {
+  const [row] = await tx
+    .select()
+    .from(member)
+    .where(and(eq(member.id, memberId), eq(member.organizationId, workspaceId)))
+    .for('update')
+  if (!row) throw Reject.t('server.api.team.memberNotFound')
+  return row
+}
+
+/**
+ * Locks the account that sends an invitation (FOR SHARE) and refuses a disabled one. `user.disable` updates this row
+ * before it cancels the account's pending invitations, so the two wait for each other: an invitation committed first is
+ * cancelled there, and one sent after sees the account disabled (LIN-503).
+ */
+export async function lockActiveSender(tx: Tx, userId: string) {
+  const [row] = await tx.select({ disabledAt: user.disabledAt }).from(user).where(eq(user.id, userId)).for('share')
+  if (!row || row.disabledAt) throw Forbidden.t('server.api.accountDisabled')
+}
+
+/**
+ * The one inviting or renewing an invitation still manages the team, read from their member row: the permission came
+ * from the role when the request started, and a demotion or removal committed since then must win. FOR SHARE, so a
+ * role change or removal of this row (locked FOR UPDATE, loadMember) waits for the invitation, and its
+ * cancelSentInvitations then sees it, or the invitation waits and sees the new role.
+ */
+async function lockInviter(tx: Tx, workspaceId: string, actorId: string) {
+  await lockActiveSender(tx, actorId)
+  const [row] = await tx
+    .select({ role: member.role })
+    .from(member)
+    .where(and(eq(member.organizationId, workspaceId), eq(member.userId, actorId)))
+    .for('share')
+  if (row?.role !== 'owner' && row?.role !== 'admin') throw new Forbidden('missing permission team:write')
+}
+
+/** team.leave from the last workspace without deleteAccount: the request must say whether the account goes too. */
+export const LEAVE_SAY_ACCOUNT = said('server.api.team.leaveSayAccount')
+
+/** team.removeMember with deleteAccount from someone who is not the workspace's owner (LIN-264). */
+export const ONLY_OWNER_DELETES_ACCOUNTS = said('server.api.team.onlyOwnerDeletesAccounts')
+
+/**
+ * Tells someone whose account a removal deleted (team.removeMember, membership.remove), queued in the removal's
+ * transaction with the same email as a workspace delete (workspace.deletedEmail, `removed`). `by`: who removed them.
+ */
+export async function queueRemovedEmail(
+  tx: Tx,
+  to: string,
+  workspaceId: string,
+  by: { name: string | null; role: 'serverAdmin' | 'admin' },
+  now: string,
+) {
+  const [ws] = await tx.select({ name: organization.name }).from(organization).where(eq(organization.id, workspaceId))
+  const [settings] = await tx
+    .select({ timezone: workspace_settings.timezone })
+    .from(workspace_settings)
+    .where(eq(workspace_settings.workspace_id, workspaceId))
+  await queueWorkspaceDeletedEmails(
+    tx,
+    [
+      {
+        to,
+        workspace: emailSafeName(ws?.name, '') || null,
+        by: by.name,
+        byRole: by.role,
+        at: now,
+        timeZone: settings?.timezone ?? null,
+        accountDeleted: true,
+        removed: true,
+      },
+    ],
+    await emailBrandOf(workspaceId, tx),
+  )
+}
+
+/**
+ * A removal (team.removeMember, membership.remove) ends the removed person's right to invite to that workspace, so the
+ * pending invitations they sent there are canceled with it, one audit line each (`invitation_withdrawn`; decision of
+ * 2026-11-15, LIN-264 review F1). Kept or deleted account alike: otherwise their invitations would stay valid, and after
+ * a delete pass to the owner and look like the owner's own. Invitations in other workspaces are not touched here (a
+ * delete passes them to those owners, workspace-delete.ts). Runs before the account delete. Returns how many.
+ * `workspaceId` null: in every workspace (user.disable, LIN-441: a disabled admin's invitations would let them back in
+ * with a second address).
+ */
+export async function cancelSentInvitations(tx: Tx, workspaceId: string | null, senderId: string): Promise<number> {
+  const canceled = await tx
+    .update(invitation)
+    .set({ status: 'canceled' })
+    .where(
+      and(
+        workspaceId === null ? undefined : eq(invitation.organizationId, workspaceId),
+        eq(invitation.inviterId, senderId),
+        eq(invitation.status, 'pending'),
+      ),
+    )
+    .returning({ email: invitation.email, workspaceId: invitation.organizationId })
+  for (const invite of canceled)
+    await insertAuthEvent(tx, {
+      event: 'invitation_withdrawn',
+      userId: senderId,
+      method: invite.email,
+      workspaceId: invite.workspaceId,
+    })
+  return canceled.length
+}
+
+/** How a removal email names the member who removed someone: "Name (email)", else the address. */
+async function removerLabel(tx: Tx, actorId: string) {
+  const [who] = await tx.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, actorId))
+  if (!who) return null
+  const name = emailSafeName(who.name, '')
+  return name ? `${name} (${who.email})` : who.email
+}
+
+/** A workspace has exactly one owner (docs/architecture.md, "Workspace rights"): their role only changes by a transfer. */
+export const OWNER_STAYS = said('server.api.team.ownerStays')
+
+/** The owner cannot be changed or removed by team.setRole and team.removeMember, not even by themselves. */
+function guardOwner(target: { role: string }) {
+  if (target.role === 'owner') throw new Forbidden(OWNER_STAYS)
+}
+
+/**
+ * The workspace's owner row, locked: two transfers at the same moment cannot both succeed, and an owner who handed
+ * the workspace over a moment ago no longer counts as one (read here, never from the session's role).
+ */
+export async function lockedOwner(tx: Tx, workspaceId: string) {
+  const [owner] = await tx
+    .select()
+    .from(member)
+    .where(and(eq(member.organizationId, workspaceId), eq(member.role, 'owner')))
+    .for('update')
+  return owner ?? null
+}
+
+/**
+ * Makes `target` the owner of its workspace: the owner before (if any) becomes an admin first (the unique owner
+ * index allows one at a time), and a pending owner invitation is withdrawn, so it cannot add a second owner later.
+ */
+export async function makeOwner(
+  tx: Tx,
+  target: { id: string; organizationId: string },
+  previousOwnerId: string | null,
+) {
+  if (previousOwnerId) await tx.update(member).set({ role: 'admin' }).where(eq(member.id, previousOwnerId))
+  await tx.update(member).set({ role: 'owner' }).where(eq(member.id, target.id))
+  // The owner before and the new owner (an admin until now) get other roles: every workspace setup link there ends for
+  // good (security review #822 F1), so none comes back if the workspace is handed back within its hours. The other
+  // admins' links end too: making a new one is a click.
+  await revokeWorkspaceSetupKeys(tx, target.organizationId, 'owner_lost')
+  // A server admin giving an ownerless workspace its owner (membership.setRole) starts the setup emails' clock.
+  await ownerJoined(tx, target.organizationId, 'owner', new Date().toISOString())
+  await tx
+    .update(invitation)
+    .set({ status: 'canceled' })
+    .where(
+      and(
+        eq(invitation.organizationId, target.organizationId),
+        eq(invitation.status, 'pending'),
+        eq(invitation.role, 'owner'),
+      ),
+    )
+}
+
+async function listTeam(tx: Tx, actor: Actor): Promise<TeamData> {
+  const workspaceId = workspaceOf(actor)
+  const members: TeamMember[] = (
+    await tx
+      .select({
+        memberId: member.id,
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        role: member.role,
+        joinedAt: member.createdAt,
+        avatarVersion: user_avatars.version,
+        partner: partners.name,
+      })
+      .from(member)
+      .innerJoin(user, eq(user.id, member.userId))
+      .leftJoin(user_avatars, eq(user_avatars.user_id, user.id))
+      .leftJoin(partners, eq(partners.id, member.partnerId))
+      .where(eq(member.organizationId, workspaceId))
+      .orderBy(asc(member.createdAt))
+  ).map(({ avatarVersion, ...m }) => ({
+    ...m,
+    role: m.role as TeamMember['role'],
+    joinedAt: m.joinedAt.toISOString(),
+    avatarUrl: avatarUrlOf(m.userId, avatarVersion),
+  }))
+  const canManage = actor.permissions.includes('team:write')
+  // Its partner from the workspace, not from the memberships: a suspended partner has none here (security review of
+  // #1109, L-5), and the owner can still remove it.
+  const [client] = await tx
+    .select({ partner: partners.name })
+    .from(organization)
+    .innerJoin(partners, eq(partners.id, organization.partnerId))
+    .where(eq(organization.id, workspaceId))
+  const partner = client?.partner ?? null
+  // Who the partner's team let in (security review of #1109, L-4): they leave with the partner.
+  if (partner) {
+    const [org] = await tx
+      .select({ partnerId: organization.partnerId })
+      .from(organization)
+      .where(eq(organization.id, workspaceId))
+    const invited = new Set((await invitedByPartnerTeam(tx, workspaceId, org!.partnerId!)).map(m => m.userId))
+    for (const m of members) if (invited.has(m.userId)) m.invitedByPartner = true
+  }
+  // Invitees' addresses are for those who invite: a member sees the team, not who is invited.
+  if (!canManage) return { members, invitations: [], canManage, me: actor.actorId, partner }
+  const inviter = alias(user, 'inviter')
+  const now = Date.now()
+  const invitations: TeamInvitation[] = (
+    await tx
+      .select({
+        invitationId: invitation.id,
+        email: invitation.email,
+        role: invitation.role,
+        invitedBy: inviter.name,
+        invitedById: inviter.id,
+        expiresAt: invitation.expiresAt,
+      })
+      .from(invitation)
+      .innerJoin(inviter, eq(inviter.id, invitation.inviterId))
+      .where(and(eq(invitation.organizationId, workspaceId), eq(invitation.status, 'pending')))
+      .orderBy(asc(invitation.createdAt))
+  ).map(i => ({
+    ...i,
+    role: i.role === 'admin' ? 'admin' : 'member',
+    expiresAt: i.expiresAt.toISOString(),
+    expired: i.expiresAt.getTime() < now,
+  }))
+  return { members, invitations, canManage, me: actor.actorId, partner }
+}
+
+export const teamHandlers: Record<string, Handler> = {
+  'team.list': async ({ tx, actor }) => ({ rows: {}, data: await listTeam(tx, actor) }),
+
+  'team.invite': async ({ tx, actor, now }, input: { email: string; role: string }) => {
+    const workspaceId = workspaceOf(actor)
+    await lockInviter(tx, workspaceId, actor.actorId)
+    await refuseAdminFromPartner(tx, workspaceId, actor.actorId, input.role)
+    const [already] = await tx
+      .select({ id: member.id })
+      .from(member)
+      .innerJoin(user, eq(user.id, member.userId))
+      .where(and(eq(member.organizationId, workspaceId), sql`lower(${user.email}) = ${input.email}`))
+    if (already) throw Reject.t('server.api.team.alreadyOnTeam', { email: input.email })
+    if (await pendingInvitationTo(tx, workspaceId, input.email))
+      throw Reject.t('server.api.team.alreadyInvited', { email: input.email })
+    const row = await insertInvitation(
+      tx,
+      { organizationId: workspaceId, email: input.email, role: input.role, inviterId: actor.actorId },
+      now,
+    )
+    await sendInvitation(tx, row)
+    return { rows: {}, data: { invitationId: row.id } }
+  },
+
+  'team.resendInvite': async ({ tx, actor, now }, input: { invitationId: string }) => {
+    const workspaceId = workspaceOf(actor)
+    await lockInviter(tx, workspaceId, actor.actorId)
+    const invite = await loadPendingInvitation(tx, workspaceId, input.invitationId)
+    await tx
+      .update(invitation)
+      .set({ expiresAt: new Date(Date.parse(now) + INVITATION_DAYS * DAY_MS) })
+      .where(eq(invitation.id, invite.id))
+    await sendInvitation(tx, invite)
+    return { rows: {}, data: { subject: invitationSubject(invite) } }
+  },
+
+  'team.revokeInvite': async ({ tx, actor }, input: { invitationId: string }) => {
+    const invite = await loadPendingInvitation(tx, workspaceOf(actor), input.invitationId)
+    await tx.update(invitation).set({ status: 'canceled' }).where(eq(invitation.id, invite.id))
+    return { rows: {}, data: { subject: invitationSubject(invite) } }
+  },
+
+  'team.setRole': async ({ tx, actor }, input: { memberId: string; role: string }) => {
+    if (actor.impersonation) throw Forbidden.t('server.api.notWhileImpersonating')
+    const workspaceId = workspaceOf(actor)
+    const target = await loadMember(tx, workspaceId, input.memberId)
+    guardOwner(target)
+    refusePartnerMembership(target)
+    // Never owner here (the input allows admin and member): that is team.transferOwnership.
+    if (input.role !== 'admin' && input.role !== 'member') throw Reject.t('server.api.team.roleAdminOrMember')
+    await refuseAdminFromPartner(tx, workspaceId, actor.actorId, input.role)
+    await tx.update(member).set({ role: input.role }).where(eq(member.id, target.id))
+    // Their workspace setup links act with the role they were made with: another role ends them for good.
+    if (target.role !== input.role) await revokeMemberSetupKeys(tx, workspaceId, target.userId, 'role_changed')
+    // A member does not invite: the invitations they sent as admin end with the demotion, so one to a second address
+    // of their own cannot make them admin again (security review LIN-396, T2).
+    if (target.role !== 'member' && input.role === 'member') await cancelSentInvitations(tx, workspaceId, target.userId)
+    return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }
+  },
+
+  'team.transferOwnership': async ({ tx, actor, now }, input: { memberId: string }) => {
+    if (actor.impersonation) throw Forbidden.t('server.api.notWhileImpersonating')
+    const workspaceId = workspaceOf(actor)
+    const owner = await lockedOwner(tx, workspaceId)
+    if (!owner || owner.userId !== actor.actorId) throw Forbidden.t('server.api.team.onlyOwnerHandsOver')
+    const target = await loadMember(tx, workspaceId, input.memberId)
+    if (target.id === owner.id) throw Reject.t('server.api.team.ownerAlready')
+    // A partner's admin is never the owner of a client workspace (member_partner_admin in the database too).
+    refusePartnerMembership(target)
+    const [account] = await tx
+      .select({ emailVerified: user.emailVerified, disabledAt: user.disabledAt, email: user.email })
+      .from(user)
+      .where(eq(user.id, target.userId))
+    if (!account || account.disabledAt) throw Reject.t('server.api.accountDisabled')
+    // The owner decides who may delete the workspace: only a proven address (as for owner and admin elsewhere).
+    if (!account.emailVerified) throw Reject.t('server.api.team.confirmEmailToOwn', { email: account.email })
+    // The bill goes with the only workspace on it; with several, the bill is handed over first.
+    await billOnWorkspaceHandOver(tx, actor, workspaceId, owner.userId, target.userId, now)
+    await makeOwner(tx, target, owner.id)
+    return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }
+  },
+
+  'team.leave': async ({ tx, actor, now }, input: { deleteAccount?: boolean }) => {
+    if (actor.impersonation) throw Forbidden.t('server.api.notWhileImpersonating')
+    const workspaceId = workspaceOf(actor)
+    // Locked: a hand-over to this member at the same moment waits, and the owner check then sees the new role.
+    const [me] = await tx
+      .select()
+      .from(member)
+      .where(and(eq(member.organizationId, workspaceId), eq(member.userId, actor.actorId)))
+      .for('update')
+    if (!me) throw Reject.t('server.api.team.memberNotFound')
+    // A partner's admin leaves its client workspaces only by leaving the partner team.
+    refusePartnerMembership(me)
+    if (me.role === 'owner') throw Reject.t('server.api.team.ownerLeaves')
+    await tx.delete(member).where(eq(member.id, me.id))
+    // The unassigned calls are not returned: the one leaving no longer sees the workspace's calls.
+    await forgetMember(tx, workspaceId, actor.actorId, now)
+    const [next] = await tx
+      .select({ id: member.organizationId })
+      .from(member)
+      .where(eq(member.userId, actor.actorId))
+      .orderBy(asc(member.createdAt))
+      .limit(1)
+    // Their last workspace: the account goes only when the request says so (deleteAccount: true; never a server admin's,
+    // workspace-delete.ts). A request that does not say, e.g. a tab still on an older version, is refused: never a
+    // silent delete. Its sessions and passkeys go with the account; its workspace API keys here are revoked
+    // (forgetMember).
+    if (!next && input.deleteAccount === undefined) throw new Reject(LEAVE_SAY_ACCOUNT)
+    // Deleting the account needs a sign-in in the last 10 minutes; checked by run-action before the transaction too.
+    if (await leaveNeedsFreshSignIn(tx, actor, input)) throw new Forbidden(LEAVE_SIGN_IN_AGAIN)
+    const accountDeleted =
+      !next && input.deleteAccount === true && (await deleteAccountWithoutWorkspace(tx, actor.actorId))
+    return { rows: {}, data: { nextWorkspaceId: next?.id ?? null, accountDeleted } }
+  },
+
+  'team.removeMember': async ({ tx, actor, now }, input: { memberId: string; deleteAccount?: boolean }) => {
+    const workspaceId = workspaceOf(actor)
+    // The account stays by default; only the owner may delete it with the removal (LIN-264), read
+    // from the member row: an owner who handed the workspace over a moment ago is an admin.
+    const deleteAccount = input.deleteAccount === true
+    if (deleteAccount) {
+      const owner = await lockedOwner(tx, workspaceId)
+      if (!owner || owner.userId !== actor.actorId) throw new Forbidden(ONLY_OWNER_DELETES_ACCOUNTS)
+      // And a sign-in in the last 10 minutes, as for deleting one's own (review F3); run-action checks it first too.
+      if (await removeNeedsFreshSignIn(tx, actor, input)) throw new Forbidden(REMOVE_SIGN_IN_AGAIN)
+    }
+    const target = await loadMember(tx, workspaceId, input.memberId)
+    guardOwner(target)
+    refusePartnerMembership(target)
+    const subject = await memberSubject(tx, target.userId, target.organizationId)
+    await tx.delete(member).where(eq(member.id, target.id))
+    const forgotten = await forgetMember(tx, target.organizationId, target.userId, now)
+    const invitationsCanceled = await cancelSentInvitations(tx, workspaceId, target.userId)
+    // Their last workspace: the account goes too when the owner asks (workspace-delete.ts), and they are told.
+    const accountDeleted = deleteAccount && (await deleteAccountWithoutWorkspace(tx, target.userId))
+    if (accountDeleted && subject.email)
+      await queueRemovedEmail(
+        tx,
+        subject.email,
+        workspaceId,
+        { name: await removerLabel(tx, actor.actorId), role: 'admin' },
+        now,
+      )
+    return { rows: { calls: forgotten.calls }, data: { accountDeleted, invitationsCanceled, subject } }
+  },
+}

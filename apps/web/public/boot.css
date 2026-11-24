@@ -1,0 +1,34 @@
+/* The boot line in index.html, before the app's code has loaded: the look of ui/BootScreen.tsx (app.css .boot). */
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #fafaf8;
+}
+.boot-static {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #645d57;
+  font:
+    13px / 1.4 system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  animation: boot-static-in 200ms ease-out 500ms both;
+}
+@keyframes boot-static-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .boot-static {
+    animation: none;
+  }
+}

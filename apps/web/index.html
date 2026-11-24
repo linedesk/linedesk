@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Answers your business calls, sums them up and shows you what needs you." />
+    <meta name="theme-color" content="#fafaf8" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- The name and icons an instance admin set (Server admin › Branding); public/manifest.webmanifest is the default. -->
+    <link rel="manifest" href="/v1/branding/manifest.webmanifest" />
+    <!-- iOS: installed from Safari's Share, Add to Home Screen; Web Push only works there. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Linedesk" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <title>Linedesk</title>
+    <!-- Sets <html lang> from the last language this browser used, before the CSS paints (src/i18n/locale.ts). -->
+    <script src="/locale.js"></script>
+    <!--
+      Painted before the app's code has loaded (many modules under the dev server, a bundle on a slow line): the same
+      quiet boot line as the app's own (ui/BootScreen.tsx), after the same 500 ms, so a fast load shows nothing new.
+      React replaces it when it starts (main.tsx). A file, not inline: the Content-Security-Policy allows no inline styles.
+    -->
+    <link rel="stylesheet" href="/boot.css" />
+  </head>
+  <body>
+    <!-- The line in the reader's language: vite.config.ts fills data-lines from the catalogs, boot-line.js picks one. -->
+    <div id="root"><div class="boot-static" role="status" data-lines="">Opening…</div></div>
+    <script src="/boot-line.js"></script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

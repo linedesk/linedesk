@@ -1,0 +1,1 @@
+ALTER TABLE "app_connections" ADD COLUMN "settings" jsonb DEFAULT '{}'::jsonb NOT NULL;

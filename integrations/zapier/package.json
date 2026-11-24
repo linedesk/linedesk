@@ -1,0 +1,20 @@
+{
+  "name": "linedesk-zapier",
+  "version": "1.0.0",
+  "description": "Linedesk on Zapier: a Call finished trigger and contact and call actions.",
+  "private": true,
+  "license": "MIT",
+  "main": "index.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test test/app.test.js"
+  },
+  "dependencies": {
+    "zapier-platform-core": "19.3.0"
+  },
+  "devDependencies": {
+    "nock": "^14.0.0"
+  }
+}

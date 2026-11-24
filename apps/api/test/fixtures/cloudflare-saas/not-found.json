@@ -1,0 +1,6 @@
+{
+  "success": false,
+  "errors": [{ "code": 1436, "message": "The custom hostname was not found." }],
+  "messages": [],
+  "result": null
+}

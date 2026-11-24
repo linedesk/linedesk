@@ -1,0 +1,204 @@
+// Step 2, "Meet your assistant": its name, the greeting callers hear and its voice (with the realtime model, one of the
+// model's own voices), then a test call in the browser, before anything about phones. Talking is encouraged, not required: Continue is always there.
+import { followLanguageDefault, localizedDefault, mainLanguageOf, otherLanguagesOf } from '@linedesk/actions'
+import type { Assistant } from '@linedesk/db/types'
+import { T, useT } from '@linedesk/i18n/react'
+import { useState } from 'react'
+import { ASSISTANT_NAME_MAX, staleGreetingName } from '../settings/assistantDraft.ts'
+import { Field, TextArea, TextInput } from '../settings/fields.tsx'
+import { useWriteAction } from '../settings/settings-api.ts'
+import { TestCallButton, useTestCall } from '../settings/TestCall.tsx'
+import { TestCallPanel } from '../settings/TestCallPanel.tsx'
+import { RealtimeVoiceSettings, useVoiceOptions, VoiceLoading, VoiceSettings } from '../settings/VoiceSettings.tsx'
+import { useAssistantOf, useRun } from '../store.tsx'
+import { appLink } from '../ui/AppLink.tsx'
+import { Button, Note } from '../ui/kit.tsx'
+import { useWorkspaceLanguage } from '../workspaceLocale.ts'
+import { useClientWord } from './clientWords.tsx'
+import { Foot, StepLoading } from './Frame.tsx'
+import { type AssistantDraft, assistantChanges, greetingInLanguage, renameInGreeting } from './flow.ts'
+import { useSetupKeys } from './setup-keys.ts'
+
+/**
+ * `operator`: the member runs the server (a test call nobody answers says what to fix there). `assistantId`: the
+ * assistant this step is about (step by step from its settings); else the workspace's default one.
+ */
+type Props = { onBack: () => void; onNext: () => void; operator?: boolean; assistantId?: string }
+
+export function AssistantStep(p: Props) {
+  const t = useT()
+  const word = useClientWord()
+  const assistant = useAssistantOf(p.assistantId)
+  if (assistant) return <AssistantForm assistant={assistant} {...p} />
+  return (
+    <StepLoading
+      title={t(word('onboarding.assistant.heading'))}
+      what={t('onboarding.assistant.loadingWhat')}
+      foot={{ onBack: p.onBack, onContinue: p.onNext }}
+    />
+  )
+}
+
+function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & { assistant: Assistant }) {
+  const t = useT()
+  const word = useClientWord()
+  const run = useRun()
+  const write = useWriteAction()
+  // Without a main language of its own the assistant greets in the workspace language: the default greeting shows in it.
+  const workspaceLanguage = useWorkspaceLanguage()
+  const main = mainLanguageOf(assistant.languages, workspaceLanguage)
+  const [draft, setDraft] = useState<AssistantDraft>(() => ({
+    name: assistant.name,
+    greeting: assistant.languages?.main ? assistant.greeting : localizedDefault(assistant.greeting, main),
+    voice: assistant.voice,
+    // A row synced before the column existed has none: the server's default voice.
+    realtime_voice: assistant.realtime_voice ?? '',
+  }))
+  // The language arrived or changed after the step opened (the settings loading, the country set a moment before): an
+  // untouched default greeting follows it, as it would have opened in it.
+  const [greetingLanguage, setGreetingLanguage] = useState(main)
+  // An untouched default voice follows too (the old language's default becomes the new one's); a voice picked stays.
+  if (greetingLanguage !== main) {
+    setGreetingLanguage(main)
+    if (!assistant.languages?.main)
+      setDraft(d => ({ ...d, greeting: greetingInLanguage(d.greeting, assistant.greeting, greetingLanguage, main) }))
+    setDraft(d => ({ ...d, voice: followLanguageDefault(d.voice, greetingLanguage, main) ?? d.voice }))
+  }
+  // The test call's lines ("Maya can't take calls yet") use the name on screen, not the saved one.
+  const session = useTestCall(true, { id: assistant.id, name: draft.name.trim() || assistant.name }, operator)
+  const [message, setMessage] = useState<string | null>(null)
+  const name = draft.name.trim()
+  const changes = assistantChanges(assistant, draft)
+  // The same limit as the server's (assistant.update) and Assistant settings.
+  const nameProblem = !name
+    ? t('onboarding.assistant.nameRequired')
+    : name.length > ASSISTANT_NAME_MAX
+      ? t('onboarding.assistant.nameTooLong', { max: ASSISTANT_NAME_MAX })
+      : null
+  const greetingProblem = draft.greeting.trim() ? null : t('onboarding.assistant.greetingEmpty')
+  const problem = nameProblem ?? greetingProblem
+  // The greeting still names the saved name after a rename: saving renames it there; the hint says so and offers it now.
+  const stale = staleGreetingName(draft.greeting, assistant.name, draft.name)
+  // Like Assistant settings: on Ultra (a realtime model) the picker lists the model's own voices.
+  const realtime = assistant.call_quality === 'ultra'
+  // No voice on this server: the Voice section's warning says so, and the test call can't be answered either. One
+  // message for one fact (design-principles.md, Messages): the line under the test call stays quiet then, and the
+  // button's tooltip still says why it is off.
+  const voiceOptions = useVoiceOptions().data
+  const voiceNoted = !realtime && !!voiceOptions && !voiceOptions.provider
+  const quietHint = voiceNoted && !!session.blockedReason
+
+  function next() {
+    if (problem) return
+    if (changes) void run('assistant.update', { assistantId: assistant.id, ...changes })
+    onNext()
+  }
+  // Back keeps what was typed: a valid draft is saved like Continue (queued), so a rename is not lost.
+  function back() {
+    if (!problem && changes) void run('assistant.update', { assistantId: assistant.id, ...changes })
+    onBack()
+  }
+  // The call must hear what is on screen: unsaved changes are saved first (directly, not through the outbox).
+  async function talk() {
+    if (problem) return setMessage(problem)
+    setMessage(null)
+    try {
+      if (changes) await write('assistant.update', { assistantId: assistant.id, ...changes })
+      session.start()
+    } catch (e) {
+      setMessage((e as Error).message)
+    }
+  }
+  useSetupKeys({ onEnter: next, onEscape: back })
+  // Again from the settings, Continue (Done) is the one primary action here; the test call stands beside it.
+
+  return (
+    <>
+      <div className="ob-body">
+        <h1>{name ? t('onboarding.assistant.headingNamed', { name }) : t(word('onboarding.assistant.heading'))}</h1>
+        <p className="ob-lede">
+          {name ? t('onboarding.assistant.lede', { name }) : t('onboarding.assistant.ledeUnnamed')}
+        </p>
+        <Field id="ob-name" label={t('onboarding.assistant.nameLabel')} error={nameProblem}>
+          <TextInput
+            id="ob-name"
+            value={draft.name}
+            onChange={v => setDraft(d => ({ ...d, name: v }))}
+            placeholder="Maya"
+            invalid={!!nameProblem}
+          />
+        </Field>
+        <Field
+          id="ob-greeting"
+          label={t('onboarding.assistant.greetingLabel')}
+          tip={t('onboarding.assistant.greetingTip')}
+          error={greetingProblem}
+        >
+          <TextArea
+            id="ob-greeting"
+            value={draft.greeting}
+            onChange={v => setDraft(d => ({ ...d, greeting: v }))}
+            invalid={!!greetingProblem}
+          />
+          {stale && (
+            <span className="help as-stale">
+              {t('onboarding.assistant.staleGreeting', { name: stale })}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setDraft(d => ({ ...d, greeting: renameInGreeting(d.greeting, stale, name) }))}
+              >
+                {t('onboarding.assistant.useName', { name })}
+              </Button>
+            </span>
+          )}
+        </Field>
+        <VoiceLoading>
+          {realtime ? (
+            <RealtimeVoiceSettings
+              voice={draft.realtime_voice ?? ''}
+              onPick={realtime_voice => setDraft(d => ({ ...d, realtime_voice }))}
+              canEdit
+              language={main}
+              otherLanguages={otherLanguagesOf(assistant.languages, workspaceLanguage)}
+              assistantName={name || assistant.name}
+            />
+          ) : (
+            <VoiceSettings
+              assistantId={assistant.id}
+              voice={draft.voice}
+              onPick={voice => setDraft(d => ({ ...d, voice }))}
+              canEdit
+              toast={setMessage}
+              adoptLanguageDefault
+              language={main}
+              otherLanguages={otherLanguagesOf(assistant.languages, workspaceLanguage)}
+              assistantName={name || assistant.name}
+            />
+          )}
+        </VoiceLoading>
+        <div className="ob-talk">
+          {/* The same button and panel as Assistant settings; the click saves first. */}
+          {/* Secondary: Continue is the step's one primary button (design-principles.md). */}
+          <TestCallButton session={session} onStart={() => void talk()} />
+          {!quietHint && (
+            <span className="ob2-note">
+              {session.voiceFixable ? (
+                <T
+                  k="settings.testCall.voiceDownOperatorLink"
+                  values={{ name: session.name, link: appLink('#admin/providers/answering') }}
+                />
+              ) : (
+                (session.blockedReason ?? t('onboarding.assistant.talkHint'))
+              )}
+            </span>
+          )}
+        </div>
+        {/* No Open in inbox here: the inbox would end onboarding before the number is connected. */}
+        <TestCallPanel session={session} onOpenCall={null} onStart={() => void talk()} />
+        {message && <Note tone="danger">{message}</Note>}
+      </div>
+      <Foot onBack={back} onContinue={next} canContinue={!problem} />
+    </>
+  )
+}

@@ -1,0 +1,69 @@
+Linedesk
+Copyright (c) 2026 Sauerbier & Gutberlet GmbH and contributors
+
+Linedesk is licensed under the MIT License (see LICENSE). This covers every
+commit in this repository's history, also the commits made before a LICENSE
+file was added and before the switch from AGPL-3.0 to MIT. Third-party packages
+keep their own licenses; see each package's license in node_modules after
+`pnpm install`. The parts below need a note of their own.
+
+Voice previews
+  The audio files in apps/api/assets/voice-previews/ are not covered by the
+  MIT license; see the README in that folder. They were made with ElevenLabs
+  text-to-speech and its default voices on a paid plan. ElevenLabs' Terms of
+  Service leave all rights in the output with the user and allow paid users
+  to use it commercially and outside ElevenLabs; its Prohibited Use Policy
+  allows passing output on to others on terms no more permissive than those
+  that apply to us, which the README in that folder carries over (in
+  particular: no use to develop or train AI or voice models).
+
+LiveKit Agents
+  Parts of the voice agent are adapted from LiveKit Agents
+  (https://github.com/livekit/agents and https://github.com/livekit/agents-js),
+  Copyright LiveKit, Inc., licensed under the Apache License 2.0 (a copy is in
+  licenses/Apache-2.0.txt):
+  - apps/agent/src/collect/collectors.ts and apps/agent/src/collect/collect-task.ts
+    are ported from LiveKit's Python ready-made tasks (GetPhoneNumberTask,
+    GetNameTask, GetEmailTask, GetAddressTask); their prompts and checks are
+    close to LiveKit's.
+  - patches/@livekit__agents@*.patch changes the LiveKit Agents package itself.
+  Linedesk changed these parts. The changes are under the MIT license.
+
+LiveKit model weights
+  The voice agent uses LiveKit Agents, which depends on the
+  @livekit/local-inference package (version 0.3.1 at the time of writing).
+  The native binary of that package contains model weights, among them
+  LiveKit's end-of-turn model. So the weights are not in this repository's
+  source, but they come with that npm package after `pnpm install` and are in
+  the agent image. LiveKit's models are under LiveKit's own model license
+  (MODEL_LICENSE in that package), which allows their use only together with
+  LiveKit Agents. Linedesk turns local inference off by default
+  (apps/agent/src/env.ts), but the package is still installed.
+
+Holiday data
+  The API uses the date-holidays package by commenthol and contributors
+  (https://github.com/commenthol/date-holidays), with its date-holidays-parser
+  package. Their code is under the ISC license. The holiday data in
+  date-holidays (data/holidays.json and data/countries/*.yaml), mostly from
+  Wikipedia articles, is under Creative Commons Attribution-ShareAlike: the
+  package declares CC-BY-SA-4.0 (package.json, LICENSE, holidays.json), while
+  its README and the attribution list in its LICENSE file name CC BY-SA 3.0,
+  the license of the Wikipedia text it was taken from. The attribution (the
+  source articles) is in the package's LICENSE file. Linedesk does not include
+  this data in the repository; it comes with the package.
+
+Fonts
+  The web app uses the Geist and Geist Mono fonts by Vercel, through the
+  @fontsource/geist and @fontsource/geist-mono packages, licensed under the
+  SIL Open Font License 1.1.
+
+Third-party logos
+  The Google, Microsoft and GitHub sign-in marks (apps/web/src/ui/brand-logos.tsx)
+  and the brand marks of providers and calendar services, whose SVG paths come
+  from Simple Icons (https://simpleicons.org, CC0 1.0; apps/web/src/admin/logos.ts),
+  remain trademarks of their owners. Linedesk uses them only to name the
+  integration they stand for; their use does not mean the owners endorse
+  Linedesk.
+
+The Linedesk name and logo are trademarks of Sauerbier & Gutberlet GmbH; see
+TRADEMARK.md.

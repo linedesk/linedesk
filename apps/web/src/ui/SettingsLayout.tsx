@@ -1,0 +1,196 @@
+// The settings layout (after shadcn's): one head for every settings area (Assistant, Workspace, Account, Server admin,
+// Partner area). The page bar holds the menu or back button and the area's title; under it, a context line (the
+// assistant switcher, the workspace's name, the account's email) at the same size and place on every page; then a
+// narrow nav of the page's sections at the left and one section at a time at the right, its title inside its card.
+// Each section has its own hash (`#assistant/<id>/transfers`), so links, reload and Back work. Below 720 px the nav is
+// one full-width picker that names the open section and lists them all, marks included.
+import { type MouseEvent, type ReactNode, useEffect, useState } from 'react'
+import { Select } from './controls.tsx'
+import './settings-layout.css'
+import { useT } from '@linedesk/i18n/react'
+
+export type PageSection<T extends string = string> = {
+  id: T
+  label: string
+  description?: string
+  /** Open items in it, shown as a small count next to the label (none at 0). */
+  count?: number
+  /** The key that opens it (Server admin: 1 to 9), named in the tooltip. */
+  shortcut?: string
+  /** Something to flag next to the label (Server admin › Overview: a part of the install needs attention). */
+  mark?: ReactNode
+  /** The nav's group this section opens: a small label above it. */
+  group?: string
+  /**
+   * Set up once, rarely opened (Server admin: Partners, Branding, Audit log): in quieter type at the end, the first one
+   * under a line.
+   */
+  quiet?: boolean
+}
+
+/** The page's part of the hash: `#<page>/<section>`; `page` may have a part of its own (`assistant/<id>`). */
+export const sectionHash = (page: string, section: string) => `#${page}/${section}`
+
+/**
+ * The section the hash names on `page`, and the thing open in it (`#settings/phone/<number id>`), each '' when
+ * the hash names none.
+ */
+export function sectionParts(page: string, hash: string): { section: string; item: string } {
+  const path = hash.replace(/^#/, '').split('?')[0]!
+  if (!path.startsWith(`${page}/`)) return { section: '', item: '' }
+  const [section = '', item = ''] = path.slice(page.length + 1).split('/')
+  return { section, item }
+}
+
+function sectionOf<T extends string>(page: string, sections: readonly PageSection<T>[], hash: string): T {
+  const { section } = sectionParts(page, hash)
+  return sections.find(s => s.id === section)?.id || sections[0]!.id
+}
+
+/**
+ * A click in the nav shows its section in the same frame: the browser's `hashchange` comes a few
+ * milliseconds after the click, and until then the previous section would stay on screen.
+ */
+const sectionClicks = new Set<(hash: string) => void>()
+
+/**
+ * The hash with an unknown section (`#settings/nope`) replaced by the section shown instead, the page's first, so
+ * the address says what is on screen; null when the hash names a section of the page, or none.
+ */
+export function knownSectionHash(page: string, sections: readonly PageSection[], hash: string): string | null {
+  const query = hash.split('?')[1]
+  const { section } = sectionParts(page, hash)
+  if (!section || sections.some(s => s.id === section)) return null
+  return `${sectionHash(page, sections[0]!.id)}${query ? `?${query}` : ''}`
+}
+
+/** The section the hash names; the first one when it names none (or one that does not exist, then the hash says so too). */
+export function useSection<T extends string>(page: string, sections: readonly PageSection<T>[]): T {
+  const [current, setCurrent] = useState(() => sectionOf(page, sections, window.location.hash))
+  useEffect(() => {
+    const show = (hash: string) => {
+      const known = knownSectionHash(page, sections, hash)
+      if (known && hash === window.location.hash) window.history.replaceState(null, '', known)
+      setCurrent(sectionOf(page, sections, hash))
+    }
+    const onHash = () => show(window.location.hash)
+    window.addEventListener('hashchange', onHash)
+    sectionClicks.add(show)
+    show(window.location.hash)
+    return () => {
+      window.removeEventListener('hashchange', onHash)
+      sectionClicks.delete(show)
+    }
+  }, [page, sections])
+  return current
+}
+
+/** A plain click on a section link (not one that opens a new tab): shown now, the hash follows. */
+function showSectionNow(event: MouseEvent, hash: string) {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+  for (const show of sectionClicks) show(hash)
+}
+
+/** A section picked in the phone's picker: shown now, and the hash says so (links, reload and Back keep working). */
+function openSection(hash: string) {
+  for (const show of sectionClicks) show(hash)
+  window.location.hash = hash
+}
+
+type Props<T extends string> = {
+  page: string
+  title: string
+  /**
+   * The context line above the nav: what this page is about (the workspace's name, the account's email, the assistant
+   * switcher). One size and place on every settings page.
+   */
+  context?: ReactNode
+  /** At the right of the context line, in every section (e.g. Start test call). */
+  actions?: ReactNode
+  sections: readonly PageSection<T>[]
+  current: T
+  /** Sections with unsaved changes: a dot in the nav. */
+  unsaved?: ReadonlySet<T>
+  /** Under the context line, above nav and content (e.g. a running test call). */
+  banner?: ReactNode
+  children: ReactNode
+}
+
+export function SettingsLayout<T extends string>(props: Props<T>) {
+  const t = useT()
+  const { page, title, context, actions, sections, current, unsaved, banner, children } = props
+  return (
+    <div className="page-in sl-page">
+      <div className="page-head sl-head">
+        <h1>{title}</h1>
+        {(context || actions) && (
+          <div className="sl-context">
+            <div className="sl-context-main">{context}</div>
+            {actions && <div className="sl-actions">{actions}</div>}
+          </div>
+        )}
+      </div>
+      {banner}
+      <div className="sl-body">
+        <div className="sl-pick">
+          <Select
+            value={current}
+            label={t('common.settingsLayout.sections', { title })}
+            options={sections.map(s => ({
+              value: s.id,
+              label: s.label,
+              mark:
+                s.count || s.mark || unsaved?.has(s.id) ? (
+                  <SectionMarks section={s} dirty={!!unsaved?.has(s.id)} />
+                ) : undefined,
+            }))}
+            onChange={id => openSection(sectionHash(page, id))}
+          />
+        </div>
+        <nav className="sl-nav" aria-label={t('common.settingsLayout.sections', { title })}>
+          {sections.map((s, i) => {
+            const dirty = unsaved?.has(s.id)
+            const firstQuiet = s.quiet && !sections[i - 1]?.quiet
+            const item = (
+              <a
+                key={s.id}
+                href={sectionHash(page, s.id)}
+                className={s.quiet ? 'nav-item sl-item sl-quiet' : 'nav-item sl-item'}
+                onClick={e => showSectionNow(e, sectionHash(page, s.id))}
+                aria-current={s.id === current ? 'page' : undefined}
+                // A tooltip only when it says more than the label (its key): one repeating the label would cover the
+                // line above the nav on hover (the partner area, 2026-11-18).
+                title={s.shortcut ? `${s.label} (${s.shortcut})` : undefined}
+                data-desc={s.description}
+              >
+                <span>{s.label}</span>
+                <SectionMarks section={s} dirty={!!dirty} />
+              </a>
+            )
+            if (firstQuiet) return [<hr key={`line-${s.id}`} className="sl-line" />, item]
+            if (!s.group) return item
+            return [
+              <span key={`group-${s.id}`} className="sl-group" aria-hidden="true">
+                {s.group}
+              </span>,
+              item,
+            ]
+          })}
+        </nav>
+        <div className="sl-content">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+/** What a section's label carries in the nav and the phone's picker: its count, its own mark, the unsaved dot. */
+function SectionMarks({ section, dirty }: { section: PageSection; dirty: boolean }) {
+  const t = useT()
+  return (
+    <>
+      {!!section.count && <span className="nav-n">{section.count}</span>}
+      {section.mark}
+      {dirty && <span className="sl-dot" role="img" aria-label={t('common.unsaved')} />}
+    </>
+  )
+}

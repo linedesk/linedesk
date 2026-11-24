@@ -1,0 +1,9 @@
+[Unit]
+Description=Linedesk: weekly restore test of the newest backup
+After=docker.service
+OnFailure=linedesk-alert@%n.service
+[Service]
+Type=oneshot
+User=@USER@
+WorkingDirectory=@APP_DIR@
+ExecStart=/usr/local/sbin/linedesk-restore-test

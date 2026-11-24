@@ -1,0 +1,34 @@
+{
+  "uid": "linedesk_crm",
+  "type": "app",
+  "config": {
+    "name": "Linedesk",
+    "description": "Linedesk is an AI assistant that answers your business phone. After every call, it finds or creates the caller's HubSpot contact and logs the call on that contact with a summary, next steps, duration and a link to the call.",
+    "logo": "/app/app-logo.png",
+    "distribution": "marketplace",
+    "auth": {
+      "type": "oauth",
+      "redirectUrls": [
+        "https://app.linedesk.ai/v1/apps/callback/hubspot"
+      ],
+      "requiredScopes": [
+        "oauth",
+        "crm.objects.contacts.read",
+        "crm.objects.contacts.write"
+      ],
+      "optionalScopes": [],
+      "conditionallyRequiredScopes": []
+    },
+    "permittedUrls": {
+      "fetch": [],
+      "iframe": [],
+      "img": []
+    },
+    "support": {
+      "supportEmail": "support@linedesk.ai",
+      "documentationUrl": "https://linedesk.ai/integrations/hubspot",
+      "supportUrl": "https://linedesk.ai/support"
+    },
+    "isUserLevel": false
+  }
+}

@@ -1,0 +1,326 @@
+// More voices: each provider's list read with the install's key, cached, without other workspaces'
+// clones or clones made outside Linedesk; picking one of them; its preview.
+import { mkdtemp } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { CLONE_CONSENT_TEXT, type VoiceCatalogData } from '@linedesk/actions'
+import { assistants, voice_clones } from '@linedesk/db'
+import { eq } from 'drizzle-orm'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import type { Actor } from '../src/context.ts'
+import { db } from '../src/db.ts'
+import { CATALOG_TTL_MS, catalogCache, catalogFailure } from '../src/voice-catalog.ts'
+import { cartesiaVoice, elevenLabsVoice, type VoiceProvider, VoiceProviderError } from '../src/voice-provider.ts'
+import { hostedSample, previewBudget, previewCache, servePreview } from '../src/voices.ts'
+import { act, createWorkspace } from './helpers.ts'
+
+const MP3 = Buffer.concat([Buffer.from('ID3'), Buffer.alloc(64)])
+const SAMPLE_URL = 'https://storage.googleapis.com/eleven-public-prod/library/sample.mp3'
+const SPANISH_SAMPLE_URL = 'https://storage.googleapis.com/eleven-public-prod/voices/spanish/sample.mp3'
+const suffix = crypto.randomUUID().replaceAll('-', '').slice(0, 10)
+const ids = {
+  premade: `premade${suffix}`,
+  library: `library${suffix}`,
+  shared: `shared${suffix}`,
+  ownClone: `ownclone${suffix}`,
+  otherClone: `otherclone${suffix}`,
+  foreignClone: `foreign${suffix}`,
+  spanish: `spanish${suffix}`,
+}
+
+/** ElevenLabs' GET /v2/voices, in two pages, and the hosted sample. The plan is `tier`. */
+function fakeElevenLabs(tier = 'creator') {
+  const calls: string[] = []
+  const voice = (voice_id: string, category: string, extra: object = {}) => ({
+    voice_id,
+    name: voice_id,
+    category,
+    ...extra,
+  })
+  const fake = vi.fn(async (input: string | URL | Request) => {
+    const url = String(input)
+    calls.push(url)
+    if (url === SAMPLE_URL || url === SPANISH_SAMPLE_URL || url.includes('/v1/text-to-speech/'))
+      return new Response(new Uint8Array(MP3), { headers: { 'content-type': 'audio/mpeg' } })
+    if (url.includes('/v1/user/subscription')) return Response.json({ tier })
+    // The Voice Library, read for each language besides English: one Spanish voice.
+    if (url.includes('/v1/shared-voices'))
+      return Response.json({
+        voices: url.includes('language=es')
+          ? [
+              {
+                voice_id: ids.spanish,
+                name: 'Lucía - Support',
+                gender: 'female',
+                language: 'es',
+                preview_url: SPANISH_SAMPLE_URL,
+                rate: 1,
+              },
+            ]
+          : [],
+      })
+    if (url.includes('next_page_token=p2'))
+      return Response.json({
+        voices: [voice(ids.ownClone, 'cloned'), voice(ids.otherClone, 'cloned'), voice(ids.foreignClone, 'cloned')],
+        has_more: false,
+      })
+    return Response.json({
+      voices: [
+        voice(ids.premade, 'premade', { labels: { gender: 'female', accent: 'american', description: 'warm' } }),
+        voice(ids.library, 'generated', { labels: { language: 'de', gender: 'male' }, preview_url: SAMPLE_URL }),
+        voice(ids.shared, 'professional', {
+          is_owner: false,
+          sharing: { status: 'copied', original_voice_id: 'orig1' },
+        }),
+        voice(`pro${suffix}`, 'professional', { is_owner: true, sharing: { status: 'enabled' } }),
+        voice(`gone${suffix}`, 'professional', {
+          is_owner: false,
+          sharing: { status: 'copied_disabled', original_voice_id: 'orig2' },
+        }),
+      ],
+      has_more: true,
+      next_page_token: 'p2',
+    })
+  })
+  return { fake, calls }
+}
+
+let elevenlabs: ReturnType<typeof fakeElevenLabs>
+beforeEach(() => {
+  elevenlabs = fakeElevenLabs()
+  vi.stubGlobal('fetch', elevenlabs.fake)
+  vi.stubEnv('ELEVENLABS_API_KEY', `key-${suffix}`)
+  vi.stubEnv('CARTESIA_API_KEY', '')
+  vi.stubEnv('TTS_PROVIDER', 'elevenlabs')
+})
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
+})
+
+const clone = (workspaceId: string, ownerId: string, voiceId: string, deleted = false) =>
+  db.insert(voice_clones).values({
+    id: `vc_${crypto.randomUUID().slice(0, 12)}`,
+    workspace_id: workspaceId,
+    provider: 'elevenlabs',
+    voice_id: voiceId,
+    name: voiceId,
+    consent_by: ownerId,
+    consent_at: new Date().toISOString(),
+    consent_text: CLONE_CONSENT_TEXT,
+    deleted_at: deleted ? new Date().toISOString() : null,
+  })
+
+test('provider voices are parsed into one shape', () => {
+  expect(
+    elevenLabsVoice({
+      voice_id: 'a1',
+      name: 'Ann',
+      category: 'premade',
+      labels: { gender: 'female', accent: 'british' },
+    }),
+  ).toEqual({
+    id: 'a1',
+    name: 'Ann',
+    description: null,
+    languages: [{ code: 'en', accent: 'british', native: true }],
+    language: 'en',
+    gender: 'female',
+    accent: 'british',
+    previewUrl: null,
+    clone: false,
+  })
+  expect(
+    elevenLabsVoice({ voice_id: 'b2', name: 'Bo', category: 'cloned', preview_url: 'http://insecure' }),
+  ).toMatchObject({ clone: true, previewUrl: null, language: null, languages: [] })
+  // A library voice added to the account keeps no hosted sample: it has the owner's settings (LIN-715).
+  const copied = {
+    voice_id: 'c3',
+    name: 'Ela',
+    category: 'professional',
+    preview_url: 'https://storage.googleapis.com/x.mp3',
+  }
+  expect(elevenLabsVoice({ ...copied, sharing: { status: 'copied', original_voice_id: 'o1' } })).toMatchObject({
+    previewUrl: null,
+    clone: false,
+  })
+  expect(elevenLabsVoice({ ...copied, category: 'premade' })).toMatchObject({
+    previewUrl: 'https://storage.googleapis.com/x.mp3',
+  })
+  expect(elevenLabsVoice({ name: 'no id' })).toBeNull()
+  const library = { voice_id: 'l1', name: 'Lea', category: 'professional', is_owner: false }
+  expect(elevenLabsVoice({ ...library, sharing: { status: 'copied', original_voice_id: 'o1' } })?.clone).toBe(false)
+  expect(elevenLabsVoice({ ...library, sharing: { status: 'copied', original_voice_id: null } })?.clone).toBe(true)
+  expect(
+    elevenLabsVoice({ ...library, is_owner: true, sharing: { status: 'copied', original_voice_id: 'o1' } })?.clone,
+  ).toBe(true)
+  expect(elevenLabsVoice({ ...library, sharing: { status: 'enabled', original_voice_id: null } })?.clone).toBe(true)
+  expect(cartesiaVoice({ id: 'c3', name: 'Cy', language: 'en', gender: 'feminine', is_owner: false })).toMatchObject({
+    gender: 'female',
+    clone: false,
+  })
+  expect(cartesiaVoice({ id: 'c4', name: 'Own', gender: 'gender_neutral', is_owner: true })).toMatchObject({
+    gender: 'neutral',
+    clone: true,
+  })
+})
+
+test('a provider list is read once and reused for a few minutes; a failure is retried sooner', async () => {
+  let now = 0
+  const cache = catalogCache(() => now)
+  let reads = 0
+  let fail = false
+  const adapter = {
+    name: 'elevenlabs',
+    listVoices: async () => {
+      reads++
+      if (fail) throw new Error('down')
+      return { voices: [] }
+    },
+  } as unknown as VoiceProvider
+  await cache.voicesOf(adapter, 'k')
+  await cache.voicesOf(adapter, 'k')
+  expect(reads).toBe(1)
+  await cache.voicesOf(adapter, 'another key')
+  expect(reads).toBe(2)
+  now += CATALOG_TTL_MS + 1
+  fail = true
+  await expect(cache.voicesOf(adapter, 'k')).rejects.toThrow('down')
+  await expect(cache.voicesOf(adapter, 'k')).rejects.toThrow('down')
+  expect(reads).toBe(3)
+  now += 31_000
+  fail = false
+  await cache.voicesOf(adapter, 'k')
+  expect(reads).toBe(4)
+})
+
+test("a list that could not be read is a reason, never the provider's text; a cached failure keeps its status", async () => {
+  const missing = new VoiceProviderError(
+    'listing voices failed (401): The API key you used is missing the permission voices_read to execute this operation.',
+    401,
+  )
+  expect(catalogFailure(missing)).toBe('permission')
+  expect(catalogFailure(new VoiceProviderError('listing voices failed (401): Invalid API key', 401))).toBe('auth')
+  expect(catalogFailure(new VoiceProviderError('listing voices failed (429): Too many requests', 429))).toBe('network')
+  expect(catalogFailure(new TypeError('fetch failed'))).toBe('network')
+  expect(catalogFailure(new Error('The operation timed out'))).toBe('timeout')
+
+  const cache = catalogCache(() => 0)
+  const adapter = {
+    name: 'elevenlabs',
+    listVoices: async () => {
+      throw missing
+    },
+  } as unknown as VoiceProvider
+  await expect(cache.voicesOf(adapter, 'k')).rejects.toBe(missing)
+  await expect(cache.voicesOf(adapter, 'k')).rejects.toBe(missing) // from the cache: still a 401
+})
+
+test("the catalog lists the providers' voices and the workspace's own clones, never another workspace's or a clone made elsewhere", async () => {
+  const ws = await createWorkspace('Catalog Plumbing')
+  const other = await createWorkspace('Other Plumbing')
+  await clone(ws.id, ws.owner.userId, ids.ownClone)
+  await clone(other.id, other.owner.userId, ids.otherClone, true) // released: still not anyone else's
+  const { body } = await act(ws.owner, 'voice.catalog', {})
+  const data = body.data as VoiceCatalogData
+  expect(data.providers).toEqual([
+    { provider: 'elevenlabs', label: 'ElevenLabs', active: true, configured: true, error: null },
+    { provider: 'cartesia', label: 'Cartesia', active: false, configured: false, error: null },
+  ])
+  // A Voice Library copy is listed; the account's own professional clone and a copy no longer shared are not. So is a
+  // Spanish voice from the Voice Library (paid plan).
+  expect(data.voices.map(v => v.id).sort()).toEqual(
+    [ids.library, ids.ownClone, ids.premade, ids.shared, ids.spanish].sort(),
+  )
+  expect(data.voices.find(v => v.id === ids.spanish)).toMatchObject({
+    language: 'es',
+    languages: [{ code: 'es', accent: null, native: true }],
+    gender: 'female',
+  })
+  expect(data.voices.find(v => v.id === ids.premade)).toEqual({
+    provider: 'elevenlabs',
+    id: ids.premade,
+    name: ids.premade,
+    description: 'warm',
+    languages: [{ code: 'en', accent: 'american', native: true }],
+    language: 'en',
+    gender: 'female',
+    accent: 'american',
+  })
+  expect(JSON.stringify(body)).not.toContain('storage.googleapis.com') // samples go through the API
+  expect(elevenlabs.calls.every(url => !url.includes('key-'))).toBe(true)
+})
+
+test('on a free ElevenLabs plan the catalog says so: no native voices besides English', async () => {
+  elevenlabs = fakeElevenLabs('free')
+  vi.stubGlobal('fetch', elevenlabs.fake)
+  vi.stubEnv('ELEVENLABS_API_KEY', `free-key-${suffix}`) // a new key: not the paid list cached above
+  const ws = await createWorkspace('Free Plan Plumbing')
+  const data = (await act(ws.owner, 'voice.catalog', {})).body.data as VoiceCatalogData
+  expect(data.providers[0]).toMatchObject({ provider: 'elevenlabs', configured: true, freePlan: true })
+  expect(data.voices.some(v => v.id === ids.spanish)).toBe(false)
+  expect(elevenlabs.calls.some(url => url.includes('/v1/shared-voices'))).toBe(false)
+})
+
+test('an assistant can be given a listed voice, not another workspace’s clone', async () => {
+  const ws = await createWorkspace('Picker Plumbing')
+  const other = await createWorkspace('Neighbour Plumbing')
+  await clone(other.id, other.owner.userId, `${ids.otherClone}_live`)
+  const pick = (voice_id: string) =>
+    act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, voice: { provider: 'elevenlabs', voice_id } })
+  expect((await pick(ids.spanish)).status).toBe(200) // a Voice Library voice the account has not added
+  expect((await pick(ids.library)).status).toBe(200)
+  const [saved] = await db.select().from(assistants).where(eq(assistants.id, ws.assistant.id))
+  expect(saved?.voice).toEqual({ provider: 'elevenlabs', voice_id: ids.library })
+  expect((await pick(ids.otherClone)).status).toBeGreaterThanOrEqual(400)
+  expect((await pick(`${ids.otherClone}_live`)).status).toBeGreaterThanOrEqual(400)
+  expect((await pick(ids.foreignClone)).status).toBeGreaterThanOrEqual(400)
+  expect((await pick('NotListedAnywhere123')).status).toBeGreaterThanOrEqual(400)
+})
+
+test('a listed voice plays the sample the provider hosts: fetched on the server, no hourly limit', async () => {
+  const ws = await createWorkspace('Preview Plumbing')
+  const member: Actor = { actorId: ws.owner.userId, role: 'owner', workspaceId: ws.id, permissions: ['call:read'] }
+  const cache = previewCache(await mkdtemp(join(tmpdir(), 'catalog-preview-')))
+  const options = { cache, budget: previewBudget(0), bundledDir: join(tmpdir(), 'none'), ownClone: false }
+  const res = await servePreview(member, ids.library, options)
+  expect(res.status).toBe(200)
+  expect(Buffer.from(await res.arrayBuffer()).equals(MP3)).toBe(true)
+  // A hosted sample is played as it is, whatever the assistant's language.
+  expect((await servePreview(member, ids.library, { ...options, language: 'de' })).status).toBe(200)
+  expect(elevenlabs.calls.some(url => url.includes('/text-to-speech/'))).toBe(false)
+  // A Voice Library voice is synthesized with our settings, like a call: its hosted sample has the owner's (LIN-715).
+  // So it counts against the hourly limit, and its hosted sample is never fetched.
+  expect((await servePreview(member, ids.spanish, options)).status).toBe(429)
+  expect(
+    (await servePreview(member, ids.spanish, { ...options, budget: previewBudget(1), language: 'es' })).status,
+  ).toBe(200)
+  expect(elevenlabs.calls.some(url => url.includes(`/v1/text-to-speech/${ids.spanish}`))).toBe(true)
+  expect(elevenlabs.calls).not.toContain(SPANISH_SAMPLE_URL)
+  expect((await servePreview(member, 'NotListedAnywhere123', options)).status).toBe(404)
+  expect((await servePreview(member, ids.premade, { ...options, providerName: 'cartesia' })).status).toBe(409) // no Cartesia key
+})
+
+test("a hosted sample is fetched only from the provider's sample host and only up to 2 MB", async () => {
+  const ok = vi.fn(async () => new Response(new Uint8Array(MP3)))
+  expect((await hostedSample('elevenlabs', SAMPLE_URL, ok)).equals(MP3)).toBe(true)
+  await expect(hostedSample('elevenlabs', 'https://169.254.169.254/latest/meta-data', ok)).rejects.toThrow(
+    /sample host/,
+  )
+  await expect(hostedSample('elevenlabs', 'http://storage.googleapis.com/x.mp3', ok)).rejects.toThrow(/sample host/)
+  await expect(hostedSample('cartesia', SAMPLE_URL, ok)).rejects.toThrow(/sample host/)
+  expect(ok).toHaveBeenCalledTimes(1)
+  const declared = async () =>
+    new Response(new Uint8Array(MP3), { headers: { 'content-length': String(3 * 1024 * 1024) } })
+  await expect(hostedSample('elevenlabs', SAMPLE_URL, declared)).rejects.toThrow(/too large/)
+  const streamed = async () =>
+    new Response(
+      new ReadableStream({
+        start(c) {
+          for (let i = 0; i < 3; i++) c.enqueue(new Uint8Array(1024 * 1024))
+          c.close()
+        },
+      }),
+    )
+  await expect(hostedSample('elevenlabs', SAMPLE_URL, streamed)).rejects.toThrow(/too large/)
+})

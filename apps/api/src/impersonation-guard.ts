@@ -1,0 +1,183 @@
+// What an instance admin may not do while signed in as another user (docs/architecture.md §12):
+// nothing that changes the account's credentials or security, and nothing that would let the
+// impersonation outlive its hour. Runs before Better Auth's own endpoints.
+import { IMPERSONATION_MINUTES } from '@linedesk/actions'
+import { APIError, getSessionFromCtx } from 'better-auth/api'
+import type { Actor } from './context.ts'
+
+/**
+ * The instance admin behind what this actor does, for `commands.impersonated_by`: the admin signed in as the user, or
+ * the admin who made the API key in use during support access (`api_keys.created_by_impersonator`). Null otherwise.
+ */
+export const impersonatorOf = (actor: Pick<Actor, 'impersonation' | 'apiKeyImpersonator'>): string | null =>
+  actor.impersonation?.by ?? actor.apiKeyImpersonator ?? null
+
+type AuthCtx = Parameters<typeof getSessionFromCtx>[0]
+
+/**
+ * Better Auth endpoints refused while impersonating: passwords (also checking one), the profile, email, deleting the account, other
+ * sessions (listing them would hand out their tokens), linked sign-in accounts and their tokens,
+ * passkeys (adding, renaming, removing or listing them), joining a workspace by invitation, and confirming the
+ * user's email address (also asking for a confirmation code: `refusedConfirmationRequest`).
+ */
+export const IMPERSONATION_REFUSED_PATHS = [
+  '/change-password',
+  '/set-password',
+  '/email-otp/reset-password',
+  // Would let an admin test guesses at the user's password, or change their name and picture.
+  '/verify-password',
+  '/update-user',
+  '/change-email',
+  // Moving the account to another address (email-change.ts): the admin could then sign in as the user for good.
+  '/email-otp/request-email-change',
+  '/email-otp/change-email',
+  // Confirming an unconfirmed member's address: the admin must not prove an address they can't read for the user.
+  '/email-otp/verify-email',
+  '/delete-user',
+  '/list-sessions',
+  '/revoke-session',
+  '/revoke-sessions',
+  '/revoke-other-sessions',
+  '/update-session',
+  '/link-social',
+  '/unlink-account',
+  '/list-accounts',
+  '/account-info',
+  '/get-access-token',
+  '/refresh-token',
+  '/oauth2/link',
+  '/passkey/generate-register-options',
+  '/passkey/verify-registration',
+  '/passkey/update-passkey',
+  '/passkey/delete-passkey',
+  '/passkey/list-user-passkeys',
+  '/organization/accept-invitation',
+] as const
+
+/** English, for the routes outside the registry (app.ts, account.ts) and Better Auth; actions use server.api.notWhileImpersonating. */
+export const NOT_WHILE_IMPERSONATING = 'Not possible while signed in as another user.'
+
+/**
+ * Registry actions an impersonated session may run, besides reading (docs/architecture.md §12). An
+ * impersonation is for seeing Linedesk as the user does: everything else is refused centrally in
+ * run-action, so no new action can give the admin access that outlasts the hour (invite themselves,
+ * point a webhook or a transfer elsewhere, change the carrier or numbers). API keys are the one deliberate
+ * exception (they do outlast it, and are marked). Only the inbox triage the user would not mind, API keys (marked as made by the admin), and ending the impersonation.
+ * With edits turned on (impersonation.setEdits), everything the user may run (LIN-708: support works
+ * as the user). The account's own sign-in data stays refused also then (IMPERSONATION_REFUSED_PATHS, Better Auth).
+ */
+export const IMPERSONATION_ALLOWED_WRITES: ReadonlySet<string> = new Set([
+  'impersonation.stop',
+  // Turning edits on or off for this impersonation (then everything the user may run); audited like stop.
+  'impersonation.setEdits',
+  // Support is often about exactly this. A key made now outlasts the hour, so it names the admin
+  // (api_keys.created_by_impersonator; its commands record commands.impersonated_by) and is listed with their name.
+  // Otherwise it is a key like any other, and the admin revokes keys as the user could (api-keys.ts).
+  'apiKey.create',
+  'apiKey.revoke',
+  'call.markRead',
+  'call.markUnread',
+  'call.markDone',
+  'call.markNotDone',
+  'call.remind',
+  'call.clearReminder',
+])
+
+/**
+ * Read-only actions refused too: those that still do something outside Linedesk (send a request, start
+ * a call), the bulk export of the workspace's calls (an impersonation is for support, not for taking
+ * customer data out), and the MCP consent page (oauth.describe): it is the first step of giving an agent a
+ * lasting key to the person's account, which only the person does (oauth.approve is refused as a write).
+ * Settings › Billing's overview (billing.overview): its invoices' Stripe links work without a login and outlast the
+ * impersonation (security review of #1007, M-1); support sees the bill's state through billing.state.
+ */
+const IMPERSONATION_REFUSED_READS: ReadonlySet<string> = new Set([
+  'webhook.test',
+  'call.lookUpCaller',
+  'call.askWebhook',
+  // The caller's Shopify store: each asks the store, and changeOrder changes an order there.
+  'shopify.callContext',
+  'shopify.findOrders',
+  'shopify.findProducts',
+  'shopify.changeOrder',
+  'call.correctTranscript',
+  'carrier.test',
+  'assistant.startTestCall',
+  'knowledge.import',
+  'business.search',
+  'business.import',
+  'call.listen',
+  'call.takeOver',
+  'call.export',
+  'phoneNumber.lookupLine',
+  'workspace.deletePreview',
+  'oauth.describe',
+  'billing.overview',
+])
+
+/**
+ * Refused during an impersonation also with edits on (security review of #1669): inviting someone would let the admin
+ * invite their own address and keep the workspace after the hour, and accepting an invitation joins the person's own
+ * account to a workspace (as Better Auth's /organization/accept-invitation, refused above) or to a partner team (by its
+ * link or by its id, LIN-776).
+ */
+const IMPERSONATION_ALWAYS_REFUSED: ReadonlySet<string> = new Set([
+  'team.invite',
+  'invitation.accept',
+  'partnerInvitation.accept',
+  'partnerInvitation.acceptMine',
+])
+
+/**
+ * Whether an impersonated session may run this action. `impersonation.edits`: the admin turned edits on, so the
+ * session works as the user, every action the user's own permissions allow (each command still records the admin,
+ * commands.impersonated_by). Without it: reads (but IMPERSONATION_REFUSED_READS) and IMPERSONATION_ALLOWED_WRITES.
+ */
+export function mayRunWhileImpersonating(
+  def: { name: string; readOnly?: boolean },
+  impersonation?: { edits?: boolean },
+): boolean {
+  if (IMPERSONATION_ALWAYS_REFUSED.has(def.name)) return false
+  if (impersonation?.edits) return true
+  if (def.readOnly) return !IMPERSONATION_REFUSED_READS.has(def.name)
+  return IMPERSONATION_ALLOWED_WRITES.has(def.name)
+}
+
+const refusedPath = (path: string) => IMPERSONATION_REFUSED_PATHS.some(p => path === p || path.startsWith(`${p}/`))
+
+/**
+ * `/email-otp/send-verification-otp` also sends sign-in codes, which need no session; only a confirmation code
+ * (`email-verification`) for the signed-in user is refused, the request half of `/email-otp/verify-email`.
+ */
+const refusedConfirmationRequest = (ctx: AuthCtx) =>
+  ctx.path === '/email-otp/send-verification-otp' &&
+  (ctx.body as { type?: unknown } | undefined)?.type === 'email-verification'
+
+/** Throws 403 when the request is for a refused endpoint and its session is an impersonation. */
+export async function refuseWhileImpersonating(ctx: AuthCtx) {
+  if (!refusedPath(ctx.path) && !refusedConfirmationRequest(ctx)) return
+  const session = await getSessionFromCtx(ctx).catch(() => null)
+  if ((session?.session as { impersonatedBy?: string | null } | undefined)?.impersonatedBy) {
+    throw new APIError('FORBIDDEN', { code: 'NOT_WHILE_IMPERSONATING', message: NOT_WHILE_IMPERSONATING })
+  }
+}
+
+/** An impersonation ends at the latest this long after it started, whatever the session's expiry says. */
+export const impersonationEndsAt = (createdAt: Date) => new Date(createdAt.getTime() + IMPERSONATION_MINUTES * 60_000)
+
+type SessionUpdate = { expiresAt?: Date }
+
+/**
+ * Better Auth extends a session when it is used (`updateAge`). An impersonation keeps the expiry it
+ * started with. Runs in Better Auth's `session.update.before` database hook; the session being
+ * refreshed is the request's (`ctx.context.session`).
+ */
+export function keepImpersonationExpiry(
+  data: SessionUpdate,
+  ctx: { context?: { session?: unknown } } | null | undefined,
+) {
+  const current = (ctx?.context?.session as { session?: { impersonatedBy?: string | null; expiresAt: Date } } | null)
+    ?.session
+  if (!data.expiresAt || !current?.impersonatedBy) return undefined
+  return { data: { ...data, expiresAt: current.expiresAt } }
+}

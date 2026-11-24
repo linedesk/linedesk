@@ -1,5 +1,8 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
-  - name: Security issue
-    url: https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability
-    about: Please report vulnerabilities privately through the Security tab, not as an issue.
+  - name: Report a security vulnerability
+    url: https://github.com/linedesk/linedesk/security/advisories/new
+    about: Please report security problems privately, never in a public issue.
+  - name: Questions and help
+    url: https://github.com/linedesk/linedesk/blob/HEAD/SUPPORT.md
+    about: Where to ask questions about running Linedesk, and how Linedesk Cloud customers reach support.

@@ -1,0 +1,2906 @@
+/* Additions on top of the prototype's styles (styles.css is copied from prototypes/inbox-html). */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* Sign-in, sign-up and invitations: a centred column without a card (like Vercel's sign-in), the mark,
+   a large title, then full-width fields and buttons. */
+.auth {
+  box-sizing: border-box;
+  /* The body never scrolls, so the page scrolls itself when the window is too short for all buttons. */
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: max(64px, 16vh) 16px 48px;
+}
+.auth-column {
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+.auth-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--signal);
+  color: var(--on-signal);
+  display: grid;
+  place-items: center;
+}
+.auth-mark.is-pending {
+  visibility: hidden;
+}
+.auth-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.auth-card h1 {
+  margin: 0 0 12px;
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-align: center;
+}
+.auth-card p {
+  margin: 0 0 4px;
+  color: var(--ink-muted);
+  text-align: center;
+}
+/* The OAuth consent page (integrations/ConnectAgent.tsx): what the person allows, as short lines. */
+.connect-agent-facts {
+  margin: 0 0 8px;
+  padding: 12px 16px 12px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-muted);
+  background: var(--surface);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+}
+.auth-link-skeleton {
+  align-items: center;
+}
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.auth-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+/* Sign-in controls take the large control height, like onboarding (docs/design-principles.md, control heights). */
+.auth-card input {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--control-h-lg);
+  padding: 0 12px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-sm);
+}
+.auth-card input::placeholder {
+  color: var(--ink-muted);
+  opacity: 1;
+}
+.auth-card input:focus {
+  outline: none;
+  border-color: var(--focus);
+  box-shadow: 0 0 0 1px var(--focus);
+}
+.auth-card .auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.auth-card .auth-field .auth-hint {
+  color: var(--ink-muted);
+}
+/* A search select on a sign-in page (New workspace's country): the large height; its search field keeps its own look. */
+.auth-card .k-ssel .k-select-btn {
+  height: var(--control-h-lg);
+  font-size: 14px;
+}
+.auth-card input.k-ssel-search {
+  width: auto;
+  height: auto;
+  margin: 4px;
+  padding: 6px 8px;
+  font-size: 13px;
+  border-radius: var(--radius-xs);
+}
+.auth-card input.k-ssel-search:focus {
+  box-shadow: none;
+}
+.auth-card .k-btn {
+  justify-content: center;
+  height: var(--control-h-lg);
+  font-size: 14px;
+}
+/* "Continue with ...": the mark at the left edge, the label centred, "Last used" at the right edge.
+   Three columns: the label stays centred while the outer two can be equal; when "Last used" needs
+   more room (long languages, narrow phones) the label moves left instead of running under it. */
+.auth-card .auth-provider {
+  position: relative;
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(20px, 1fr) minmax(0, auto) 1fr;
+  align-items: center;
+}
+.auth-provider > * {
+  grid-row: 1;
+}
+.auth-provider .auth-logo {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.auth-provider > .k-spin {
+  grid-column: 1;
+  justify-self: end;
+}
+.auth-provider-label {
+  grid-column: 2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.auth-last-used {
+  grid-column: 3;
+  justify-self: end;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+  background: var(--surface-hover);
+  color: var(--ink-muted);
+}
+.k-btn-primary .auth-last-used {
+  background: rgb(255 255 255 / 0.16);
+  color: inherit;
+}
+.auth-separator {
+  width: 100%;
+  margin: 12px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+/* Removed from the workspace this browser had open: said calmly above "Name your business". */
+.auth-lost {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-hover);
+  color: var(--ink);
+  font-size: 13px;
+}
+/* Pending invitations of someone without a workspace (a skipped "Not now" stays reachable here). */
+.auth-invites {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.auth-invite {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-hover);
+  font-size: 13px;
+}
+.auth-switch {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink-muted);
+  cursor: pointer;
+  text-align: center;
+}
+.auth-switch:hover {
+  color: var(--ink);
+}
+/* A quiet link that goes somewhere ("Go to sign in") looks like the quiet buttons: no underline of its own. */
+a.auth-switch {
+  text-decoration: none;
+}
+.auth-switch:focus-visible,
+.auth-inline:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.auth-switch:disabled {
+  color: var(--ink-muted);
+  cursor: default;
+}
+/* The code step's quiet line under the button: "Resend code · Use a different email". */
+.auth-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.auth-links > * + *::before {
+  content: "·";
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--ink-muted);
+}
+.auth-more {
+  align-self: center;
+  padding: 4px 0;
+}
+.auth-footer {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.auth-inline {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* Offline bar: the last row of the app, so it never covers the list; the toast moves up while it shows. */
+.sync-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  padding: 0 16px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-hover);
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+.app:has(.sync-bar) .toast {
+  bottom: calc(50px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Real next steps can be longer than the status column: clip them like the summary. */
+.r-status {
+  overflow: hidden;
+}
+.r-next,
+.r-quiet {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Call back on the selected row (LIN-774): right after the next step, which gives way (ellipsis) before it does. */
+.r-callback {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  margin-left: 8px;
+  padding: 0 4px 0 8px;
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.r-callback:hover {
+  background: var(--surface);
+  border-color: var(--ink);
+}
+.r-callback:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.r-callback .k-kbd {
+  height: 16px;
+  min-width: 16px;
+  padding: 0 3px;
+  font-size: 10px;
+}
+/* The row's actions float over the duration and the status column's end (right: 14px). With Call back shown, the
+   status column ends 6px before them, so the pill and its key stay whole and the next step gives way (ellipsis):
+   actions (24px each, 2px apart, 8px lead) + 14px + 6px, less the duration column, its gap and the gutter. */
+.ib-list .row:not(.cust-row) .r-status:has(.r-callback) {
+  --r-acts-w: calc(3 * 24px + 2 * 2px + 8px);
+  padding-right: calc(var(--r-acts-w) + 14px + 6px - 56px - 14px - var(--gutter));
+}
+.ib-list .row:not(.cust-row):has(.r-act-assign) .r-status:has(.r-callback) {
+  --r-acts-w: calc(4 * 24px + 3 * 2px + 8px);
+}
+/* Phones: a tap opens the call (its Call button) and the row's ⋯ lists Call back, so the row stays two short lines. */
+@media (max-width: 719px) {
+  .r-callback {
+    display: none;
+  }
+}
+
+/* The backdrop's click target sits behind the panel. */
+.overlay-dismiss {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: default;
+}
+.overlay > :not(.overlay-dismiss) {
+  position: relative;
+}
+
+/* Contact facts edit in place: they read as text until hovered or focused. */
+.fact-input {
+  width: 100%;
+  margin: -2px -4px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  resize: none;
+  box-sizing: content-box;
+}
+.fact-input::placeholder {
+  color: var(--ink-muted); /* 4.5:1 on white; --ink-disabled was 2.5:1 */
+  opacity: 1;
+}
+.fact-input:hover {
+  background: var(--surface-hover);
+}
+.fact-input:focus {
+  outline: none;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--focus);
+}
+/* A line under a fact, in the value column ("Name from caller · Confirm"). */
+.facts dd.fact-hint {
+  grid-column: 2;
+  margin-top: -3px;
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--ink-muted);
+}
+
+/* "+ Company, email, note" under the call's contact facts: the empty fields, folded into one quiet button. */
+.side-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  margin: -4px 0 0 -4px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.side-more:hover {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+.side-more:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* Settings: the fieldset only groups (and disables) the sections. */
+.st-fields {
+  display: contents;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+/* Navigation: the scrim is a button. */
+.scrim {
+  border: 0;
+  padding: 0;
+}
+.me-chevron {
+  flex: none;
+  margin-left: auto;
+  color: var(--ink-muted);
+}
+/* Help, Terms and Privacy in the workspace menu are links that look like the items around them. */
+.ws-menu a.nav-item {
+  box-sizing: border-box;
+  text-decoration: none;
+}
+/* Star on GitHub in the navigation's foot (Nav.tsx): a link that looks like the items around it. */
+.nav-foot a.nav-item {
+  box-sizing: border-box;
+  text-decoration: none;
+}
+.nav-foot .nav-stars {
+  color: var(--ink-muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.fact-copy {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: copy;
+}
+.fact-copy:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.fact-copy:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Recording player: a plain track instead of a waveform (there is no audio analysis). */
+.vn-track {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 26px;
+  cursor: pointer;
+  touch-action: none;
+  border-radius: var(--radius-xs);
+}
+.vn-track:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.vn-line {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.vn-played {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+}
+.vn-track:hover .vn-knob {
+  transform: scale(1.35);
+}
+.vn-time {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.vn-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+/* The one wait line of a card before setup (WaitLine): a small spinner and a quiet line, centred in the column. */
+.auth-wait {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+/* Account settings: forms inside a section, value + action on one line, the session list. */
+.ac-form {
+  display: grid;
+  gap: 10px;
+}
+.ac-divided {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+/* Sign-in & security: one block per method, its name and state at the left, its one button at the right (LIN-766). */
+.ac-methods {
+  display: grid;
+  gap: 14px;
+}
+.ac-methods > .ac-divided:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.ac-method-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 32px;
+}
+.ac-method-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.ac-method-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ac-method-title h3 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.ac-method-head > .ac-actions {
+  flex: none;
+}
+/* The passkeys under their header: quiet grey rows, Remove as a ghost button. */
+.ac-quiet-list {
+  gap: 4px;
+}
+.ac-quiet-list .ac-session,
+.ac-quiet-list .ac-session:first-child {
+  min-height: 0;
+  padding: 8px 6px 8px 12px;
+  border-top: 0;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+}
+@media (max-width: 640px) {
+  .ac-method-head {
+    flex-wrap: wrap;
+  }
+}
+.ac-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ac-inline .k-input {
+  flex: 1;
+  max-width: 340px;
+}
+.ac-avatar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ac-value {
+  font-size: 13.5px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ac-actions,
+.ac-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.ac-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ac-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.ac-session {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 48px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.ac-session:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.ac-session > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.ac-session b {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+/* "Show N more" under the sessions: the ghost button's label starts at the list's left edge. */
+#ac-sessions > div:not([class]) > .k-btn-ghost:only-child {
+  margin-left: -11px; /* 10px padding + 1px border */
+}
+
+/* The hidden attribute always wins, also over classes that set display (the tooltip is inline-flex). */
+[hidden] {
+  display: none !important;
+}
+
+/* Before the local store is open: a quiet line (after a moment, so a fast start shows nothing), or the error. */
+.boot {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+.boot b {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.boot .k-btn {
+  margin-top: 8px;
+}
+.boot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.boot-loading {
+  animation: boot-in 200ms ease-out 500ms both;
+}
+@keyframes boot-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* A neutral badge keeps its shape on the selected row (both are grey otherwise). */
+.row.is-cursor .k-badge-neutral {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* Search lists every call: done ones read as done. */
+.row.is-done .r-name,
+.row.is-done .r-topic {
+  color: var(--ink-muted);
+  font-weight: 500;
+}
+.k-cmd-hint {
+  margin-left: 10px;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+/* Label and hint stay on the row's one line; a hint too long for a narrow window ends in an ellipsis. */
+.k-cmd-item > span:not(.k-kbds) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Terms · Privacy · Help under sign-in. */
+.auth-legal {
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+}
+.auth-legal a + a::before {
+  content: "·";
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--ink-muted);
+}
+.auth-legal a {
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+.auth-legal a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+/* The same quiet line at the foot of Account settings (settings/account), under the open section's card. */
+/* Preferences: the member's notifications below Language, set off by a line (settings/Notifications.tsx). */
+.ac-notify {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.ac-legal {
+  padding: 4px 2px 0;
+}
+/* The sign-up page's clickwrap notice right above "Continue to payment" (Signup.tsx, A9): quiet text; its links are the
+   shared underlined ExternalLink, so they read as links (a clear notice is what makes the acceptance count). */
+.auth-card .auth-terms {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+/* The sign-in page's language select (Login.tsx): small, under the legal links, below a one-line globe and "Language" in English, both centered as one block. */
+.auth-language {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+}
+.auth-card .auth-language-label {
+  /* Beats `.auth-card label` (a column), which would put the globe above the word. */
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.auth-card .auth-language-label svg {
+  flex: none;
+}
+
+/* "Powered by Linedesk" at the bottom of the sign-in page of an install with its own name or logo (ui/kit.tsx). */
+.powered-by {
+  margin-top: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+.powered-by b {
+  font-weight: 600;
+}
+.powered-by:hover {
+  color: var(--ink);
+}
+.powered-by:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Who can get an account, and where to ask for help: two quiet lines under the sign-in options, kept together. */
+.auth-notes {
+  display: grid;
+  gap: 4px;
+}
+/* Who can get an account: a quiet line under the sign-in options. */
+.auth-note {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+/* Assigned calls: the assignee's initials after the caller's name; the assign button in the call view. */
+.r-assignee {
+  display: inline-flex;
+  flex: none;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.team-leave {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+/* Phone: what the step does at full width, its button under it (beside it the text was a narrow column). */
+@media (max-width: 560px) {
+  .team-leave {
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    gap: 10px;
+  }
+}
+.team-inv-actions {
+  display: flex;
+  gap: 2px;
+}
+/* Team, a member's role: one width for the menu and the plain text, so the rows' right edges line up. */
+.team-role {
+  display: inline-flex;
+  width: 96px;
+}
+.team-role > .k-select {
+  width: 100%;
+}
+.team-role > .st-role {
+  padding: 0 11px;
+}
+/* Phone: the role goes on its own line under the name and address (beside them the address was cut after a few
+   letters); avatar and ⋯ stay on the first line. */
+@media (max-width: 560px) {
+  .k-row-line:has(> .k-row-actions > .team-role) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: 10px;
+    row-gap: 4px;
+  }
+  .k-row-line:has(> .k-row-actions > .team-role) > .k-row-actions {
+    display: contents;
+  }
+  .k-row-line:has(> .k-row-actions > .team-role) > :is(.k-row-lead, .k-row-main) {
+    grid-row: 1;
+  }
+  .k-row-line > .k-row-actions > .team-role {
+    grid-area: 2 / 2;
+    width: auto;
+    justify-self: start;
+  }
+  .k-row-line > .k-row-actions > .team-role > .st-role {
+    padding: 0;
+  }
+  .k-row-line:has(> .k-row-actions > .team-role) > .k-row-actions > :not(.team-role) {
+    grid-area: 1 / 3;
+  }
+}
+/* Workspace settings › General: a setting that reads as its value, "Value · source · Change" (LIN-766). */
+.ws-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 6px;
+  min-height: var(--control-h);
+  align-content: center;
+  font-size: 13.5px;
+}
+.ws-value-source {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+.ws-value .k-link {
+  margin-left: 4px;
+  font-size: 12.5px;
+}
+
+/* Team, invite: email, role and Invite in one row at the bottom of the members, under a line; no labels (LIN-766). */
+.team-invite {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+@media (max-width: 559px) {
+  .team-invite {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .team-invite-email {
+    grid-column: 1 / -1;
+  }
+}
+/* Unread rows read heavier than read ones (the dot is not the only difference). */
+.row .r-name,
+.row.is-cursor .r-name {
+  font-weight: 500;
+}
+.row.unread .r-name {
+  font-weight: 650;
+}
+.row.unread .r-sum .r-topic {
+  font-weight: 600;
+}
+
+/* After keys were used, a resting mouse does not make a second row look selected. */
+[data-input="keys"] .row:hover:not(.is-cursor) {
+  background: transparent;
+}
+[data-input="keys"] .row:hover:not(.is-cursor) .r-acts {
+  display: none;
+}
+[data-input="keys"] .row:hover:not(.is-cursor) .r-dur,
+[data-input="keys"] .row:hover:not(.is-cursor) .r-time {
+  visibility: visible;
+}
+
+/* Narrow windows: the caller panel opens as a sheet from the caller's name in the call header;
+   a tap beside it closes it. */
+.cv-side-scrim {
+  display: none;
+}
+@media (max-width: 1099px) {
+  .cv-side-scrim {
+    display: block;
+    position: fixed;
+    inset: 48px 0 0;
+    z-index: 39;
+    border: 0;
+    padding: 0;
+    background: var(--scrim);
+  }
+  .cv-main[data-side="open"] .cv-side {
+    display: flex;
+    position: fixed;
+    z-index: 40;
+    top: 48px;
+    right: 0;
+    bottom: 0;
+    width: min(320px, 100%);
+    box-shadow: var(--shadow-popover);
+  }
+}
+
+/* Phones: Remind stays in the call view, and every row keeps its "All commands" button (Remind, Done, Delete…). */
+@media (max-width: 719px) {
+  .cv-act {
+    display: inline-flex;
+  }
+  .row .r-acts,
+  .row:hover .r-acts,
+  .row.is-cursor .r-acts {
+    display: flex;
+    position: static;
+    transform: none;
+    grid-area: status;
+    justify-self: end;
+    align-self: center;
+    padding: 0;
+    background: transparent;
+  }
+  .row .r-acts .r-act:not(:last-child) {
+    display: none;
+  }
+  .row .r-status {
+    padding-right: 32px;
+  }
+  .cv-main[data-side="open"] .cv-side {
+    top: auto;
+    left: 0;
+    width: auto;
+    max-height: 70vh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+}
+
+/* Sign-in code: one field for six digits, large and spaced so it reads like the code in the email. The indent of one
+   letter space balances the space after the last digit, so the digits sit in the middle. */
+.auth-card input.auth-code {
+  height: 48px;
+  font-family: var(--font-mono);
+  font-size: 24px;
+  letter-spacing: 0.35em;
+  text-indent: 0.35em;
+  text-align: center;
+}
+/* "Code from the email" in the empty field: the card's own text, not the code's large spaced digits. Set on the empty
+   field itself, not only on ::placeholder: browsers put a smaller placeholder on the large text's baseline, so it sat
+   off the middle. */
+.auth-card input.auth-code:placeholder-shown {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  letter-spacing: 0;
+  text-indent: 0;
+}
+
+/*
+ * The sign-up page's bot check (Cloudflare Turnstile): centered in the column, as the widget has its own fixed width.
+ * Its height is kept, so the button does not jump; an invisible widget's box gives it back, with the column's gap,
+ * once it passed.
+ */
+/* Turnstile shows only when Cloudflare needs the person (interaction-only): no room kept while nothing shows. */
+.auth-turnstile {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+.auth-turnstile.is-collapsed {
+  margin-bottom: -12px;
+}
+/* "or" between Send code and the sign-in providers on the sign-up page. */
+.auth-or {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+.auth-or::before,
+.auth-or::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--line);
+}
+
+/* Assistant instructions: room for a few paragraphs. */
+.ta.ta-tall {
+  min-height: 260px;
+}
+
+/* Selecting several calls: a checkbox replaces the unread dot on hover and while anything is selected. */
+.r-dot {
+  position: relative;
+}
+.r-check {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  opacity: 0;
+  place-items: center;
+  cursor: pointer;
+}
+.r-check .k-check-box {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+.row:hover .r-check,
+.ib-list.is-selecting .r-check {
+  opacity: 1;
+}
+.row:hover .r-dot > i,
+.ib-list.is-selecting .r-dot > i {
+  visibility: hidden;
+}
+.row.is-selected {
+  background: var(--highlight);
+}
+.ib-bulk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.ib-bulk > b {
+  font-size: 13px;
+  font-weight: 600;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+.ib-bulk-acts {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* ---- Page widths: one set for the whole app ----
+   --w-list: inbox and contacts lists (the full window width) · --w-read: one call · --w-page: settings-style pages.
+   Content is centred in its width; hover, the cursor bar, the unread dot and the checkbox sit inside
+   the row, never at the window edge. */
+:root {
+  --w-list: 100%;
+  --w-read: 760px;
+  --w-page: 820px;
+  --gutter: 20px;
+  --row-lead: 42px;
+}
+@media (max-width: 719px) {
+  :root {
+    --gutter: 12px;
+    --row-lead: 30px;
+  }
+}
+
+/* Header bar and shortcut hints line up with the list. */
+.cv > .ib-head,
+.ib-hint {
+  padding-left: max(14px, calc((100% - var(--w-list)) / 2));
+  padding-right: max(14px, calc((100% - var(--w-list)) / 2));
+}
+@media (max-width: 719px) {
+  .cv > .ib-head {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+}
+
+/* Rows and day labels: centred in --w-list; the row's left padding is the gutter for dot and checkbox. */
+.ib-list {
+  /* Time · caller · call · status · duration, shared by the rows and the column headings. */
+  --ib-columns: 128px minmax(110px, 220px) minmax(0, 1fr) minmax(104px, 320px) 56px;
+}
+.ib-list .row,
+.ib-list .ib-cols,
+.ib-list .ib-day {
+  width: 100%;
+  max-width: var(--w-list);
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+}
+.ib-list .row:not(.cust-row) {
+  padding-left: var(--row-lead);
+  padding-right: var(--gutter);
+  grid-template-columns: var(--ib-columns);
+}
+/* The time says the day and the clock time on one line ("Yesterday 11:40 PM"), the duration too. Every column,
+   time and duration included, starts at its left edge, under its heading. */
+.ib-list .row .r-time,
+.ib-list .row .r-dur {
+  white-space: nowrap;
+}
+.ib-list .row:not(.cust-row) .r-time,
+.ib-list .row:not(.cust-row) .r-dur {
+  text-align: left;
+}
+/* The time is on the left now: it stays when the row's actions cover the duration on hover. */
+.ib-list .row:not(.cust-row):hover .r-time,
+.ib-list .row:not(.cust-row).is-cursor .r-time {
+  visibility: visible;
+}
+/* Column headings: muted, as tall as a heading, sticky while the calls scroll. The select-all box
+   sits where the rows' checkboxes are. */
+.ib-list .ib-cols {
+  padding-left: var(--row-lead);
+  padding-right: var(--gutter);
+  grid-template-columns: var(--ib-columns);
+  white-space: nowrap;
+}
+.ib-cols > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ib-cols > .ib-cols-check {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--row-lead) - 28px);
+  width: 18px;
+  display: grid;
+  place-items: center;
+  overflow: visible;
+}
+.ib-cols-check .k-check-box {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+.ib-cols-check .k-check {
+  gap: 0;
+}
+.ib-cols-all {
+  display: none;
+  margin-left: 8px;
+}
+.ib-list .ib-day {
+  padding-left: var(--row-lead);
+  padding-right: var(--gutter);
+}
+.ib-list .row .r-dot {
+  left: calc(var(--row-lead) - 28px);
+  width: 18px;
+}
+.ib-list .row .r-acts {
+  right: 14px;
+}
+@media (max-width: 719px) {
+  /* Phones: the row's ⋯ sits on the first line next to the time, so a row without a status is two lines. */
+  .ib-list .row:not(.cust-row) {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "name time acts" "sum sum sum" "status status status";
+    column-gap: 4px;
+  }
+  .ib-list .row:not(.cust-row) .r-acts {
+    grid-area: acts;
+    align-self: start;
+    margin: -4px -6px -4px 0;
+  }
+  .ib-list .row:not(.cust-row) .r-status {
+    padding-right: 0;
+  }
+  /* Phones stack each row, so no column headings; while calls are selected the bar offers Select all. */
+  .ib-list .ib-cols {
+    display: none;
+  }
+  .ib-list.is-selecting .ib-cols {
+    display: flex;
+    align-items: center;
+  }
+  .ib-list.is-selecting .ib-cols > span:not(.ib-cols-check) {
+    display: none;
+  }
+  .ib-list.is-selecting .ib-cols-all {
+    display: inline;
+    font-size: 12.5px;
+    color: var(--ink);
+  }
+  .ib-cols > .ib-cols-check {
+    left: 6px;
+    width: auto;
+  }
+  .ib-list .row .r-dot {
+    left: 6px;
+    top: 8px;
+    height: 22px;
+    transform: none;
+  }
+}
+
+/* Contacts: the same width and gutter as the inbox. */
+.ib-list .row.cust-row.ct-row {
+  padding-left: var(--row-lead);
+  padding-right: var(--gutter);
+}
+
+/* A list page's visible title (PageTitle in ui/listPage.tsx): the inbox's view title, as a heading. */
+h1.ib-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: inherit;
+}
+@media (max-width: 719px) {
+  .cv > .ib-head .ib-title {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}
+
+/* One call: the reading width. */
+.cv-col {
+  max-width: var(--w-read);
+}
+/* Contact panel actions: Call, Block, and the Blocked badge on one line. */
+.side-acts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+/* A link drawn as a button (Call) reads as a button. */
+a.k-btn {
+  text-decoration: none;
+}
+/* Next steps: a ticked step reads as done. */
+.sum-task.is-done .k-check-text {
+  color: var(--ink-muted);
+  text-decoration: line-through;
+}
+/* Caller and number under the title on every width (principle 9), not only on narrow screens. */
+@media (min-width: 1100px) {
+  .cv-who .sub {
+    display: inline;
+  }
+}
+/* Transcript (call view and test-call panel): the caller speaks in white bubbles with a hairline, the
+   assistant in the grey ones. Calm on purpose: the call's actions keep the attention. */
+.cv .k-bubble.k-tone-signal,
+.cv .k-msg-them .k-bubble.k-tone-signal {
+  background: var(--bubble-caller);
+  color: var(--ink);
+  box-shadow: none;
+  border: 1px solid var(--line);
+}
+.cv .k-bubble.k-tone-signal .k-msg-author,
+.cv .k-bubble.k-tone-signal .k-meta {
+  color: var(--ink-muted);
+}
+
+/* Done and Spam are finished work: their badges are quiet, never red. */
+.ib-list.is-quiet .r-status .k-badge {
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-muted);
+  padding: 0;
+}
+
+/* The toast floats above the shortcut hints instead of covering them. */
+.app:has(.ib-hint) .toast {
+  bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+}
+/* Hints and the offline bar together: above both (phones hide the hints, so the offline bar alone counts). */
+@media (min-width: 720px) {
+  .app:has(.ib-hint):has(.sync-bar) .toast {
+    bottom: calc(82px + env(safe-area-inset-bottom, 0px));
+  }
+}
+@media (max-width: 719px) {
+  .app:has(.sync-bar) .toast {
+    bottom: calc(50px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Narrow windows: the selection bar keeps one line; labels give way to icons, the rest is under ⋯. */
+@media (max-width: 719px) {
+  .ib-bulk-acts {
+    flex-wrap: nowrap;
+  }
+  .ib-bulk .ib-bulk-wide,
+  .ib-bulk .ib-bulk-label > span,
+  .ib-bulk .ib-bulk-clear .k-kbds {
+    display: none;
+  }
+}
+
+/* Setup banner: the assistant cannot answer yet (no number). Quiet, not red: nothing is broken. */
+.setup-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px max(16px, env(safe-area-inset-left, 0px));
+  background: var(--surface-hover);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.setup-bar b {
+  color: var(--ink);
+  font-weight: 500;
+}
+.setup-bar > span {
+  flex: 1 1 240px;
+}
+/* The bill owner's billing line (shell/BillingBanner.tsx): red when calls are at stake, amber otherwise. */
+.setup-bar.is-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.setup-bar.is-warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+/* The inbox body: the calls and, while there is one, the go-live checklist (inbox/GoLiveChecklist.tsx). */
+.ib-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.ib-body > .ib-list {
+  min-width: 0;
+}
+/* Until the first real call: one quiet line that says what happens when one comes in. */
+.ib-firstcall {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: var(--w-list);
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 8px var(--gutter) 8px var(--row-lead);
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+  line-height: 17px;
+  color: var(--ink-muted);
+}
+.ib-firstcall .k-icon,
+.ib-firstcall svg {
+  flex: none;
+}
+
+/* Go live: narrow windows get a card above the calls, one line until opened; open, it scrolls on its own. */
+.golive {
+  flex: none;
+  margin: 8px 12px 4px;
+  padding: 4px 6px 4px 12px;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  font-size: 13px;
+}
+.golive-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.golive-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.golive-toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+.golive-toggle b {
+  font-weight: 600;
+}
+.golive-count {
+  font-size: 12px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.golive-next {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.golive-rows {
+  display: none;
+  margin: 0;
+  padding: 2px 0 6px;
+  list-style: none;
+}
+.golive.is-open {
+  max-height: 50vh;
+  overflow: auto;
+}
+.golive.is-open .golive-rows {
+  display: grid;
+  gap: 2px;
+}
+.golive-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.golive-row > a,
+.golive-row > div {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+  padding: 5px 6px;
+  margin-left: -6px;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  text-decoration: none;
+}
+.golive-row > a:hover {
+  background: var(--surface-hover);
+}
+.golive-row > a:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.golive-row b {
+  font-weight: 500;
+}
+.golive-row span:not(.sr-only):not(.golive-mark) {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+.golive-row.is-done b {
+  font-weight: 400;
+  color: var(--ink-muted);
+  text-decoration: line-through;
+}
+/* The tick: an empty ring until done, then filled in ink (black is the primary colour, not green). */
+.golive-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-top: 6px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--line-control);
+  border-radius: var(--radius-full);
+}
+.golive-row.is-done .golive-mark {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--surface);
+}
+/* The checklist did not load (nothing kept from before): one line and Try again. */
+.golive-problem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+/* Remind me (H) and Not needed (⌫) on an open step: shown on hover and while the step has the focus; always on touch. */
+.golive-acts {
+  flex: none;
+  display: flex;
+  gap: 0;
+  margin-top: 2px;
+  opacity: 0;
+}
+.golive-row:hover .golive-acts,
+.golive-row:focus-within .golive-acts {
+  opacity: 1;
+}
+@media (hover: none) {
+  .golive-acts {
+    opacity: 1;
+  }
+}
+.golive-row > div.golive-target:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+/* Reminders · N and Not needed · N under the open steps, collapsed; one click on a step brings it back. */
+.golive-set {
+  display: none;
+  padding: 2px 0 4px;
+}
+.golive.is-open .golive-set {
+  display: grid;
+  gap: 2px;
+}
+.golive-more {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  margin-left: -6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.golive-more:hover,
+.golive-back:hover {
+  background: var(--surface-hover);
+}
+.golive-more[aria-expanded="false"] .k-icon {
+  transform: rotate(-90deg);
+}
+.golive-more span {
+  color: var(--ink-muted);
+}
+.golive-set ul {
+  margin: 0 0 4px;
+  padding: 0 0 0 18px;
+  list-style: none;
+}
+.golive-back {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+  padding: 4px 6px;
+  margin-left: -6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.golive-back b {
+  font-weight: 500;
+}
+.golive-back span {
+  grid-row: 2;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.golive-back .k-icon {
+  grid-row: 1 / 3;
+  grid-column: 2;
+  color: var(--ink-muted);
+}
+.golive-more:focus-visible,
+.golive-back:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+/* Wide windows: a side panel beside the calls, always open, like the contact panel in a call. */
+@media (min-width: 1100px) {
+  .ib-body {
+    flex-direction: row;
+  }
+  .ib-body > .ib-list {
+    flex: 1;
+  }
+  .golive,
+  .golive.is-open {
+    order: 2;
+    width: 272px;
+    max-height: none;
+    margin: 0;
+    padding: 14px 14px 16px;
+    overflow: auto;
+    border-radius: 0;
+    box-shadow: none;
+    border-left: 1px solid var(--line);
+  }
+  .golive-toggle {
+    cursor: default;
+  }
+}
+
+/* Settings, Phone numbers */
+.st-pn {
+  gap: 10px;
+}
+.st-pn-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.st-pn-t {
+  display: grid;
+  gap: 1px;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.st-connect {
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.st-sec-head + .st-connect {
+  padding-top: 0;
+  border-top: 0;
+}
+.st-connect .auth-error {
+  margin: 0;
+}
+/* Add number: inside its dialog, no rule above; the monthly price large, what it is paid from small beside it. */
+.pn-connect {
+  padding-top: 0;
+  border-top: 0;
+}
+.pn-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  margin: 0;
+}
+.pn-price-amount {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.pn-price-per {
+  font-size: 13px;
+  color: var(--ink);
+}
+.pn-price .help {
+  flex-basis: 100%;
+}
+.pn-added {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+/* Settings, Phone numbers: one list row per number (ui/list.css), Manage opens the rest. */
+.pn-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.pn-status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--ink-disabled);
+}
+.pn-status.is-on {
+  color: var(--ink);
+}
+.pn-status.is-on::before {
+  background: var(--live-dot, var(--ink));
+}
+/* Forwarding not verified yet: the status opens the number, where the check is. */
+.pn-status-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+.pn-status-link:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* The "?" next to "How calls reach <assistant>": every mode with its explanation (settings/NumberMode.tsx). */
+.pn-mode-help {
+  display: grid;
+  gap: 8px;
+}
+.pn-mode-help-item {
+  display: grid;
+  gap: 2px;
+}
+.pn-mode-help-item b {
+  font-weight: 600;
+}
+.pn-mode-help-note {
+  opacity: 0.75;
+}
+.pn-release {
+  color: var(--danger);
+}
+.pn-carrier {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -6px 0 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+.pn-carrier-value {
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The carrier's skeleton (or its problem) sits in the line, after "Carrier:". */
+.pn-carrier-loading .sk-text {
+  margin: 4px 0;
+}
+.pn-carrier-change {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.pn-carrier-change:hover {
+  color: var(--ink);
+}
+.pn-carrier-change:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.pn-carrier-form {
+  display: grid;
+  gap: 16px;
+}
+.pn-release:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+.st-connect-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.st-test-wait {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+/* A row that stands for repeat calls from one number: how many, quiet next to the caller. */
+.r-count {
+  flex: none;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: var(--surface-hover);
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: center;
+}
+
+.ib-tab-short {
+  display: none;
+}
+/* Assistant status in the inbox header: green only while calls are really answered, grey otherwise. */
+.ib-maya.is-off .ib-dot {
+  background: var(--line-control);
+}
+/* The one link inside text (ui/AppLink.tsx: AppLink, LinkButton; docs/design-principles.md, rule 18). */
+.ib-maya-fix,
+.k-link {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* A link that is a button: no button frame. */
+button.k-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+.k-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+/* Narrow windows keep the status as a dot (its words are in the tooltip); a live call keeps its text. */
+@media (max-width: 1099px) {
+  .ib-maya:not(.is-live) {
+    display: inline-flex;
+  }
+  .ib-maya:not(.is-live) .ib-maya-t {
+    display: none;
+  }
+}
+@media (max-width: 719px) {
+  .ib-maya:not(.is-live) {
+    display: inline-flex;
+    padding: 0 6px;
+  }
+  /* One header line on phones: the views scroll sideways, status and search keep their place. */
+  .cv > .ib-head {
+    flex-wrap: nowrap;
+  }
+  .cv > .ib-head .ib-tabs {
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .cv > .ib-head .ib-tab {
+    flex: none;
+  }
+  /* Short view names, so the three views fit next to the status. */
+  .ib-tab-long {
+    display: none;
+  }
+  .ib-tab-short {
+    display: inline;
+  }
+  .cv > .ib-head .ib-right {
+    flex: none;
+    gap: 2px;
+  }
+  /* The free trial line (InboxHead TrialStatus) gets a quiet row of its own under the views. */
+  .cv > .ib-head:has(> .ib-trial) {
+    flex-wrap: wrap;
+  }
+  .cv > .ib-head > .ib-trial {
+    order: 5;
+    flex-basis: 100%;
+    margin-left: 0;
+    padding: 0 4px 2px;
+  }
+  .cv > .ib-head > .ib-trial + .ib-right {
+    margin-left: auto;
+    padding-left: 0;
+    border-left: 0;
+  }
+  /* A contact's record: its header buttons show only their icons (the page header's do so through .ib-right). */
+  .ct-head .k-btn .k-kbds {
+    display: none;
+  }
+  .ct-head .k-btn > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* Boot screen: the mark above the quiet line. */
+.boot-mark {
+  margin: 0 0 4px;
+}
+
+/* Account, Sessions: grey lines while the list loads */
+/* Text for screen readers only (view headings). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.st-test-bare {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+/* Settings, Notifications: the team defaults under the member's own switches */
+.st-defaults {
+  display: grid;
+  gap: 2px;
+}
+.st-defaults > b {
+  font-size: 13px;
+  font-weight: 600;
+}
+.st-defaults > p {
+  margin: 0 0 4px;
+}
+
+/* Keyboard focus is always visible: a ring for any control that has no focus style of its own. */
+:where(
+  button,
+  a[href],
+  input,
+  select,
+  textarea,
+  [tabindex]:not([tabindex="-1"]),
+  [role="button"],
+  [role="slider"]
+):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Reduced motion: no animation or transition anywhere (the per-component rules above only cover some). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* While calls are selected, shift-click picks calls, not the text between them. */
+.ib-list.is-selecting {
+  user-select: none;
+}
+
+/* ===== Loading (ui/LoadStates.tsx, docs/design-principles.md "Loading") =====
+   One look for every area that waits for data: grey shapes in the layout of what comes, one slow soft
+   pulse, static with reduced motion. The frame holds the space at once but shows the shapes only after
+   a moment (loadingGate.ts); the content fades in. */
+/* The area stacks its content with the gap of the card or list it sits in, as if it were not there. */
+.ld {
+  display: grid;
+  gap: inherit;
+  min-width: 0;
+}
+/* Only the grey shapes wait; words that are part of a skeleton (a card's title) show at once. */
+.ld-busy.is-reserved .sk {
+  visibility: hidden;
+}
+.ld-in {
+  animation: ld-in 140ms ease-out both;
+}
+/* A page list's rows, just arrived after its skeleton (Inbox, Contacts). */
+.ld-rows-in .row:not(.is-entering):not(.is-leaving) {
+  animation: ld-in 140ms ease-out both;
+}
+@keyframes ld-in {
+  from {
+    opacity: 0;
+  }
+}
+.sk {
+  display: block;
+  flex: none;
+  max-width: 100%;
+  background: var(--skeleton);
+  border-radius: var(--radius-sm);
+  animation: sk-pulse 1.4s ease-in-out var(--sk-sync, 0ms) infinite;
+}
+@keyframes sk-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sk,
+  .ld-in,
+  .ld-rows-in .row:not(.is-entering):not(.is-leaving) {
+    animation: none;
+  }
+}
+/* A line of text: a bar in the middle of a 20px line, like the words it stands for. */
+.sk-text {
+  display: inline-block;
+  height: 10px;
+  margin: 5px 0;
+  border-radius: 5px;
+  vertical-align: top;
+}
+.sk-field {
+  height: 32px;
+  width: 220px;
+}
+.sk-title {
+  height: 14px;
+  width: 140px;
+  margin: 3px 0;
+  border-radius: 7px;
+}
+.sk-card {
+  height: 180px;
+  margin-bottom: 16px;
+  border-radius: var(--radius-lg);
+}
+/* Shapes side by side, like a field and its select. */
+.sk-inline {
+  display: flex;
+  gap: 6px;
+}
+.sk-round {
+  border-radius: var(--radius-full);
+}
+/* The workspace menu's you-row (WorkspaceMenu.tsx): its lines are 15px, so the bars are too; same height as the row. */
+.ws-me .sk-text {
+  height: 9px;
+  margin: 3px 0;
+}
+.sk-k-list .k-row-title,
+.sk-k-list .k-row-sub {
+  display: block;
+}
+/* Rows of a grid list with column headings: the rows' own height and grid. */
+.sk-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-items: center;
+  column-gap: 14px;
+  height: 34px;
+  padding: 0 20px;
+}
+.ib-list .sk-list {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--w-list);
+  margin: 0 auto;
+}
+.ib-list .sk-row {
+  padding-left: var(--row-lead);
+  padding-right: var(--gutter);
+  grid-template-columns: var(--ib-columns);
+}
+.ib-list.ct-list .sk-row {
+  grid-template-columns: var(--ct-columns);
+}
+@media (max-width: 719px) {
+  .ib-list .sk-row,
+  .ib-list.ct-list .sk-row {
+    grid-template-columns: minmax(0, 1fr) 64px;
+  }
+  .ib-list .sk-row > .sk:nth-child(n + 3) {
+    display: none;
+  }
+}
+/* A checklist's rows (SkeletonChecklist): mark, name, and the button at the right end where the step has one. The
+   real list's classes give the gaps and heights; these only lay the shapes out like the steps. */
+.sk-checklist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sk-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.sk-check > .sk-text {
+  flex: 0 1 auto;
+}
+.sk-check > .sk-check-action {
+  margin-left: auto;
+}
+
+.as-stale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Settings, Phone numbers: disconnecting or releasing a number, with the number typed to confirm */
+.st-release {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+}
+.st-release > b {
+  font-size: 13px;
+  font-weight: 600;
+}
+.st-release .auth-error {
+  margin: 0;
+}
+
+/* Settings › Assistant, Business hours */
+.st-hours-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.st-hours-foot > .help,
+.st-hours-foot > .st-tz {
+  margin-right: auto;
+}
+.st-tz {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Very wide windows: the menu is docked beside the content (Workspace, NAV_DOCKED_QUERY). */
+@media (min-width: 1600px) {
+  .app.nav-docked {
+    grid-template-columns: 252px minmax(0, 1fr);
+  }
+  .app.nav-docked .nav {
+    position: relative;
+    width: auto;
+    transform: none;
+    visibility: visible;
+    box-shadow: none;
+    border-right: 1px solid var(--line);
+    transition: none;
+  }
+  .app.nav-docked .scrim,
+  .app.nav-docked .menu-btn {
+    display: none;
+  }
+}
+
+/* Signed in as another user (shell/ImpersonationBar.tsx): the app sits above a dark bar. The app's
+   own fixed layers (toasts, overlays, the menu, onboarding) are placed inside the app's area
+   (`contain: layout` makes it their containing block), so the bar never covers them nor they it. */
+.imp-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.imp-content {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  contain: layout;
+}
+.imp-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px 16px;
+  min-height: 40px;
+  padding: 6px max(16px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px))
+    max(16px, env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
+  background: #1c1917;
+  color: #fafaf8;
+  font-size: 13px;
+  line-height: 18px;
+}
+.imp-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.imp-text b {
+  font-weight: 600;
+}
+.imp-wide,
+.imp-left {
+  color: #d6d3d1;
+}
+.imp-edits-on {
+  color: #fafaf8;
+  font-weight: 600;
+}
+.imp-warning {
+  color: #fafaf8;
+  font-size: 12.5px;
+}
+.imp-bar .imp-back {
+  flex: none;
+  background: #fafaf8;
+  color: #1c1917;
+  border-color: transparent;
+}
+/* Allow edits / Back to read-only: quieter than the way back, outlined on the dark bar. */
+.imp-bar .imp-edits {
+  flex: none;
+  background: transparent;
+  color: #fafaf8;
+  border-color: rgba(250, 250, 248, 0.45);
+}
+.imp-bar .imp-edits:hover:not(:disabled) {
+  background: rgba(250, 250, 248, 0.12);
+}
+.imp-bar .imp-edits:focus-visible,
+.imp-bar .imp-back:focus-visible {
+  outline: 2px solid #fafaf8;
+  outline-offset: 2px;
+}
+@media (max-width: 719px) {
+  .imp-wide {
+    display: none;
+  }
+  .imp-bar {
+    flex-wrap: wrap;
+  }
+}
+
+/* Workspaces in the workspace menu; from WORKSPACE_FILTER_FROM on, a filter field and a scrolling list. The line
+   under them is inset like the menu's other dividers (styles.css .ws-menu hr: 3px 4px). */
+.me-ws {
+  display: grid;
+  gap: 1px;
+  margin-bottom: 3px;
+}
+.me-ws::after {
+  content: "";
+  margin: 2px 4px 0; /* + the grid's 1px gap: 3px, as above an hr */
+  border-top: 1px solid var(--line);
+}
+.me-ws-head {
+  padding: 4px 8px 2px;
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+.me-ws-filter {
+  margin: 2px 4px 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+.me-ws-list {
+  display: grid;
+  gap: 1px;
+}
+.me-ws-list.is-scroll {
+  max-height: 220px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.me-ws .lbl,
+.ws-menu .nav-item .lbl {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Invitations in the workspace menu: the workspace, role and inviter, then Join and Decline. */
+.me-inv {
+  display: grid;
+  gap: 6px;
+  padding: 4px 8px 8px;
+}
+.me-inv-t {
+  display: grid;
+  min-width: 0;
+}
+.me-inv-t .lbl {
+  font-weight: 500;
+}
+.me-inv-t small {
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+.me-inv-acts {
+  display: flex;
+  gap: 4px;
+}
+.me-avatar {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+/* Something new is waiting (an invitation): the unread signal. */
+.me-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+/* A workspace an admin disabled: listed, greyed out, cannot be chosen (WorkspaceSwitcher). */
+.me-ws .nav-item.is-ws-disabled {
+  color: var(--ink-muted);
+  cursor: default;
+}
+.me-ws-busy,
+.me-ws-none {
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+.me-ws-none {
+  padding: 6px 8px;
+}
+
+/* Settings, Recordings: the caller privacy notice template, folded away by default ("Show text"), then as it will be
+   pasted (paragraphs, wrapped). */
+.st-privacy-disclaimer {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.st-privacy-more > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.st-privacy-more > summary::-webkit-details-marker {
+  display: none;
+}
+.st-privacy-more > summary:hover {
+  color: var(--ink);
+}
+.st-privacy-more > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+.st-privacy-chevron {
+  transform: rotate(-90deg);
+  transition: transform 120ms ease;
+}
+.st-privacy-more[open] .st-privacy-chevron {
+  transform: none;
+}
+.st-privacy-body {
+  margin-top: 10px;
+}
+.st-privacy-fill {
+  margin: 0 0 8px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.st-privacy-text {
+  margin: 0;
+  padding: 10px 12px;
+  max-height: 320px;
+  overflow-y: auto;
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  background: var(--surface-hover);
+  border-radius: var(--radius-sm);
+}
+
+/* How <assistant> did on this call (owners and admins): a quiet card under the summary, the score in words, at most
+   three issues, the questions it could not answer and Done. */
+.evc {
+  display: grid;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.evc-empty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.evc-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.evc-h > b {
+  font-size: 13px;
+  font-weight: 600;
+}
+.evc-who {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.evc-questions {
+  display: grid;
+  gap: 4px;
+}
+.evc-label {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.evc-issues {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* Sample calls ("Try with sample calls"): a quiet bar above the inbox and a grey tag on each row. */
+.ib-sample {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px max(16px, env(safe-area-inset-left, 0px));
+  background: var(--surface-hover);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.ib-sample b {
+  color: var(--ink);
+  font-weight: 500;
+}
+.r-sample {
+  flex: none;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--surface-hover);
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+}
+/* A message the team cannot act on (no reason, no callback number): amber, a warning (design rule 1). */
+.r-sample.r-missing {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+/* First-use tour: a small card next to what it explains, its arrow pointing at it, the rest dimmed. */
+.tour {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  width: min(320px, calc(100vw - 24px));
+  box-sizing: border-box;
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-popover);
+}
+.tour:not([data-ready]) {
+  visibility: hidden; /* until it is placed, never a frame in the corner */
+}
+.tour:focus {
+  outline: none;
+}
+/* Nothing to point at (or it is hidden on this screen): the card waits in the middle. */
+.tour.is-centred {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.tour h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.tour p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--ink-muted);
+}
+/* The step's keys: one quiet line under the job it teaches. A phone has no keyboard to press them on. */
+.tour p.tour-keys {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-muted);
+}
+@media (max-width: 719px), (hover: none) and (pointer: coarse) {
+  .tour p.tour-keys {
+    display: none;
+  }
+}
+/* The counter never wraps or shrinks; the buttons stay together as one group. When the row is too narrow
+   (longer labels in another language) the group drops to its own row, still on the right, rather than
+   squeezing the counter. */
+.tour-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) 12px;
+}
+.tour-count {
+  flex: none;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.tour-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-left: auto;
+}
+/* The arrow: a small square turned 45°, half of it under the card, on the side that faces the target. */
+.tour-arrow {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: var(--surface);
+  transform: rotate(45deg);
+}
+.tour[data-side="bottom"] .tour-arrow {
+  top: -5px;
+  box-shadow: -1px -1px 1px rgb(var(--ink-rgb) / 0.06);
+}
+.tour[data-side="top"] .tour-arrow {
+  bottom: -5px;
+  box-shadow: 1px 1px 1px rgb(var(--ink-rgb) / 0.06);
+}
+.tour[data-side="right"] .tour-arrow {
+  left: -5px;
+}
+.tour[data-side="left"] .tour-arrow {
+  right: -5px;
+}
+/* Under the card, over everything else: clicks outside the card do nothing while the tour runs. */
+.tour-shield {
+  position: fixed;
+  inset: 0;
+  z-index: 59;
+}
+/* The spotlight: a rounded window around the target, the rest of the screen dimmed by its huge shadow. */
+.tour-spot {
+  position: fixed;
+  z-index: 59;
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 200vmax var(--scrim);
+  pointer-events: none;
+}
+.tour-spot.is-full {
+  inset: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--scrim);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .tour {
+    animation: tour-in 160ms ease-out;
+  }
+  .tour[data-side] {
+    transition: transform 180ms ease-out;
+  }
+  .tour-spot {
+    transition:
+      top 180ms ease-out,
+      left 180ms ease-out,
+      width 180ms ease-out,
+      height 180ms ease-out;
+  }
+}
+@keyframes tour-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.auth-card .auth-hint {
+  font-size: 12.5px;
+}
+/* The server command for an enrolment code on the Server admin passkey page (admin/SecondFactorPrompt.tsx). */
+.auth-hint .auth-command {
+  display: block;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  background: var(--surface-hover);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.auth-hint a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* Setting up an authenticator app (settings/account/authenticator.tsx): the QR code stays black on white in both
+   themes, so every phone camera reads it. */
+.ac-authenticator-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.ac-authenticator-qr img {
+  padding: 8px;
+  border-radius: var(--radius-md);
+  background: #fff;
+  box-shadow: var(--shadow-card);
+}
+.ac-authenticator-key {
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  background: var(--surface-hover);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+/* "Confirm your email": an inline card in onboarding, Account and the invitation page. */
+.confirm-email {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  margin: 0 0 16px;
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+.confirm-email-text {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.confirm-email-text span {
+  color: var(--ink-muted);
+}
+.confirm-email-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.confirm-email-row .k-input {
+  width: 120px;
+}
+
+/* The caller's name in the call header opens their contact (the panel; a sheet on narrow windows). */
+.cv-contact-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+}
+.cv-contact-link:hover > span,
+.cv-contact-link:focus-visible > span {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--ink-muted);
+}
+.cv-contact-link .k-icon {
+  color: var(--ink-muted);
+}
+
+/* Call view: where the player would be, when the workspace keeps no recordings. */
+.cv-no-recording {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+
+/* A new build was deployed while this tab was open. */
+.nv-bar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - 32px);
+  padding: 8px 8px 8px 16px;
+  border-radius: 10px;
+  background: #1c1917;
+  color: #fafaf8;
+  font-size: 13px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+}
+.nv-reload {
+  font: inherit;
+  font-weight: 500;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: #fafaf8;
+  color: #1c1917;
+  cursor: pointer;
+}
+.nv-reload:focus-visible {
+  outline: 2px solid #fafaf8;
+  outline-offset: 2px;
+}
+
+/* The palette panel takes focus on touch screens (CommandMenu.tsx); no ring around the whole panel. */
+.k-cmd:focus {
+  outline: none;
+}
+
+/* Phones and tablets without a keyboard: the palette leaves out key hints. */
+@media (hover: none) and (pointer: coarse) {
+  .k-cmd .k-kbds,
+  .k-cmd-foot {
+    display: none;
+  }
+  /* Same for the keys on buttons (Save ⌘S), menu items, Undo and the search field: nothing to press there.
+     Keys inside a sentence (the help sheet) stay. */
+  .k-btn .k-kbds,
+  .nav-item .k-kbds,
+  .toast-undo .k-kbds,
+  .k-input .k-kbds {
+    display: none;
+  }
+}
+
+/* iPhones zoom into a field whose text is under 16px when it is tapped: on touch screens fields use 16px.
+   The sign-in code keeps its larger size once it holds digits. */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], .auth-code),
+  input.auth-code:placeholder-shown,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+/* The account menu on a centred page someone reaches signed in (shell/SignedInAuthPage.tsx), where the setup pages'
+   top bar has it. */
+.auth {
+  position: relative;
+}
+.auth-corner {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top, 0px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+}
+/* The foot's last row: Star on GitHub, and Keyboard shortcuts as a small key button in the bottom right corner (Nav.tsx). */
+.nav-foot-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.nav-foot-row > a.nav-item {
+  flex: 1;
+  min-width: 0;
+}
+.nav-keys {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+  flex: none;
+}
+.nav-keys:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+.nav-keys:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* A phone's call view (CallView PhoneFoot): Call <name> back and Done in a bar at the bottom, within thumb's reach.
+   It sits under the scrolling call, never over it, and clears the home indicator. The top bar's Done then hides. */
+.cv-foot {
+  display: none;
+}
+@media (max-width: 719px) {
+  .cv-foot {
+    display: flex;
+    flex: none;
+    gap: 8px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--line);
+    background: var(--bg);
+  }
+  .cv-foot .k-btn {
+    height: var(--control-h-lg);
+    justify-content: center;
+  }
+  .cv-foot .cv-foot-call {
+    flex: 1;
+    min-width: 0;
+  }
+  .cv-foot .cv-foot-done:only-child {
+    flex: 1;
+  }
+  .cv.has-foot .cv-bar .cv-done {
+    display: none;
+  }
+  .app:has(.cv-foot) .toast {
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  }
+}

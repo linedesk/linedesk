@@ -1,0 +1,2 @@
+ALTER TABLE "terms_acceptances" DROP CONSTRAINT "terms_acceptances_source";--> statement-breakpoint
+ALTER TABLE "terms_acceptances" ADD CONSTRAINT "terms_acceptances_source" CHECK ("terms_acceptances"."source" in ('signup', 'activation', 'trial_recharge', 'extra_calls', 'auto_recharge', 'terms_update'));

@@ -1,0 +1,49 @@
+name: Bug report
+description: Something does not work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security problem? Don't file it here; see SECURITY.md. Please leave out real phone numbers, transcripts, recordings and keys.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Press …
+        3. See …
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - Web app
+        - Phone calls / voice assistant
+        - Calendar and bookings
+        - API or MCP
+        - Self-hosting (docker compose)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: v0.1.5 (the release or image tag you run) or a commit hash
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: Browser and OS, or for self-hosting the host OS and Docker version. Relevant log lines help (`docker compose logs api agent`).
+      render: text

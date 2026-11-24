@@ -1,0 +1,8 @@
+[Unit]
+Description=Linedesk: newest offsite backup is under 26 h old
+After=docker.service
+OnFailure=linedesk-alert@%n.service
+[Service]
+Type=oneshot
+User=@USER@
+ExecStart=/usr/local/sbin/linedesk-backup-check

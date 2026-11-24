@@ -1,0 +1,13 @@
+[Unit]
+Description=Linedesk: SIP only from carrier addresses
+# Before Docker starts the containers, so the published port is never open without the rules.
+After=network-online.target
+Wants=network-online.target
+Before=docker.service
+OnFailure=linedesk-alert@%n.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/linedesk-sip-firewall
+RemainAfterExit=yes
+[Install]
+WantedBy=multi-user.target

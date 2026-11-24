@@ -1,0 +1,81 @@
+/* "Edit with AI" in the settings top bar (AgentChange.tsx): the agents' marks layered, each ringed in the button's
+   background, as on linedesk.ai's hero. */
+.ai-edit {
+  --ai-ring: var(--surface-raised);
+  padding-left: 5px;
+}
+.ai-edit:hover {
+  --ai-ring: var(--surface-hover);
+}
+.ai-marks {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+.ai-mark {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--ai-ring);
+}
+/* Layered like a stack of avatars: each mark half under the one before it, the first on top. */
+.ai-mark + .ai-mark {
+  margin-left: -8px;
+}
+.ai-mark:nth-child(1) {
+  z-index: 4;
+}
+.ai-mark:nth-child(2) {
+  z-index: 3;
+}
+.ai-mark:nth-child(3) {
+  z-index: 2;
+}
+.ai-mark:nth-child(4) {
+  z-index: 1;
+}
+.ai-mark svg {
+  width: 11px;
+  height: 11px;
+  fill: #fff;
+}
+
+/* Until go-live: the strip under the context line (AgentSetupStrip), a raised card like the sections below it. */
+.as-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin: 4px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+}
+.as-strip-text h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.as-strip-text p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.as-strip-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* The spark (the setup top bar on a phone) only where the marks are hidden (styles.css). Two classes: a button's own
+   `.k-btn > …` display rules must not show it. */
+.ai-edit .ai-spark {
+  display: none;
+}

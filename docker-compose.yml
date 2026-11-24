@@ -1,0 +1,379 @@
+# The whole application. Self-hosting: `docker compose up -d --build` (see docs/self-hosting.md).
+# Development adds docker-compose.ports.yml (local ports for the apps running on the host) through
+# `pnpm db:up`, `pnpm voice:up` and `pnpm recording:up`.
+#
+# Isolation: its own project name and network, data only in named volumes, every service with a
+# restart policy, rotated logs and hard memory and CPU limits (override with the LINEDESK_* variables).
+# CPU: the call-audio services (LiveKit, SIP, the agent, egress) share one pinned core
+# (LINEDESK_VOICE_CPUSET) instead of a quota, because a quota stalls real-time audio even when idle;
+# the other services have quotas that add up to 0.55 of a core. At most 1.55 CPUs in all.
+# Published host ports: Caddy (LINEDESK_HTTP_BIND) and LiveKit's call audio and SIP ports. Nothing else.
+# Networks: Postgres and Electric are only on `backend` (internal, no way out), which only the API joins;
+# the agent, LiveKit, SIP, egress, Redis and Caddy cannot reach them.
+name: linedesk
+
+x-service: &service
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: 10m, max-file: "3" }
+
+services:
+  postgres:
+    <<: *service
+    image: postgres:17@sha256:846a7ddaa67a4b354ae1d21087b683901aa6113a4ed626d3787cfbf6c85e3e07
+    # docker-compose.ports.yml and docker-compose.wal.yml repeat these arguments; change them there too.
+    command: ["postgres", "-c", "wal_level=logical", "-c", "shared_buffers=64MB"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-linedesk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-linedesk} # development default; the API container refuses it
+      POSTGRES_DB: ${POSTGRES_DB:-linedesk}
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
+      interval: 2s
+      retries: 20
+    mem_limit: ${LINEDESK_POSTGRES_MEM:-256m}
+    cpus: ${LINEDESK_POSTGRES_CPUS:-0.1}
+
+  electric:
+    <<: *service
+    image: electricsql/electric:1.8.1@sha256:efb6fa43859d67cb8c73439e0c8bc0f7a3daa467500fb06f2a924bcb2070c139
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-linedesk}:${POSTGRES_PASSWORD:-linedesk}@postgres:5432/${POSTGRES_DB:-linedesk}?sslmode=disable
+      # Only the API talks to Electric: it adds the workspace filter and sends this secret with each shape request.
+      ELECTRIC_SECRET: ${ELECTRIC_SECRET:?set ELECTRIC_SECRET in .env (see .env.example)}
+      ELECTRIC_USAGE_REPORTING: "false" # on the internal network it could not report anyway
+      ELECTRIC_DB_POOL_SIZE: "10"
+    networks: [backend]
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:3000/v1/health | grep -q active"]
+      interval: 2s
+      retries: 30
+    mem_limit: ${LINEDESK_ELECTRIC_MEM:-384m}
+    # A page's first load asks for about 20 shapes at once and takes Electric about 2 s of CPU: at 0.2 it was throttled
+    # for 7 s of every such load. Idle it uses about 2% of a core, so a full core only caps a burst.
+    cpus: ${LINEDESK_ELECTRIC_CPUS:-1}
+
+  api:
+    <<: *service
+    build: { context: ., target: api }
+    image: linedesk-api
+    # Settings and secrets come from .env; the addresses inside the compose network are set here.
+    env_file: [{ path: .env, required: false }]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-linedesk}:${POSTGRES_PASSWORD:-linedesk}@postgres:5432/${POSTGRES_DB:-linedesk}
+      ELECTRIC_URL: http://electric:3000
+      PORT: "3100"
+      WEB_ORIGIN: ${PUBLIC_URL:-http://localhost}
+      BETTER_AUTH_URL: ${PUBLIC_URL:-http://localhost}
+      # Only Caddy and the agent reach the API, from Docker's private networks: rate limits then take the
+      # client address from the X-Forwarded-For hop Caddy adds (apps/api/src/client-ip.ts).
+      TRUSTED_PROXIES: 172.16.0.0/12,10.0.0.0/8,192.168.0.0/16
+      RECORDINGS_DIR: /recordings # where Local disk (RECORDING_STORE=file) recordings are read from
+      LIVEKIT_URL: ws://livekit:7880 # test calls and the voice status check talk to LiveKit here
+      # Error tracking's release (linedesk@<commit>): set by scripts/deploy.sh from REVISION, empty otherwise.
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+    # Same uid as LiveKit egress (1001, see recordings-init): the API serves the files egress writes and
+    # deletes them once they are past the workspace's retention (apps/api/src/recording-retention.ts).
+    user: "1001:1000"
+    # No privilege gain inside the container (it runs as a plain user and needs no capabilities).
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    volumes: ["recordings:/recordings"]
+    networks: [default, backend] # the only service on both: Caddy and the agent reach it, it reaches the database
+    depends_on:
+      postgres: { condition: service_healthy }
+      electric: { condition: service_healthy }
+    # Health: GET /healthz (Dockerfile). scripts/deploy.sh starts the new API next to the old one and
+    # stops the old one once the new one is healthy; migrations run once, in the new one, so they must
+    # work with the previous release too (docs/architecture.md, "Updates without downtime").
+    # 128m was at its limit on staging and production (LIN-324): a big first sync made it swap and answer late.
+    mem_limit: ${LINEDESK_API_MEM:-256m}
+    cpus: ${LINEDESK_API_CPUS:-0.1}
+
+  # Caddy: the entry point. Proxies /api, /v1 and /mcp to the API, LiveKit signalling (/rtc) to LiveKit and
+  # the rest to the web app (docker/Caddyfile). Plain HTTP here: on LINEDESK_HTTP_BIND (default: port 80
+  # on all interfaces), or behind an existing reverse proxy with for example LINEDESK_HTTP_BIND=127.0.0.1:8480.
+  # docker-compose.https.yml makes this Caddy get the certificate itself. It waits for nothing: while
+  # the API starts or is updated it holds requests and retries them (scripts/deploy.sh).
+  proxy:
+    <<: *service
+    build: { context: ., target: proxy }
+    image: linedesk-proxy
+    ports: ["${LINEDESK_HTTP_BIND:-80}:80"]
+    environment:
+      # Behind your own reverse proxy: the ranges it connects from, so Caddy keeps its X-Forwarded-For (docker/Caddyfile).
+      LINEDESK_TRUSTED_PROXY_RANGES: ${LINEDESK_TRUSTED_PROXY_RANGES:-}
+      # The LiveKit address browsers are given, allowed in the CSP's connect-src (docker/Caddyfile).
+      LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL:-}
+      # Extra script-src/style-src sources; dev mode (Vite dev server) needs 'unsafe-inline'. Empty in production.
+      LINEDESK_CSP_DEV: ${LINEDESK_CSP_DEV:-}
+      # Extra connect-src sources, e.g. the Sentry ingest host for the web app's error reports. Empty by default.
+      LINEDESK_CSP_CONNECT: ${LINEDESK_CSP_CONNECT:-}
+    volumes: ["caddy_data:/data"]
+    mem_limit: ${LINEDESK_PROXY_MEM:-48m}
+    cpus: ${LINEDESK_PROXY_CPUS:-0.05}
+
+  # The web app's built files, served by their own Caddy behind the proxy (docker/web.Caddyfile).
+  web:
+    <<: *service
+    build: { context: ., target: web }
+    image: linedesk-web
+    mem_limit: ${LINEDESK_WEB_MEM:-32m}
+    cpus: ${LINEDESK_WEB_CPUS:-0.05}
+
+  # Voice: LiveKit server, its SIP bridge and the Redis-compatible store they share.
+  # The key and secret must be in .env (.env.example has development values; the API and the agent
+  # containers refuse those). Signalling (7880) is not published: browsers reach it through Caddy (/rtc).
+  # Call audio and SIP cannot go through an HTTP proxy, so those ports are published on the host,
+  # on LIVEKIT_BIND_IP (default 127.0.0.1; 0.0.0.0 on a server).
+  redis:
+    <<: *service
+    image: valkey/valkey:9.1.3-alpine@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
+    # Only LiveKit reaches it (SIP and egress run in LiveKit's network): egress requests on it carry the
+    # recording store's keys, and Redis has no password.
+    # LiveKit keeps the SIP trunks and dispatch rules here (setup-sip): without a volume, a deploy that recreates
+    # Redis loses them and no call reaches the agent until setup-sip runs again. Append-only file, written every second.
+    command: ["valkey-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    # As the image's valkey user from the start (its entrypoint drops root only after a chown); a new volume gets
+    # the image's /data owner. No capabilities and no privilege gain, like the other call services.
+    user: "999:1000"
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    volumes:
+      - redis_data:/data
+    networks: [voice]
+    mem_limit: ${LINEDESK_REDIS_MEM:-48m}
+    cpus: ${LINEDESK_REDIS_CPUS:-0.05}
+
+  livekit:
+    <<: *service
+    image: livekit/livekit-server:v1.13.11@sha256:25cd902de7cacbd5f1f779f6a6ac1eae20ba8f56b0935934ce6b0ab80d1e3d20
+    # Starts only once Valkey answers. After a reboot Valkey is still loading its data; LiveKit used to exit on that,
+    # and Docker then restarted it just as it brought back livekit-sip and livekit-egress, which share this network.
+    # Joining a network that is restarting fails, Docker gives up, and no call came in until SIP was started by hand.
+    # Media goes over the default network only: on the voice network too, LiveKit opens its UDP port on both addresses
+    # and announces both as the node IP, no client completes the connection and calls stay silent. Which interface is
+    # eth0 is not fixed: Docker gives no guarantee on the order it connects networks (Engine 28.0 release notes), and
+    # `priority` did not keep default first. So the entrypoint picks the interface that carries the default route: voice
+    # is internal and never gets one, default always does. That name replaces MEDIA_INTERFACE in rtc.interfaces below.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until printf 'PING\r\n' | nc -w 1 redis 6379 2>/dev/null | grep -q PONG; do sleep 1; done
+        media=$$(awk '$$2 == "00000000" { print $$1; exit }' /proc/net/route)
+        if [ -z "$$media" ]; then echo "livekit: no default route, cannot pick the media interface" >&2; exit 1; fi
+        echo "livekit: media interface $$media ($$(ip -4 -o addr show dev "$$media" | awk '{ print $$4 }'))"
+        LIVEKIT_CONFIG=$$(printf '%s\n' "$$LIVEKIT_CONFIG" | sed "s/MEDIA_INTERFACE/$$media/")
+        export LIVEKIT_CONFIG
+        exec /livekit-server "$$@"
+      - livekit-server
+    # The address clients are told to send media to. 127.0.0.1 for local development;
+    # the server's public IP when carriers and browsers connect from outside.
+    command: ["--node-ip", "${LIVEKIT_NODE_IP:-127.0.0.1}"]
+    # Its ports (and SIP's and egress's, which share this network) are all above 1024: no root, no capabilities.
+    # 7881/7882 and the SIP ports face the internet on a voice server.
+    user: "1000:1000"
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    networks: [default, voice]
+    environment:
+      LIVEKIT_CONFIG: |
+        port: 7880
+        rtc:
+          tcp_port: 7881
+          udp_port: 7882
+          use_external_ip: false
+          interfaces:
+            includes: [MEDIA_INTERFACE] # set by the entrypoint above
+        redis:
+          address: redis:6379
+        # LiveKit hands a call to a worker only while the worker's reported CPU load is below target_load (its own
+        # default 0.7): above it, no job is dispatched ("no servers available") and the call gets no agent. The same
+        # value as the agent's AGENT_LOAD_THRESHOLD, with the same default (1.01, apps/agent/src/worker-load.ts):
+        # above any load, so a single worker never refuses a call. Set AGENT_LOAD_THRESHOLD only when more than one
+        # agent worker runs.
+        agents:
+          target_load: ${AGENT_LOAD_THRESHOLD:-1.01}
+        keys:
+          ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env (see .env.example)}: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET in .env (see .env.example)}
+    ports:
+      - "${LIVEKIT_BIND_IP:-127.0.0.1}:7881:7881"       # WebRTC over TCP
+      - "${LIVEKIT_BIND_IP:-127.0.0.1}:7882:7882/udp"   # WebRTC over UDP
+      # SIP over TCP only (served by livekit-sip, which shares this network namespace): every carrier adapter sets
+      # TCP (packages/telephony), and a UDP INVITE with a forged carrier address could start a call (LIN-413 review).
+      - "${LIVEKIT_BIND_IP:-127.0.0.1}:5060:5060/tcp"
+      - "${LIVEKIT_BIND_IP:-127.0.0.1}:10000-10100:10000-10100/udp" # SIP media (RTP)
+    depends_on: [redis]
+    # About 55 MB at rest plus about 3.5 MB per room; at 96 MB the kernel killed it at 12 rooms and every call dropped (LIN-413).
+    mem_limit: ${LINEDESK_LIVEKIT_MEM:-256m}
+    cpuset: ${LINEDESK_VOICE_CPUSET:-1} # the voice core, shared by LiveKit, SIP, the agent and egress
+
+  livekit-sip:
+    <<: *service
+    image: livekit/sip:v1.23.0@sha256:26b5e320482c48d999073dfaf830666b1a312ad0f97d35ae67bd499659b9834e
+    network_mode: "service:livekit" # so it reaches LiveKit media on the advertised node IP
+    user: "1000:1000"
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    environment:
+      SIP_CONFIG_BODY: |
+        api_key: ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env (see .env.example)}
+        api_secret: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET in .env (see .env.example)}
+        ws_url: ws://localhost:7880
+        redis:
+          address: redis:6379
+        sip_port: 5060
+        rtp_port: 10000-10100
+        # true on a server that carriers reach from the internet: SIP then announces the public IP
+        use_external_ip: ${LIVEKIT_SIP_USE_EXTERNAL_IP:-false}
+    depends_on: [livekit, redis]
+    mem_limit: ${LINEDESK_SIP_MEM:-256m} # 40 MB at rest; room for many calls at once (LIN-413)
+    cpuset: ${LINEDESK_VOICE_CPUSET:-1} # the voice core, shared by LiveKit, SIP, the agent and egress
+
+  # The voice agent: answers calls in LiveKit rooms and writes to the API.
+  # Without its speech and LLM keys it starts, logs one line and waits.
+  # Updates (scripts/deploy.sh): the new worker registers with LiveKit (healthy) before the old one is
+  # stopped. On SIGTERM the old one takes no new calls and finishes the ones it has (a call put through to
+  # a person lasts up to 2 hours), in the background, for up to stop_grace_period; only then does Docker kill it.
+  agent:
+    <<: *service
+    build: { context: ., target: agent }
+    image: linedesk-agent
+    # No privilege gain inside the container (it runs as a plain user and needs no capabilities).
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    # Only what the agent needs, never the whole .env: no SECRETS_KEY, BETTER_AUTH_SECRET, DATABASE_URL,
+    # POSTGRES_PASSWORD, SMTP, OAuth or carrier keys reach the process that handles caller audio and LLM
+    # tool calls. A variable the agent should read must be listed here (apps/agent/src/compose-env.test.ts).
+    environment:
+      AGENT_API_TOKEN: ${AGENT_API_TOKEN:-}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env (see .env.example)}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET in .env (see .env.example)}
+      # Speech, language model and voice providers: keys set in Linedesk under Providers, or here (apps/agent/src/config.ts).
+      # The models come from the call quality levels, the voice from each assistant.
+      STT_PROVIDER: ${STT_PROVIDER:-}
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      ELEVENLABS_STT_API_KEY: ${ELEVENLABS_STT_API_KEY:-}
+      OPENAI_STT_API_KEY: ${OPENAI_STT_API_KEY:-}
+      ASSEMBLYAI_STT_API_KEY: ${ASSEMBLYAI_STT_API_KEY:-}
+      ASSEMBLYAI_STT_WAIT_FOR_CALLER: ${ASSEMBLYAI_STT_WAIT_FOR_CALLER:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_ZERO_DATA_RETENTION: ${OPENROUTER_ZERO_DATA_RETENTION:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      TTS_PROVIDER: ${TTS_PROVIDER:-}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      CARTESIA_API_KEY: ${CARTESIA_API_KEY:-}
+      # A realtime model instead of the three above, in use once it has a key: set in Linedesk under Providers, or here.
+      OPENAI_REALTIME_API_KEY: ${OPENAI_REALTIME_API_KEY:-}
+      # Where calls are recorded comes from the API (Providers > Recording storage, or the API's RECORDING_STORE and S3_*).
+      RECORDING_STORE: ${RECORDING_STORE:-}
+      # The call test (apps/agent/src/call-test.ts) and its on-call stand-in; empty on most installs.
+      CALL_TEST_FROM: ${CALL_TEST_FROM:-}
+      CALL_TEST_TO: ${CALL_TEST_TO:-}
+      CALL_TEST_ONCALL: ${CALL_TEST_ONCALL:-}
+      TEST_CALLER_VOICE_ID: ${TEST_CALLER_VOICE_ID:-}
+      AGENT_LOAD_THRESHOLD: ${AGENT_LOAD_THRESHOLD:-}
+      AGENT_INIT_TIMEOUT_MS: ${AGENT_INIT_TIMEOUT_MS:-}
+      # Error tracking (apps/agent/src/error-reporting.ts): off while SENTRY_DSN is empty.
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+      # Which carriers' signaling addresses the SIP trunk accepts (setup-sip.ts, inbound-allowlist.ts).
+      LIVEKIT_SIP_ALLOWED_ADDRESSES: ${LIVEKIT_SIP_ALLOWED_ADDRESSES:-}
+      # on: setup-sip makes the inbound trunk require SRTP (carriers send TLS and SRTP, docker-compose.sip-tls.yml).
+      LIVEKIT_SIP_TLS: ${LIVEKIT_SIP_TLS:-}
+      # Through the proxy, which retries while the API is updated (docker/Caddyfile), not to api:3100.
+      LINEDESK_API_URL: http://proxy:3100
+      LIVEKIT_URL: ws://livekit:7880
+      AGENT_IDLE_PROCESSES: ${AGENT_IDLE_PROCESSES:-1} # processes kept warm for the next call
+      # Greeting audio is made once per greeting and voice; on a volume it survives a new image,
+      # so the first call after a deploy plays it stored instead of waiting for the voice provider.
+      GREETING_CACHE_DIR: /var/cache/linedesk/greetings
+    volumes: ["greetings:/var/cache/linedesk/greetings"]
+    # Healthy = connected and registered with LiveKit (the worker's health server on 8081). Checked every
+    # second while it starts, then once a minute: each check starts a Node process on the voice core.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8081/').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+      start_interval: 1s
+    stop_grace_period: ${LINEDESK_AGENT_DRAIN:-130m}
+    depends_on:
+      api: { condition: service_healthy }
+      proxy: { condition: service_started }
+      livekit: { condition: service_started }
+    mem_limit: ${LINEDESK_AGENT_MEM:-672m}
+    cpuset: ${LINEDESK_VOICE_CPUSET:-1} # the voice core, shared by LiveKit, SIP, the agent and egress
+
+  # Call recordings (optional): add `--profile recording`, or `pnpm recording:up` in development.
+  # LiveKit egress records each call room into the recordings volume, where the API reads the files.
+  livekit-egress:
+    <<: *service
+    image: livekit/egress:v1.15.0@sha256:ac244a40268ce1dd1510fbff6eb529609ec68aceff1602343f79be8ca08c355b
+    profiles: [recording]
+    network_mode: "service:livekit" # same reason as livekit-sip
+    # The image's own user (1001); it records through the SDK, no browser sandbox that would need a capability.
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    environment:
+      EGRESS_CONFIG_BODY: |
+        api_key: ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env (see .env.example)}
+        api_secret: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET in .env (see .env.example)}
+        ws_url: ws://localhost:7880
+        insecure: true
+        redis:
+          address: redis:6379
+        # A call recording (audio-only room composite through the SDK) uses about 0.07 CPU, but egress books 1 CPU
+        # for each by default and takes new work only below 80 % CPU. Sharing the voice cores with the agent, it then
+        # refused every recording after the second in a burst of calls (LIN-673).
+        cpu_cost:
+          max_cpu_utilization: 0.95
+          audio_room_composite_cpu_cost: 0.1
+          sdk_audio_room_composite_cpu_cost: 0.1
+    volumes: ["recordings:/recordings"]
+    depends_on:
+      livekit: { condition: service_started }
+      redis: { condition: service_started }
+      recordings-init: { condition: service_completed_successfully }
+    # About 200 MB at rest plus about 25 MB per recording; 512 MB was full at about 12 calls recorded at once (LIN-413).
+    mem_limit: ${LINEDESK_EGRESS_MEM:-1g}
+    cpuset: ${LINEDESK_VOICE_CPUSET:-1} # the voice core, shared by LiveKit, SIP, the agent and egress
+
+  # Egress runs as uid 1001 and a new volume belongs to root: hand the directory over once. The API runs
+  # as the same uid, so it can delete recordings egress wrote.
+  recordings-init:
+    image: busybox:1.38@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4
+    profiles: [recording]
+    command: ["chown", "1001:0", "/recordings"]
+    volumes: ["recordings:/recordings"]
+    restart: "no"
+    logging:
+      driver: json-file
+      options: { max-size: 1m, max-file: "1" }
+
+networks:
+  backend:
+    internal: true
+  voice:
+    internal: true
+
+volumes:
+  pgdata:
+  redis_data:
+  caddy_data:
+  recordings:
+  greetings:

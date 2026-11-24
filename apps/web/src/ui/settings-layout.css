@@ -1,0 +1,154 @@
+/* Settings layout (SettingsLayout.tsx): the sections nav at the left, one section at a time. Nav
+   items are the app's nav-item, the same as the admin sidebar's, so both read as one system. */
+.page-in.sl-page {
+  /* The nav (184px), the gap (28px) and the content (680px): the header's buttons end where the cards end. */
+  max-width: 892px;
+}
+.page-head.sl-head {
+  display: block;
+}
+/* The context line: one height (a default control's), size and place on every settings page, so the nav and the
+   first card start at the same height whether the line holds a name, an email or the assistant switcher. */
+.sl-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  min-height: var(--control-h);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink-muted);
+}
+.sl-context-main {
+  display: flex;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+}
+/* Plain words (a name, an email) end in an ellipsis rather than pushing the actions off a phone. */
+.sl-context-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sl-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.sl-body {
+  display: grid;
+  grid-template-columns: 184px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+.sl-pick {
+  display: none;
+}
+.sl-nav {
+  position: sticky;
+  top: 12px;
+  display: grid;
+  gap: 1px;
+}
+/* A group label reads as a heading, not as one more item: small uppercase with wide spacing, more room above
+   than below, so the items under it read as its points (Server admin, 2026-11-22). */
+.sl-group {
+  padding: 20px 8px 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ink-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.sl-group:first-child {
+  padding-top: 0;
+}
+.sl-item {
+  text-decoration: none;
+  justify-content: space-between;
+}
+/* The quiet end of the nav (Server admin: Partners, Branding, Audit log): set up once, rarely opened, so it reads
+   as a footnote under a line, smaller and muted until hovered or open (LIN-747). */
+.sl-line {
+  margin: 12px 8px 8px;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.sl-quiet {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.sl-quiet:hover,
+.sl-quiet[aria-current="page"] {
+  color: var(--ink);
+}
+.sl-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--ink);
+  flex: none;
+}
+.sl-content {
+  display: grid;
+  /* One column that never grows past the page: a wide table or a long word scrolls or wraps inside its card
+     instead of pushing every card off a phone's screen. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  /* Settings read at one width: short lists and forms, not stretched across a wide window. */
+  max-width: 680px;
+  min-width: 0;
+}
+/* A page whose sections are one form (Settings › Assistant): the sections keep the same gap inside it. */
+.sl-content > form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+}
+@media (max-width: 719px) {
+  /* More buttons than fit beside the context: they wrap under it. */
+  .sl-context {
+    flex-wrap: wrap;
+  }
+  .sl-actions {
+    flex-wrap: wrap;
+  }
+  .sl-body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  /* On a phone the nav is one full-width picker (SettingsLayout): it names the open section and lists them all. */
+  .sl-nav {
+    display: none;
+  }
+  .sl-pick {
+    display: block;
+  }
+  .sl-pick .k-select {
+    display: block;
+  }
+}
+
+/* Settings › Phone numbers › Add a number: the kinds of number stack full width, like every group of radio cards. */
+.k-radios.st-pn-kinds {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Workspace settings › Team: a row with nothing in its ⋯ menu keeps the menu's room, so the roles line up. */
+.team-menu-space {
+  width: var(--control-h-sm);
+  flex: none;
+}
+
+/* Test call: the button in the page header (the call itself is in TestCallPanel). */
+.tc-btn-wrap {
+  display: inline-flex;
+}
+/* A disabled button gets no hover: the wrapper shows the reason in its tooltip. */
+.tc-btn-wrap .k-btn:disabled {
+  pointer-events: none;
+}

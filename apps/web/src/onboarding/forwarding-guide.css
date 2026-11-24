@@ -1,0 +1,187 @@
+/* The forwarding guide (ForwardingGuide.tsx): country and carrier search, codes with Dial or QR, settings steps. */
+.fg-picker {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+}
+/* Country, then carrier, in the width the carrier picker alone had. */
+.fg-pickers {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: 8px;
+  width: 100%;
+  max-width: 420px;
+}
+.fg-pickers .fg-picker {
+  min-width: 0;
+}
+/* Phone: the fields use 16px there, so side by side both were cut ("United Sta", "Search carriers and"): one per line. */
+@media (max-width: 560px) {
+  .fg-pickers {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.fg-abroad {
+  margin: 0;
+  max-width: 420px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+/* The carrier forwards only within its country: forwarding won't work, not just cost more. */
+.fg-abroad.blocked {
+  color: var(--ink);
+  font-weight: 500;
+}
+.fg-search {
+  height: 36px;
+  cursor: text;
+}
+.fg-list {
+  width: 100%;
+}
+.fg-list .k-select-opt {
+  white-space: normal;
+}
+.fg-empty {
+  padding: 8px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.fg-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  font-size: 13px;
+}
+.st-codes .fg-card {
+  box-shadow: none;
+  padding: 12px 0 0;
+  background: transparent;
+}
+.fg-card p {
+  margin: 0;
+}
+.fg-lead {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.fg-dial {
+  display: grid;
+  gap: 12px;
+}
+.fg-dial.with-qr {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+.fg-codes {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: fg;
+}
+.fg-codes li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+}
+.fg-codes li.on {
+  box-shadow: inset 0 0 0 1px var(--line-control);
+}
+.fg-code {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.fg-code b {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.fg-acts {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+.fg-acts a.k-btn {
+  text-decoration: none;
+}
+.fg-qr-box {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  margin: 0;
+  max-width: 160px;
+  text-align: center;
+}
+.fg-qr {
+  display: block;
+  border-radius: var(--radius-sm);
+}
+.fg-qr-box figcaption {
+  overflow-wrap: anywhere;
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+.fg-steps {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+  line-height: 19px;
+}
+.fg-meta,
+.fg-none {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.fg-none {
+  color: var(--ink);
+}
+.fg-meta code {
+  font-family: var(--font-mono);
+  color: var(--ink);
+}
+.fg-more {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.fg-more summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--ink);
+}
+.fg-more ul {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.fg-src {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+.fg-src a {
+  color: inherit;
+}
+@media (max-width: 520px) {
+  .fg-dial.with-qr {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .fg-qr-box {
+    justify-self: center;
+  }
+}

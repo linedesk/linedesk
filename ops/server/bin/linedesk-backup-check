@@ -1,0 +1,11 @@
+#!/bin/sh
+# Fails (and so alerts, OnFailure) when the newest offsite backup is older than 26 hours or missing.
+set -eu
+[ -r /etc/linedesk/ops.env ] && . /etc/linedesk/ops.env
+cd "${LINEDESK_APP_DIR:-/opt/linedesk/app}"
+newest=$(scripts/backup.sh --list | awk '{print $NF}' | grep -E '^linedesk-[0-9]{8}T[0-9]{6}Z\.dump(\.age)?$' | sort | tail -1)
+[ -n "$newest" ] || { echo "no backup found in the bucket"; exit 1; }
+stamp=$(printf '%s' "$newest" | sed -E 's/linedesk-([0-9]{4})([0-9]{2})([0-9]{2})T([0-9]{2})([0-9]{2})([0-9]{2})Z.*/\1-\2-\3 \4:\5:\6 UTC/')
+age=$(( $(date -u +%s) - $(date -u -d "$stamp" +%s) ))
+echo "newest backup: $newest ($((age / 3600)) h old)"
+[ "$age" -lt 93600 ] || { echo "newest backup is older than 26 h"; exit 1; }

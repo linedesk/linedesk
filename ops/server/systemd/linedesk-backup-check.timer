@@ -1,0 +1,7 @@
+[Unit]
+Description=Linedesk: daily backup freshness check
+[Timer]
+OnCalendar=*-*-* 12:00:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target

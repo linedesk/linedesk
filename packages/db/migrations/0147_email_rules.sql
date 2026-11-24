@@ -1,0 +1,1 @@
+ALTER TABLE "assistants" ADD COLUMN "email_rules" jsonb DEFAULT '{"always":[],"rules":[]}'::jsonb NOT NULL;

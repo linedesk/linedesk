@@ -1,0 +1,80 @@
+#!/bin/sh
+# Lets SIP (5060 tcp, and udp in case an override publishes it; 5061 tcp for TLS) reach LiveKit only from the carriers in /etc/linedesk/sip-allow.txt (installed from
+# ops/server/etc/sip-allow.txt) and the addresses in /etc/linedesk/sip-allow.local.txt (this server's own extras,
+# e.g. an uptime check). Docker publishes ports past ufw, so the rules sit in DOCKER-USER (via the chain
+# LINEDESK-SIP). Traffic from Docker's own bridges passes: LiveKit SIP's calls out to a carrier come from there.
+# SIP is published on IPv4 only (docker-compose.yml), so there is nothing to filter for IPv6.
+#
+# Fails closed, also at boot (before Docker, on an empty netfilter):
+# 1. When the chain does not exist yet, it is first created shut (Docker's bridges only) and the jumps to it are added,
+#    so nothing that follows can leave SIP open.
+# 2. The real chain is checked (iptables-restore --test) and then replaced in one step, so it never exists without its
+#    final DROP. An invalid entry in a list, or rules iptables refuses: the shut chain instead, no carrier gets in,
+#    and the unit fails (which sends an alert) rather than leave SIP open.
+# Idempotent; runs before Docker at boot.
+set -eu
+lists="/etc/linedesk/sip-allow.txt /etc/linedesk/sip-allow.local.txt"
+rules=$(mktemp) entries=$(mktemp) shut=$(mktemp); trap 'rm -f "$rules" "$entries" "$shut"' EXIT
+# ipv4 <address or range>: each octet 0-255 without leading zeros (so iptables reads what we read), prefix 0-32.
+ipv4() {
+  printf '%s\n' "$1" | grep -Eqx '((0|[1-9][0-9]{0,2})\.){3}(0|[1-9][0-9]{0,2})(/([0-9]|[12][0-9]|3[0-2]))?' &&
+    printf '%s\n' "$1" | awk -F'[./]' '{ for (i = 1; i <= 4; i++) if ($i + 0 > 255) exit 1 }'
+}
+# allow_lines <list>: one RETURN rule per address; fails on the first entry that is not an IPv4 address or range.
+allow_lines() {
+  sed 's/#.*//; s/[[:space:]]//g; /^$/d' "$1" | while read -r addr; do
+    if ! ipv4 "$addr"; then
+      echo "linedesk-sip-firewall: not an IPv4 address or range in $1: $addr" >&2
+      exit 1
+    fi
+    echo "-A LINEDESK-SIP -s $addr -j RETURN"
+  done
+}
+# The chain that lets no carrier in: Docker's bridges pass (LiveKit SIP's calls out to a carrier), nothing else.
+{
+  echo '*filter'
+  echo ':LINEDESK-SIP - [0:0]'
+  echo '-A LINEDESK-SIP -i docker0 -j RETURN'
+  echo '-A LINEDESK-SIP -i br-+ -j RETURN'
+  echo '-A LINEDESK-SIP -j DROP'
+  echo 'COMMIT'
+} > "$shut"
+iptables -w -N DOCKER-USER 2>/dev/null || true
+# 1. A new chain starts shut, and the jumps go in before anything else can fail.
+iptables -w -n -L LINEDESK-SIP >/dev/null 2>&1 || iptables-restore -w --noflush < "$shut"
+# 5060: SIP over TCP (and UDP, should an override publish it); 5061: SIP over TLS (docker-compose.sip-tls.yml).
+for target in udp:5060 tcp:5060 tcp:5061; do
+  rule="-p ${target%%:*} -m conntrack --ctorigdstport ${target#*:} --ctdir ORIGINAL -j LINEDESK-SIP"
+  # shellcheck disable=SC2086
+  iptables -w -C DOCKER-USER $rule 2>/dev/null || iptables -w -I DOCKER-USER $rule
+done
+
+# 2. The real chain.
+status=0
+for list in $lists; do
+  [ ! -f "$list" ] && continue
+  allow_lines "$list" >> "$entries" || status=1
+done
+# An invalid list allows no carrier at all: SIP stays shut until it is fixed (the unit fails and alerts).
+[ "$status" = 0 ] || : > "$entries"
+{
+  echo '*filter'
+  echo ':LINEDESK-SIP - [0:0]'
+  echo '-A LINEDESK-SIP -i docker0 -j RETURN'
+  echo '-A LINEDESK-SIP -i br-+ -j RETURN'
+  cat "$entries"
+  echo '-A LINEDESK-SIP -j DROP'
+  echo 'COMMIT'
+} > "$rules"
+if ! iptables-restore -w --noflush --test < "$rules"; then
+  echo "linedesk-sip-firewall: iptables refuses the rules from $lists: no carrier can reach SIP" >&2
+  cp "$shut" "$rules"
+  status=1
+fi
+iptables-restore -w --noflush < "$rules"
+# Jumps from older versions (limited to the default route's interface) are covered by the one above.
+iptables -w -S DOCKER-USER | grep -- ' -i .*-j LINEDESK-SIP$' | sed 's/^-A /-D /' | while read -r old; do
+  # shellcheck disable=SC2086
+  iptables -w $old
+done
+exit "$status"

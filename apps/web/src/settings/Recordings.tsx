@@ -1,0 +1,191 @@
+// Settings, Recordings: how long call recordings are kept. Older recordings are deleted by a daily job on the server;
+// the call itself, its transcript and summary stay. With recording off on the server (no recording store) the choice
+// stays as saved but greyed out: nothing is recorded until recording is turned on. The notice the assistant says after
+// the greeting is each assistant's own (Assistant › Rules, LIN-710). Below it, a caller privacy notice template the
+// business can copy (callerPrivacyNotice.ts).
+import { useReadOnlyNote } from './readOnly.ts'
+import { inEeaOrUk, RECORDINGS_NOT_KEPT, recordingRetentionChoices } from '@linedesk/actions'
+import { T, useT } from '@linedesk/i18n/react'
+import { appLink } from '../ui/AppLink.tsx'
+import { useState } from 'react'
+import { providerAudience } from '../providerAudience.ts'
+import { useRun } from '../store.tsx'
+import { Select, type SelectOption } from '../ui/controls.tsx'
+import { copyText } from '../ui/HelpTip.tsx'
+import { Button, Icon, Note } from '../ui/kit.tsx'
+import { Loading, Skeleton } from '../ui/LoadStates.tsx'
+import { Field, Section } from './fields.tsx'
+import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
+import { brandName } from '../brand.ts'
+import { callerPrivacyNotice, type NoticeRecording } from './callerPrivacyNotice.ts'
+
+type Days = (typeof recordingRetentionChoices)[number]
+type Choice = `${Days}` | 'forever'
+
+/** The retention choices, in the active language. */
+function retentionOptions(t: ReturnType<typeof useT>): SelectOption<Choice>[] {
+  return [
+    ...recordingRetentionChoices.map(days => ({
+      value: `${days}` as Choice,
+      label:
+        days === RECORDINGS_NOT_KEPT
+          ? t('settings.recordings.dontKeep')
+          : days === 365
+            ? t('settings.recordings.oneYear')
+            : t('settings.recordings.days', { days }),
+    })),
+    { value: 'forever', label: t('settings.recordings.forever') },
+  ]
+}
+const choiceOf = (days: number | null): Choice => (days === null ? 'forever' : (`${days}` as Choice))
+const daysOf = (choice: Choice): Days | null => (choice === 'forever' ? null : (Number(choice) as Days))
+
+/**
+ * Recording is off on this server: what turns it on. Server admins get the place (Server admin › Providers, Recording
+ * storage); everyone else is told to ask (providerAudience.ts, as in MissingProviderNote).
+ */
+export function RecordingOffNote() {
+  const t = useT()
+  return (
+    <Note tone="warning" title={t('settings.recordings.offOnServer')}>
+      {providerAudience() === 'admin' ? (
+        <T
+          k="settings.recordings.offAdmin"
+          values={{
+            link: appLink('#admin/providers/recording'),
+          }}
+        />
+      ) : (
+        t('settings.recordings.offAsk')
+      )}
+    </Note>
+  )
+}
+
+/** A retention longer than this (or forever) gets the hint to keep recordings only as long as they are needed. */
+const LONG_RETENTION_DAYS = 90
+
+export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text: string) => void }) {
+  const t = useT()
+  const readOnly = useReadOnlyNote()
+  const run = useRun()
+  const settings = useWorkspaceSettings()
+  const days = settings.data?.recordingRetentionDays
+  const recordingOn = settings.data?.recordingOn ?? true
+  const error = settings.data ? null : settings.error
+  // Recording off on the server: the saved choices are shown but cannot change, they apply once it is on.
+  const editable = canEdit && recordingOn
+  // The law hints (legal review 2026-11-17, A4, A5): only warnings, the owner decides. By the workspace's country.
+  const eu = inEeaOrUk(settings.data?.resolvedCountry)
+  const recorded = recordingOn && days !== undefined && days !== RECORDINGS_NOT_KEPT
+  const lawHints = [
+    recorded && eu ? t('settings.recordings.lawConsentEu') : null,
+    recorded && (days === null || days > LONG_RETENTION_DAYS) ? t('settings.recordings.lawLongRetention') : null,
+  ].filter(Boolean)
+
+  function change(choice: Choice) {
+    const next = daysOf(choice)
+    patchWorkspaceSettings({ recordingRetentionDays: next })
+    void run('workspace.updateSettings', { recordingRetentionDays: next })
+    toast(
+      next === null
+        ? t('settings.recordings.keptForever')
+        : next === RECORDINGS_NOT_KEPT
+          ? t('settings.recordings.notRecorded')
+          : next === 365
+            ? t('settings.recordings.keptOneYear')
+            : t('settings.recordings.keptDays', { days: next }),
+    )
+  }
+
+  return (
+    <>
+      <Section
+        id="st-recordings"
+        title={t('settings.recordings.title')}
+        help={recordingOn ? t('settings.recordings.help') : t('settings.recordings.helpOff')}
+      >
+        {settings.data && !recordingOn && <RecordingOffNote />}
+        <Loading
+          what={t('settings.recordings.loadWhat')}
+          loading={days === undefined}
+          error={error}
+          onRetry={() => void settings.reload()}
+          skeleton={
+            <Field label={t('settings.recordings.keepFor')}>
+              <Skeleton shape="field" width={260} />
+            </Field>
+          }
+        >
+          {days !== undefined && (
+            <Field
+              id="st-retention"
+              label={t('settings.recordings.keepFor')}
+              help={canEdit || !recordingOn ? lawHints.join(' ') || undefined : readOnly}
+            >
+              <div>
+                <Select
+                  id="st-retention"
+                  value={choiceOf(days)}
+                  options={retentionOptions(t)}
+                  onChange={change}
+                  label={t('settings.recordings.keepFor')}
+                  disabled={!editable}
+                />
+              </div>
+            </Field>
+          )}
+        </Loading>
+      </Section>
+      {settings.data && days !== undefined && (
+        <CallerPrivacyNotice recording={{ on: recordingOn, days }} toast={toast} />
+      )}
+    </>
+  )
+}
+
+/** Copies the whole notice, also while it is folded away; says whether it worked. */
+export const copyCallerPrivacyNotice = (recording: NoticeRecording, clipboard?: Pick<Clipboard, 'writeText'>) => {
+  const text = callerPrivacyNotice(recording, brandName())
+  return clipboard ? copyText(text, clipboard) : copyText(text)
+}
+
+/**
+ * A privacy notice template for callers that the business copies to its website (A11): the business is the controller
+ * and must inform callers (GDPR Art. 13/14, CCPA). Shown to everyone who can open the page; copying changes nothing.
+ * The long text is folded away by default ("Show text"); Copy always takes the whole text.
+ */
+function CallerPrivacyNotice({ recording, toast }: { recording: NoticeRecording; toast: (text: string) => void }) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  const text = callerPrivacyNotice(recording, brandName())
+  const copy = () =>
+    copyCallerPrivacyNotice(recording).then(result =>
+      toast(t(result === 'copied' ? 'settings.privacyNotice.copied' : 'settings.privacyNotice.copyFailed')),
+    )
+  return (
+    <Section
+      id="st-privacy-notice"
+      title={t('settings.privacyNotice.title')}
+      description={t('settings.privacyNotice.description')}
+      help={t('settings.privacyNotice.help')}
+      actions={
+        <Button size="sm" onClick={() => void copy()}>
+          {t('settings.privacyNotice.copy')}
+        </Button>
+      }
+    >
+      <p className="st-privacy-disclaimer">{t('settings.privacyNotice.disclaimer')}</p>
+      <details className="st-privacy-more" onToggle={e => setOpen(e.currentTarget.open)}>
+        <summary>
+          <Icon name="down" size={14} className="st-privacy-chevron" />
+          {open ? t('settings.privacyNotice.hide') : t('settings.privacyNotice.show')}
+        </summary>
+        <div className="st-privacy-body">
+          <p className="st-privacy-fill">{t('settings.privacyNotice.fill')}</p>
+          <pre className="st-privacy-text">{text}</pre>
+        </div>
+      </details>
+    </Section>
+  )
+}

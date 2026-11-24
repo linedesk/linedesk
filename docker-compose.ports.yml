@@ -1,0 +1,30 @@
+# Development additions to docker-compose.yml: local ports for the apps that run on the host
+# (`pnpm dev`, the agent worker, the test page) and the recordings directory the host API reads.
+# Used by `pnpm db:up`, `pnpm voice:up` and `pnpm recording:up`; never on a server.
+services:
+  # Also on the default network: Docker publishes no port of a container that is only on an internal network.
+  postgres:
+    ports: ["127.0.0.1:${LINEDESK_DEV_PG_PORT:-5433}:5432"] # another port per session: scripts/dev-env.sh
+    networks: [backend, default]
+    # docker-compose.yml's command (keep the first four arguments in step with it), plus more lock slots: the API tests
+    # migrate about 26 databases at once, each in one transaction (about 1,250 locks up to migration 0111), which at
+    # the default 64 (and since 0111 at 256) fails with "out of shared memory". As in tests.yml (docs/ci.md, "Tests").
+    command: ["postgres", "-c", "wal_level=logical", "-c", "shared_buffers=64MB", "-c", "max_locks_per_transaction=1024"]
+    # The API tests run many files against it at once; at the server default (256m) Postgres is OOM-killed mid-run.
+    mem_limit: ${LINEDESK_POSTGRES_MEM:-768m}
+    # The server's 0.1 CPU made admin pages take 3 to 14 s with two dev stacks and the tests running.
+    cpus: ${LINEDESK_POSTGRES_CPUS:-2}
+
+  electric:
+    ports: ["127.0.0.1:${LINEDESK_DEV_ELECTRIC_PORT:-3001}:3000"]
+    networks: [backend, default]
+    cpus: ${LINEDESK_ELECTRIC_CPUS:-1}
+
+  livekit:
+    ports: ["127.0.0.1:7880:7880"] # API + WebSocket signalling
+
+  livekit-egress:
+    volumes: ["${RECORDINGS_DIR:-./data/recordings}:/recordings"]
+
+  recordings-init:
+    volumes: ["${RECORDINGS_DIR:-./data/recordings}:/recordings"]

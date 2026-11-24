@@ -1,0 +1,11 @@
+# A media server: voice server 1 without an agent worker (docs/hosting.md, "Separate voice servers"). On that server:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.voice-media.yml:docker-compose.no-agent.yml
+# It runs LiveKit, SIP, egress and Valkey only; every call's agent runs on the agent servers (docker-compose.voice.yml),
+# which register with this LiveKit through its voice link. Calls then grow the agent servers, not this one.
+#
+# scripts/deploy.sh still uses the agent's image here for two questions to LiveKit (calls in progress, SIP setup), in
+# a one-off container (`docker compose run`), which is why the service stays defined.
+services:
+  agent:
+    profiles: !override [on-agent-server]
+    depends_on: !reset []

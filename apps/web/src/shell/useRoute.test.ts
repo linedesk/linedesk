@@ -1,0 +1,246 @@
+import { describe, expect, it } from 'vitest'
+import { knownSectionHash } from '../ui/SettingsLayout.tsx'
+import {
+  callHash,
+  contactHash,
+  contactIdOf,
+  clearRoute,
+  linkNotice,
+  linkWorkspace,
+  linkWorkspaceTarget,
+  listHash,
+  movedHash,
+  parseHash,
+  withoutLinkWorkspace,
+} from './useRoute.ts'
+
+const list = { route: 'calls', callId: null, tab: 'you', search: null, member: null, known: true }
+
+describe('route parsing', () => {
+  it('keeps the search on a member view, and writes it back', () => {
+    const hash = '#calls/member/u_1?q=leak'
+    expect(parseHash(hash)).toMatchObject({ tab: 'member', member: 'u_1', search: 'leak', known: true })
+    expect(listHash({ tab: 'member', member: 'u_1', search: 'leak' })).toBe(hash)
+  })
+
+  it('reads the list, a view, a search, a call and the pages from the hash', () => {
+    expect(parseHash('')).toEqual(list)
+    expect(parseHash('#calls')).toEqual(list)
+    expect(parseHash('#calls/done')).toEqual({ ...list, tab: 'done' })
+    expect(parseHash('#calls/ai?q=burst%20pipe')).toEqual({ ...list, tab: 'ai', search: 'burst pipe' })
+    expect(parseHash('#calls?q=')).toEqual({ ...list, search: '' })
+    expect(parseHash('#call/call_demo_02')).toEqual({ ...list, callId: 'call_demo_02' })
+    expect(parseHash(callHash('abc'))).toEqual({ ...list, callId: 'abc' })
+    expect(parseHash('#assistant')).toEqual({ ...list, route: 'assistant' })
+    expect(parseHash('#account')).toEqual({ ...list, route: 'account' })
+    expect(parseHash('#admin')).toEqual({ ...list, route: 'admin' })
+    expect(parseHash('#admin/users/u1')).toEqual({ ...list, route: 'admin' })
+    expect(parseHash('#assistant/hours')).toEqual({ ...list, route: 'assistant' })
+    expect(parseHash('#workspace')).toEqual({ ...list, route: 'workspace' })
+    expect(parseHash('#workspace/recordings')).toEqual({ ...list, route: 'workspace' })
+    expect(parseHash('#workspace/phone/pn_1')).toEqual({ ...list, route: 'workspace' })
+    expect(parseHash('#account/notifications')).toEqual({ ...list, route: 'account' })
+    expect(parseHash('#assistant/as_123abc/hours')).toEqual({ ...list, route: 'assistant' })
+    expect(parseHash('#assistant/as_123abc/advanced/webhook')).toEqual({ ...list, route: 'assistant' })
+  })
+  it('keeps the inbox view while a call or another page is open', () => {
+    const last = { tab: 'done', search: 'leak' } as const
+    expect(parseHash('#call/c1', last)).toMatchObject({ callId: 'c1', tab: 'done', search: 'leak' })
+    expect(parseHash('#assistant', last)).toMatchObject({ route: 'assistant', tab: 'done', search: 'leak' })
+    expect(parseHash('#calls/spam', last)).toMatchObject({ tab: 'spam', search: null })
+  })
+  it('opens one contact from #contacts/<id> (C9), and writes that link', () => {
+    expect(parseHash('#contacts/ct_123')).toEqual({ ...list, route: 'contacts' })
+    expect(contactIdOf('#contacts/ct_123')).toBe('ct_123')
+    expect(contactIdOf('#contacts')).toBeNull()
+    expect(contactIdOf('#contacts/a/b')).toBeNull()
+    expect(contactIdOf('#call/ct_123')).toBeNull()
+    expect(contactHash('ct_123')).toBe('#contacts/ct_123')
+    expect(contactIdOf(contactHash('ct 1/2'))).toBe('ct 1/2')
+  })
+  it('marks unknown and inherited names as unknown and shows the inbox', () => {
+    for (const hash of [
+      '#nope',
+      '#bogus/route',
+      '#toString',
+      '#constructor',
+      '#__proto__',
+      '#call/',
+      '#calls/nope',
+      '#calls/done/extra',
+      '#settings',
+      '#team',
+      '#assistant/a/b/c/d',
+      '#workspace/a/b/c',
+      '#assistant/h%20x',
+      '#contacts/a/b',
+    ]) {
+      expect(parseHash(hash)).toEqual({ ...list, known: false })
+    }
+  })
+  it('writes the hash for a view and a search', () => {
+    expect(listHash({ tab: 'you', search: null })).toBe('#calls')
+    expect(listHash({ tab: 'reminders', search: null })).toBe('#calls/reminders')
+    expect(listHash({ tab: 'you', search: 'a b' })).toBe('#calls?q=a%20b')
+    expect(parseHash(listHash({ tab: 'done', search: '50%' }))).toMatchObject({ tab: 'done', search: '50%' })
+  })
+})
+
+describe('the workspace a link is for', () => {
+  it('reads ws= from the hash, next to a search, and nothing else', () => {
+    expect(linkWorkspace('#call/call_1?ws=ws_1')).toBe('ws_1')
+    expect(linkWorkspace('#calls?q=leak&ws=ws_1')).toBe('ws_1')
+    expect(linkWorkspace('#workspace/phone?ws=a%20b%26c')).toBe('a b&c')
+    expect(linkWorkspace('#workspace/phone')).toBeNull()
+    expect(linkWorkspace('#calls?q=ws=1')).toBeNull()
+    expect(linkWorkspace('#call/call_1?ws=')).toBeNull()
+    expect(linkWorkspace('')).toBeNull()
+  })
+
+  it('drops it and keeps the rest of the hash', () => {
+    expect(withoutLinkWorkspace('#call/call_1?ws=ws_1')).toBe('#call/call_1')
+    expect(withoutLinkWorkspace('#calls?q=leak&ws=ws_1')).toBe('#calls?q=leak')
+    expect(withoutLinkWorkspace('#workspace/phone')).toBe('#workspace/phone')
+  })
+
+  it('does not change where a link leads', () => {
+    expect(parseHash('#call/call_1?ws=ws_1')).toEqual(parseHash('#call/call_1'))
+    expect(parseHash('#workspace/phone?ws=ws_1')).toEqual(parseHash('#workspace/phone'))
+    expect(parseHash('#account/notifications?ws=ws_1')).toEqual(parseHash('#account/notifications'))
+    expect(parseHash('#calls?ws=ws_1')).toEqual(parseHash('#calls'))
+    expect(parseHash('#calls?q=leak&ws=ws_1')).toEqual(parseHash('#calls?q=leak'))
+  })
+
+  const mine = [
+    { id: 'ws_1', name: 'Brightwater Plumbing & Heating' },
+    { id: 'ws_2', name: 'Brightwater Rentals' },
+  ]
+
+  it('stays in this workspace, switches to another of the member, or says there is no access', () => {
+    expect(linkWorkspaceTarget('ws_1', 'ws_1', mine)).toEqual({ kind: 'here' })
+    expect(linkWorkspaceTarget('ws_2', 'ws_1', mine)).toEqual({ kind: 'switch', workspace: mine[1] })
+    expect(linkWorkspaceTarget('ws_9', 'ws_1', mine)).toEqual({ kind: 'noAccess' })
+    expect(linkWorkspaceTarget('ws_2', 'ws_1', undefined)).toEqual({ kind: 'noAccess' })
+    // Offline the session cannot switch: the inbox names the workspace instead.
+    expect(linkWorkspaceTarget('ws_2', 'ws_1', mine, true)).toEqual({ kind: 'elsewhere', workspace: mine[1] })
+  })
+
+  it('says why a link did not open here', () => {
+    expect(linkNotice({ kind: 'here' })).toBeNull()
+    expect(linkNotice({ kind: 'switch', workspace: mine[1]! })).toBeNull()
+    expect(linkNotice({ kind: 'noAccess' })).toMatch(/don't have access/)
+    expect(linkNotice({ kind: 'elsewhere', workspace: mine[1]! })).toContain('Brightwater Rentals')
+  })
+})
+
+describe('old links (LIN-165)', () => {
+  const redirects: [string, string][] = [
+    ['#settings', '#workspace'],
+    ['#settings/notifications', '#account/preferences'],
+    ['#assistant/notifications', '#account/preferences'],
+    ['#assistant/as_123abc/notifications', '#account/preferences'],
+    // Your notifications became a part of Preferences.
+    ['#account/notifications', '#account/preferences'],
+    ['#account/notifications?ws=ws_1', '#account/preferences?ws=ws_1'],
+    ['#settings/phone', '#workspace/phone'],
+    ['#settings/phone/pn_1', '#workspace/phone/pn_1'],
+    ['#settings/export', '#workspace/export'],
+    ['#settings/recordings', '#workspace/recordings'],
+    ['#settings/developers', '#integrations/api-keys'],
+    ['#workspace/developers', '#integrations/api-keys'],
+    ['#workspace/developers?ws=w1', '#integrations/api-keys?ws=w1'],
+    ['#workspace/assistants', '#assistant'],
+    ['#settings/fields', '#workspace/export'],
+    ['#settings/hours', '#assistant/hours'],
+    ['#settings/webhooks', '#assistant/advanced/webhook'],
+    ['#settings/assistant', '#assistant'],
+    ['#team', '#workspace/team'],
+    ['#team/members', '#workspace/team'],
+    ['#team/invites/x', '#workspace/team'],
+    ['#settings/nope', '#workspace/nope'],
+    // Needs review left the inbox (LIN-185): How <assistant> did, in the Assistant area.
+    ['#calls/review', '#assistant/review'],
+  ]
+
+  it.each(redirects)('%s goes to %s', (from, to) => {
+    expect(movedHash(from)).toBe(to)
+    expect(parseHash(to).known).toBe(true)
+  })
+
+  it('keeps the query: the workspace a link is for and a search', () => {
+    expect(movedHash('#settings/notifications?ws=ws_1')).toBe('#account/preferences?ws=ws_1')
+    expect(movedHash('#settings/phone/pn_1?ws=ws_1')).toBe('#workspace/phone/pn_1?ws=ws_1')
+    expect(movedHash('#team?ws=ws_1&q=leak')).toBe('#workspace/team?ws=ws_1&q=leak')
+    expect(movedHash('#assistant/as_1/notifications?ws=a%20b')).toBe('#account/preferences?ws=a%20b')
+    expect(movedHash('#settings?')).toBe('#workspace')
+    expect(movedHash('#calls/review?ws=ws_1')).toBe('#assistant/review?ws=ws_1')
+    expect(linkWorkspace(movedHash('#settings/phone?ws=ws_1')!)).toBe('ws_1')
+  })
+
+  it('never rewrites a link twice, and leaves current places alone', () => {
+    for (const [from] of redirects) expect(movedHash(movedHash(from)!)).toBeNull()
+    for (const hash of [
+      '#workspace',
+      '#workspace/team',
+      '#workspace/phone/pn_1',
+      '#account/preferences',
+      '#assistant',
+      '#assistant/hours',
+      '#assistant/as_1/hours',
+      '#assistant/as_1/review',
+      '#calls/done',
+      '#calls?q=team',
+      '#call/team',
+      '#teams',
+      '#settingsx/phone',
+      '#toString',
+    ])
+      expect(movedHash(hash)).toBeNull()
+  })
+
+  it('an unknown old section lands on General', () => {
+    const general = [
+      { id: 'general', label: 'General' },
+      { id: 'phone', label: 'Phone numbers' },
+    ]
+    expect(knownSectionHash('workspace', general, movedHash('#settings/nope?ws=ws_1')!)).toBe(
+      '#workspace/general?ws=ws_1',
+    )
+    expect(knownSectionHash('workspace', general, movedHash('#settings/phone/pn_1')!)).toBeNull()
+  })
+})
+
+describe('settings sections', () => {
+  const sections = [
+    { id: 'notifications', label: 'Notifications' },
+    { id: 'phone', label: 'Phone numbers' },
+  ]
+
+  it('sends #settings/assistant to the assistant', () => {
+    expect(movedHash('#settings/assistant')).toBe('#assistant')
+  })
+
+  it('an unknown section shows the first one, and the address says so', () => {
+    expect(knownSectionHash('settings', sections, '#settings/nope?x=1')).toBe('#settings/notifications?x=1')
+    expect(knownSectionHash('settings', sections, '#settings/phone')).toBeNull()
+    expect(knownSectionHash('settings', sections, '#settings')).toBeNull()
+    expect(knownSectionHash('settings', sections, '#assistant/a1/hours')).toBeNull()
+  })
+})
+
+describe('signing out (LIN-161)', () => {
+  it('drops the in-app route, so the next account starts in the inbox', () => {
+    let address = '/app?x=1#assistant'
+    const win = {
+      location: { pathname: '/app', search: '?x=1' },
+      history: {
+        replaceState: (_data: unknown, _unused: string, url?: string | URL | null) => {
+          address = String(url)
+        },
+      },
+    }
+    clearRoute(win)
+    expect(address).toBe('/app?x=1')
+    expect(parseHash(address.includes('#') ? address.slice(address.indexOf('#')) : '')).toEqual(list)
+  })
+})

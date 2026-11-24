@@ -1,0 +1,102 @@
+// Which ways to sign in this install offers. Everything except the password is switched on by
+// setting its env vars, so a self-hosted install works with none of them.
+import type { AuthMethods, LegalLinks, SsoMethod } from './auth-types.ts'
+
+type Env = Record<string, string | undefined>
+
+/**
+ * There is no open sign-up: accounts exist only through the first-run setup, a workspace
+ * invitation, or a server admin (signup-gate.ts). AUTH_SIGNUP_ENABLED is gone; a server that still sets it hears so at
+ * start, and nothing changes. Open sign-up for Linedesk Cloud comes with billing.
+ */
+export function signUpSettingRemovedWarning(env: Env = process.env): string | null {
+  if (env.AUTH_SIGNUP_ENABLED === undefined) return null
+  return `AUTH_SIGNUP_ENABLED is no longer read: there is no open sign-up, accounts come only through an invitation, the first-run setup or a server admin. Remove it from the environment.`
+}
+/** Passkeys as a sign-in method (default on; AUTH_PASSKEY_ENABLED=false drops Better Auth's passkey plugin, auth.ts). */
+export const passkeySignInEnabled = (env: Env = process.env) => env.AUTH_PASSKEY_ENABLED !== 'false'
+
+const pair = (id?: string, secret?: string) => (id && secret ? { clientId: id, clientSecret: secret } : null)
+
+export function readAuthConfig(env: Env) {
+  const google = pair(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET)
+  const github = pair(env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET)
+  const microsoftKeys = pair(env.MICROSOFT_CLIENT_ID, env.MICROSOFT_CLIENT_SECRET)
+  const microsoft = microsoftKeys && { ...microsoftKeys, tenantId: env.MICROSOFT_TENANT_ID || 'common' }
+  const oidcKeys = pair(env.OIDC_CLIENT_ID, env.OIDC_CLIENT_SECRET)
+  const oidcName = env.OIDC_DISPLAY_NAME?.trim()
+  const oidc =
+    oidcKeys && env.OIDC_DISCOVERY_URL
+      ? { ...oidcKeys, discoveryUrl: env.OIDC_DISCOVERY_URL, label: oidcName || 'Single sign-on', unnamed: !oidcName }
+      : null
+  // No provider is trusted by name (Better Auth's `trustedProviders` would join an account without
+  // asking whether the email is verified). Every provider sign-in must prove its address instead:
+  // Google's email_verified, Microsoft's personal accounts or domain-verified work email, GitHub's
+  // verified primary email (account-linking.ts, github-sign-in.ts), OIDC's email_verified.
+  const trustedProviders: string[] = []
+  const methods: AuthMethods = {
+    password: env.AUTH_PASSWORD_ENABLED !== 'false',
+    emailCode: emailDelivery(env) !== 'none',
+    passkey: passkeySignInEnabled(env),
+    sso: [
+      google && { id: 'google', label: 'Google' },
+      microsoft && { id: 'microsoft', label: 'Microsoft' },
+      github && { id: 'github', label: 'GitHub' },
+      oidc && { id: 'oidc', label: oidc.label, ...(oidc.unnamed ? { unnamed: true } : {}) },
+    ].filter(Boolean) as SsoMethod[],
+    links: readLegalLinks(env),
+    signInOrigin: signInOrigin(env),
+  }
+  return { google, microsoft, github, oidc, trustedProviders, methods }
+}
+
+/** Where provider sign-ins come back to: BETTER_AUTH_URL, else PUBLIC_URL, else WEB_ORIGIN (its origin only). */
+export function signInOrigin(env: Env): string | null {
+  for (const value of [env.BETTER_AUTH_URL, env.PUBLIC_URL, env.WEB_ORIGIN]) {
+    if (!value?.trim()) continue
+    try {
+      return new URL(value.trim()).origin
+    } catch {
+      // A malformed value is reported where it is used (auth.ts); here it just tells nothing.
+    }
+  }
+  return null
+}
+
+const httpUrl = (value?: string) => {
+  const url = value?.trim()
+  if (!url) return null
+  if (!/^https?:\/\/\S+$/i.test(url)) throw new Error(`${url} is not an http(s) URL (TERMS_URL / PRIVACY_URL)`)
+  return url
+}
+
+/** Links the sign-in page and the profile menu show. A malformed value fails at start, not silently. */
+export function readLegalLinks(env: Env): LegalLinks {
+  const supportEmail = env.SUPPORT_EMAIL?.trim() || null
+  if (supportEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(supportEmail))
+    throw new Error(`SUPPORT_EMAIL ${supportEmail} is not an email address`)
+  return { terms: httpUrl(env.TERMS_URL), privacy: httpUrl(env.PRIVACY_URL), supportEmail }
+}
+
+/** How email leaves this install. Printing it to the log is for development and must be asked for. */
+export function emailDelivery(env: Env): 'smtp' | 'log' | 'none' {
+  if (env.SMTP_URL) return 'smtp'
+  return env.EMAIL_TO_LOG === 'true' ? 'log' : 'none'
+}
+
+/**
+ * Whether a member must still confirm their address before sensitive actions (run-action.ts). Not on
+ * an install without email delivery: no code could reach anyone, and nothing there proves an address
+ * by email either.
+ */
+export const mustConfirmEmail = (emailVerified: boolean | null | undefined, env: Env = process.env) =>
+  !emailVerified && emailDelivery(env) !== 'none'
+
+export const authConfig = readAuthConfig(process.env)
+export const authMethods = authConfig.methods
+
+/** Whether codes by email can go out now: email connected in Server admin › Providers applies without a restart. */
+export const emailCodesOn = (env: Env = process.env) => emailDelivery(env) !== 'none'
+
+/** The sign-in methods as offered now (the sign-in screen): read at start, except email codes, which follow email. */
+export const currentAuthMethods = (): AuthMethods => ({ ...authMethods, emailCode: emailCodesOn() })

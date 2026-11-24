@@ -1,0 +1,1 @@
+ALTER TABLE "calls" ADD COLUMN "booking_misses" integer DEFAULT 0 NOT NULL;

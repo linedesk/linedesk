@@ -1,0 +1,8 @@
+[Unit]
+Description=Linedesk: LiveKit SIP reads a renewed TLS certificate, daily at night (US time)
+[Timer]
+OnCalendar=*-*-* 09:30:00 UTC
+RandomizedDelaySec=30min
+Persistent=true
+[Install]
+WantedBy=timers.target

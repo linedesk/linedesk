@@ -1,0 +1,2290 @@
+/* Admin mode: tables, confirmations, provider rows and forms; the mode layout is at the end. */
+.adm-scroll {
+  overflow-x: auto;
+  margin: 0 -18px;
+  padding: 0 18px;
+}
+.adm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.adm-table th,
+.adm-table td {
+  padding: 8px 12px 8px 0;
+  text-align: left;
+  vertical-align: top;
+  border-top: 1px solid var(--line);
+  white-space: nowrap;
+}
+.adm-table thead th {
+  border-top: 0;
+  padding-top: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.adm-table tbody th {
+  font-weight: 500;
+}
+.adm-table tbody th .k-badge {
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+.adm-table .adm-num {
+  font-variant-numeric: tabular-nums;
+}
+.adm-table .adm-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.adm-table tbody th .adm-badges .k-badge {
+  margin-left: 0;
+}
+.adm-table th:last-child,
+.adm-table td:last-child {
+  padding-right: 0;
+}
+/*
+ * Tables that stack on a phone (Audit log, Usage): no sideways scrolling. The column headings go (each cell
+ * names its column itself, data-label) and every row becomes a block; Usage puts its months side by side.
+ */
+@media (max-width: 559px) {
+  .adm-stack,
+  .adm-stack tbody,
+  .adm-stack tr {
+    display: block;
+  }
+  .adm-stack thead {
+    display: none;
+  }
+  .adm-stack tr {
+    padding: 10px 0;
+    border-top: 1px solid var(--line);
+  }
+  .adm-stack tbody tr:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+  .adm-stack th,
+  .adm-stack td {
+    display: block;
+    padding: 2px 0;
+    border-top: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .adm-stack td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 12px;
+    color: var(--ink-muted);
+  }
+  /* Audit log: the person first, then When, What, Workspace each after its name in a narrow column. */
+  .adm-stack:not(.adm-stack-grid) tr {
+    display: flex;
+    flex-direction: column;
+  }
+  .adm-stack:not(.adm-stack-grid) tbody th {
+    order: -1;
+  }
+  .adm-stack:not(.adm-stack-grid) td[data-label] {
+    padding-left: 84px;
+  }
+  /* Inline-block on the first line: the name shares the value's baseline. */
+  .adm-stack:not(.adm-stack-grid) td[data-label]::before {
+    display: inline-block;
+    width: 84px;
+    margin-left: -84px;
+  }
+  .adm-stack-grid tr {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 4px 12px;
+  }
+  .adm-stack-grid tbody th {
+    grid-column: 1 / -1;
+  }
+}
+.adm-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.adm-sort:hover {
+  color: var(--ink);
+}
+.adm-sort:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+.adm-sort span {
+  width: 8px;
+}
+.adm-sub {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+/* A sub line with its button (Partners: the address, the sender): the button goes under the text instead of widening
+   the column, so the row's last column stays in the card. */
+/* A row's actions (Server admin › Partners): they wrap under each other in a narrow column instead of pushing the last
+   one past the card's edge. */
+.adm-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px 8px;
+}
+.adm-sub-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 6px;
+  white-space: normal;
+}
+.adm-sub-action > span {
+  white-space: nowrap;
+}
+.adm-sub-action > .k-btn-ghost {
+  margin-left: -11px; /* 10px padding + 1px border: the label lines up with the text when it wraps */
+}
+.adm-muted {
+  color: var(--ink-muted);
+}
+.adm-pick-plain {
+  grid-template-columns: minmax(0, 1fr);
+}
+.adm-sub-inline {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.adm-line {
+  display: block;
+}
+.adm-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.adm-notice {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  font-size: 13px;
+}
+.adm-notice code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* ---- Admin mode: the frame of Workspace and Account settings (SettingsLayout), with a back button in the title bar. ---- */
+.adm-mode {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+}
+.adm-crumb:focus-visible,
+.adm-row:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.adm-head {
+  display: grid;
+  gap: 4px;
+}
+.adm-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.adm-head-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+.adm-head-actions:empty {
+  display: none;
+}
+.adm-head h2 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.adm-head p {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink-muted);
+}
+.adm-crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  justify-self: start;
+  padding: 2px 6px 2px 2px;
+  margin-left: -2px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.adm-crumb:hover {
+  color: var(--ink);
+}
+.adm-body {
+  display: grid;
+  /* Never wider than the page (see .sl-content): wide content scrolls inside its card. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+.adm-card {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+  padding: 18px 20px;
+  display: grid;
+  gap: 14px;
+}
+
+/* Lists: search on top, comfortable rows, a cursor row like the inbox. */
+.adm-listcard {
+  padding: 12px 8px 10px;
+  gap: 6px;
+}
+.adm-search {
+  margin: 0 8px 6px;
+}
+.adm-search .k-kbd {
+  opacity: 0.6;
+}
+.adm-list-tools {
+  margin: 0 8px 6px;
+}
+.adm-list {
+  display: grid;
+}
+.adm-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.3fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+}
+.adm-row-head {
+  min-height: 32px;
+  cursor: default;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+/* --adm-col2-min: a second column that must never be cut (Workspaces: the number, in full). */
+.adm-row:has(> :nth-child(4):not(.adm-cell-acts)) {
+  grid-template-columns: minmax(0, 2fr) minmax(var(--adm-col2-min, 0px), 1fr) minmax(0, 0.9fr) minmax(0, 1fr);
+}
+.adm-cell {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.adm-cell.adm-num {
+  font-variant-numeric: tabular-nums;
+}
+.adm-strong {
+  font-weight: 600;
+}
+.adm-strong .k-badge {
+  margin-left: 8px;
+  vertical-align: 1px;
+}
+.adm-who {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.adm-who > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* A person in a list: their picture or initials, then name and email. */
+.adm-person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.adm-empty {
+  margin: 0;
+  padding: 20px 12px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+/* The shortcut line sits under the card, as under the inbox and Contacts (ShortcutHints). */
+.adm-body > .ib-hint {
+  margin-top: -8px;
+  padding: 0;
+}
+
+/* A hairline between rows, inset so the rounded cursor row does not bend it. */
+.adm-row + .adm-row {
+  background-image: linear-gradient(var(--line), var(--line));
+  background-size: calc(100% - 24px) 1px;
+  background-position: 12px 0;
+  background-repeat: no-repeat;
+}
+.adm-row.is-cursor {
+  background-color: var(--surface-hover);
+}
+.adm-row.is-cursor,
+.adm-row.is-cursor + .adm-row {
+  background-image: none;
+}
+
+/* Detail: facts in a quiet two-column list, actions as rows with their button on the right. */
+/* Members and workspaces on a detail page; the user picker of Add member. */
+.adm-pick {
+  display: grid;
+  gap: 2px;
+  margin-top: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.adm-pick-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.adm-pick-row:hover {
+  background: var(--surface-hover);
+}
+.adm-pick-row[aria-checked="true"] {
+  border-color: var(--ink);
+  background: var(--highlight);
+}
+.adm-facts {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  font-size: 13.5px;
+}
+.adm-facts > div {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 12px;
+}
+.adm-facts dt {
+  color: var(--ink-muted);
+}
+.adm-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+/* International transfers (InternationalTransfers.tsx): the allowed countries as chips with the picker after them,
+   then the last 24 hours and the limits as quiet rows under a line. */
+.adm-countries {
+  display: grid;
+  gap: 8px;
+}
+.adm-countries-label {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.adm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.adm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-full);
+  background: var(--surface-hover);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.adm-chip:has(.adm-chip-x) {
+  padding-right: 4px;
+}
+.adm-chip-x {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.adm-chip-x:hover {
+  color: var(--ink);
+  background: var(--line);
+}
+.adm-chip-x:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.adm-chips-empty {
+  font-size: 13px;
+  color: var(--ink-muted);
+  margin-right: 4px;
+}
+.adm-chips-add {
+  min-width: 170px;
+}
+.adm-risky-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.adm-transfer-stats {
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 13px;
+}
+.adm-transfer-stats dd {
+  font-variant-numeric: tabular-nums;
+}
+/* On a phone the short values stay beside their labels (adm-facts stacks them otherwise). */
+@media (max-width: 719px) {
+  .adm-facts.adm-transfer-stats > div {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+  }
+  .adm-transfer-stats dd {
+    text-align: right;
+  }
+}
+/* The spending cap: one amount field and Save on a row. */
+.adm-cap-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  max-width: 420px;
+}
+.adm-cap-form > :first-child {
+  flex: 1;
+}
+.adm-cap-note {
+  margin-top: 10px;
+}
+/* Actions: a row of buttons under a detail's title; quick icon buttons at the end of a list row
+   (on hover, focus or the cursor), a ⋯ menu instead on touch screens. */
+.adm-actbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+/* Why a button of the row is disabled (Sign in as owner: the owner is a server admin, disabled, or you). */
+.adm-actbar-why {
+  flex-basis: 100%;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+/*
+ * Row actions get a column of their own at the end of the row, so they never cover a cell's text ("Never", a time).
+ * Its width fits the most icons a row of this list has. On phones and touch screens (no hover) the icons fold into
+ * one ⋯ menu with a 44px hit area.
+ */
+.adm-list-acts {
+  --adm-acts-n: 1;
+  --adm-acts-w: calc(var(--adm-acts-n) * var(--control-h-sm) + (var(--adm-acts-n) - 1) * 2px);
+}
+.adm-list-acts:has(.adm-rowacts-icons > :nth-child(2)) {
+  --adm-acts-n: 2;
+}
+.adm-list-acts:has(.adm-rowacts-icons > :nth-child(3)) {
+  --adm-acts-n: 3;
+}
+.adm-list-acts:has(.adm-rowacts-icons > :nth-child(4)) {
+  --adm-acts-n: 4;
+}
+.adm-list-acts:has(.adm-rowacts-icons > :nth-child(5)) {
+  --adm-acts-n: 5;
+}
+.adm-list-acts > .adm-row {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.3fr) minmax(0, 1fr) var(--adm-acts-w);
+}
+.adm-list-acts > .adm-row:has(> :nth-child(4):not(.adm-cell-acts)) {
+  grid-template-columns: minmax(0, 2fr) minmax(var(--adm-col2-min, 0px), 1fr) minmax(0, 0.9fr) minmax(0, 1fr) var(
+      --adm-acts-w
+    );
+}
+/* Server admin › Workspaces: a full E.164 number, never "+1 503 555 01…". */
+.adm-ws-list {
+  --adm-col2-min: max-content;
+}
+.adm-cell.adm-cell-acts {
+  display: flex;
+  justify-content: flex-end;
+  overflow: visible;
+}
+.adm-rowacts,
+.adm-rowacts-icons {
+  display: flex;
+  gap: 2px;
+}
+.adm-rowacts-icons {
+  opacity: 0;
+  pointer-events: none;
+}
+.adm-row:hover .adm-rowacts-icons,
+.adm-row.is-cursor .adm-rowacts-icons,
+.adm-rowacts:focus-within .adm-rowacts-icons {
+  opacity: 1;
+  pointer-events: auto;
+}
+.adm-rowacts-more {
+  display: none;
+}
+@media (max-width: 767px), (hover: none), (pointer: coarse) {
+  .adm-list-acts {
+    --adm-acts-w: 44px;
+  }
+  .adm-rowacts-icons {
+    display: none;
+  }
+  .adm-rowacts-more {
+    display: inline-flex;
+  }
+  .adm-rowacts-more .k-menu-btn {
+    width: 44px;
+    height: 44px;
+  }
+  /* The ⋯ sits in the row's end padding, as far right as the icons would. */
+  .adm-cell.adm-cell-acts {
+    margin-right: -10px;
+  }
+}
+
+/* Providers: logos */
+.adm-logo {
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.adm-logo-28 {
+  width: 28px;
+  height: 28px;
+  font-size: 13px;
+  border-radius: 7px;
+}
+.adm-logo-36 {
+  width: 36px;
+  height: 36px;
+  font-size: 15px;
+}
+.adm-logo-40 {
+  width: 40px;
+  height: 40px;
+  font-size: 16px;
+}
+
+/* Categories are light headings; each lists its providers (.adm-provlist below). */
+.adm-body-wide {
+  gap: 20px;
+}
+.adm-provcat {
+  display: grid;
+  gap: 10px;
+  /* Never wider than its column, whatever a provider's error says (LIN-249). */
+  min-width: 0;
+  max-width: 100%;
+}
+.adm-provcat > *,
+.adm-provlists > * {
+  min-width: 0;
+}
+/* A group's label: sentence case, 13 px, medium, muted, as every group label in the app (no uppercase eyebrows). */
+.adm-provcat h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.adm-provcat-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.adm-tile-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+.adm-facts .adm-server {
+  margin-left: 6px;
+  vertical-align: -1px;
+}
+.adm-server {
+  display: inline-grid;
+  color: var(--ink-muted);
+}
+
+/* Providers as one list per category: logo, name and status on the left, actions on the right. */
+.adm-provlist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+.adm-prov {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+.adm-prov + .adm-prov {
+  border-top: 1px solid var(--line-soft);
+}
+.adm-prov-name {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  min-width: 0;
+}
+.adm-prov-name b {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.adm-prov-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+/* The provider dialog */
+.adm-oauth {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+}
+.adm-getkey {
+  font-size: 12px;
+  font-weight: 500;
+}
+.adm-presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 6px;
+}
+.adm-preset {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.adm-preset:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+.adm-preset[aria-checked="true"] {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+}
+.adm-preset:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.adm-preset:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.adm-switch-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.adm-switch-field label {
+  margin-right: auto;
+  font-size: 13px;
+  font-weight: 500;
+}
+.adm-result {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.adm-result .k-btn {
+  margin-left: auto;
+}
+.adm-disconnect {
+  color: var(--danger);
+}
+.adm-disconnect:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+.adm-confirm-text {
+  font-size: 13px;
+}
+
+/* Narrow: SettingsLayout makes the sections a row of tabs above the content. */
+@media (max-width: 719px) {
+  .adm-wide {
+    display: none;
+  }
+  .adm-row,
+  .adm-row:has(> :nth-child(4):not(.adm-cell-acts)) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .adm-list-acts > .adm-row,
+  .adm-list-acts > .adm-row:has(> :nth-child(4):not(.adm-cell-acts)) {
+    grid-template-columns: minmax(0, 1fr) auto var(--adm-acts-w);
+  }
+  /* A badge ("Server admin") goes under the name instead of cutting it off. */
+  .adm-list .adm-strong {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 8px;
+    white-space: normal;
+  }
+  .adm-list .adm-strong .k-badge {
+    margin-left: 0;
+  }
+  /* The name stays on one line (cut with …) instead of breaking word by word next to the other columns. */
+  .adm-list .adm-name {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* A row stacks: the first column on its own line at full width, the other columns on one quiet line under it
+     ("Last sign-in Nov 18 · Plan Starter"), the ⋯ at the right of the first line. Nothing squeezes the name or the address. */
+  .adm-list > .adm-row:not(.adm-row-head),
+  .adm-list-acts > .adm-row:not(.adm-row-head),
+  .adm-list-acts > .adm-row:not(.adm-row-head):has(> :nth-child(4):not(.adm-cell-acts)) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 0;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  .adm-row:not(.adm-row-head) > .adm-cell:first-child {
+    flex: 0 0 100%;
+  }
+  /* With actions the ⋯ shares the first line (a column of its own, never over the text); the rest wraps under. */
+  .adm-list-acts > .adm-row:not(.adm-row-head) > .adm-cell:first-child {
+    flex-basis: calc(100% - var(--adm-acts-w));
+  }
+  .adm-row:not(.adm-row-head) > .adm-cell:not(:first-child):not(.adm-cell-acts) {
+    flex: none;
+    max-width: 100%;
+    font-size: 12px;
+    color: var(--ink-muted);
+  }
+  .adm-row:not(.adm-row-head) > .adm-cell[data-label]:not(:first-child):not(.adm-cell-acts)::before {
+    content: attr(data-label) " ";
+  }
+  .adm-row:not(.adm-row-head)
+    > .adm-cell:not(:first-child):not(.adm-wide)
+    + .adm-cell[data-label]:not(.adm-cell-acts)::before {
+    content: "\00a0· " attr(data-label) " ";
+  }
+  /* In a list of people the line starts under the name, not under the picture (24px + 10px gap). */
+  .adm-row:has(.adm-person):not(.adm-row-head) > .adm-cell:first-child + .adm-cell:not(.adm-wide),
+  .adm-row:has(.adm-person):not(.adm-row-head) > .adm-cell:first-child + .adm-wide + .adm-cell {
+    margin-left: 34px;
+  }
+  .adm-list-acts > .adm-row:not(.adm-row-head) > .adm-cell-acts {
+    order: -1;
+    flex: 0 0 var(--adm-acts-w);
+    align-self: center;
+    /* The 44px hit area reaches into the row's padding instead of making the first line taller. */
+    margin-block: -12px;
+  }
+  .adm-list-acts > .adm-row:not(.adm-row-head) > .adm-cell:first-child {
+    order: -2;
+  }
+  /* The head keeps only what sorts: its labels side by side. */
+  .adm-row.adm-row-head,
+  .adm-list-acts > .adm-row.adm-row-head,
+  .adm-list-acts > .adm-row.adm-row-head:has(> :nth-child(4):not(.adm-cell-acts)) {
+    display: flex;
+    gap: 16px;
+  }
+  .adm-row-head > .adm-cell-acts {
+    display: none;
+  }
+  .adm-facts > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+  .adm-action {
+    flex-wrap: wrap;
+  }
+}
+
+/* Overview: stat tiles, health, provider cost, people. */
+.adm-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+.adm-stat {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  min-height: 74px;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+.adm-stat > span {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.adm-stat b {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.adm-stat small {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+.adm-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.adm-card-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.adm-card-head p {
+  margin: 2px 0 0;
+}
+/* "Ready for calls" (StatusCard.tsx): one calm line, the parts as list rows (ui/list.tsx) under it. */
+.adm-ready {
+  gap: 10px;
+}
+.adm-ready-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.adm-ready-text {
+  flex: 1;
+  min-width: 0;
+}
+.adm-ready-text h2 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+.adm-ready-text p {
+  margin: 2px 0 0;
+}
+.adm-ready-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 6px;
+  padding: 4px 6px;
+  margin-left: 18px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.adm-ready-toggle:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+.adm-ready-toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.adm-ready-toggle[aria-expanded="false"] .k-icon {
+  transform: rotate(-90deg);
+}
+.adm-health {
+  display: grid;
+  gap: 6px;
+  padding-left: 24px;
+}
+.adm-health-sub {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.adm-health-sub:first-child {
+  margin-top: 0;
+}
+/* A row that opens its page: the name is the link, stretched over the whole row. */
+.adm-status-row-link {
+  position: relative;
+}
+/* A part with no state (Billing › Prices and rules) keeps the mark's place, so the names stay in one column. */
+.adm-status-nomark {
+  display: inline-block;
+  width: 14px;
+}
+.adm-status-row-link:hover {
+  background: var(--surface-hover);
+}
+.adm-status-link {
+  color: inherit;
+  text-decoration: none;
+}
+.adm-status-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.adm-status-link:focus-visible {
+  outline: none;
+}
+.adm-status-row-link:has(.adm-status-link:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+.adm-status-row .k-row-aside {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+/* A problem under the part's name: in full, wrapping, with its (?) above the row's stretched link. */
+.adm-status-row .k-row-sub {
+  white-space: normal;
+}
+/* The (?) after a problem: a little apart from the sentence, and above the row's stretched link so it opens. */
+.adm-status-problem .k-help,
+.adm-problem-line .k-help {
+  position: relative;
+  z-index: 1;
+  margin-left: 6px;
+}
+/* Phones (the list wraps a row below 560px): a value that no longer fits next to the name keeps to the right edge
+   on the next line, as on wide screens, instead of starting under the mark. */
+@media (max-width: 559px) {
+  .adm-status-row .k-row-aside {
+    margin-left: auto;
+  }
+  .adm-status-row .k-row-main {
+    flex-basis: 110px;
+  }
+}
+/* A command or a docs link in a problem: above the row's stretched link, so they copy and open instead. */
+.adm-status-problem .adm-cmd,
+.adm-status-problem .k-link {
+  position: relative;
+  z-index: 1;
+}
+/* A command in a status row's text (the voice agent's start): code with a small Copy button, kept on one line. */
+.adm-cmd {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  vertical-align: middle;
+}
+.adm-cmd code {
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-hover);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.adm-cmd-copy {
+  color: var(--ink-muted);
+}
+/* Replace key, opened in the row: the key field under the part's words, Cancel and Save at its right. */
+.adm-replace-key {
+  display: grid;
+  gap: 8px;
+  padding: 4px 12px 12px 36px;
+}
+.adm-replace-key-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 8px;
+}
+/* "How to get a key" at the left of Cancel and Save; its steps open below it at the row's width. */
+.adm-replace-key-actions .adm-guide {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+@media (max-width: 559px) {
+  .adm-replace-key {
+    padding-left: 12px;
+  }
+}
+.adm-status-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.adm-status-chevron {
+  color: var(--ink-muted);
+  transform: rotate(180deg);
+}
+.adm-scroll {
+  overflow-x: auto;
+}
+.adm-total th,
+.adm-total td {
+  font-weight: 600;
+}
+.adm-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+.adm-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.adm-link:hover b,
+.adm-link:hover {
+  text-decoration: underline;
+}
+.adm-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Loading and error states (ui/LoadStates.tsx) inside admin cards */
+.adm-stat .adm-sk-value {
+  margin: 3px 0;
+}
+.adm-skel-card {
+  min-height: 220px;
+  box-shadow: none;
+}
+.adm-listcard .sk-row,
+.adm-sk-rows .sk-row {
+  padding: 0 12px;
+}
+.adm-card.load-problem {
+  max-width: none;
+  margin: 0;
+  padding: 28px 20px;
+}
+@media (max-width: 719px) {
+  .adm-health {
+    padding-left: 0;
+  }
+  .adm-ready-toggle {
+    margin-left: 0;
+  }
+}
+
+/* Admin navigation: a failing mark on Overview while a part of the install has a problem */
+.adm-nav-mark {
+  margin-left: auto;
+}
+
+/* Audit log: filters in one wrapping row above the table, "Show older" below it. */
+.adm-audit-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.adm-audit-who {
+  flex: 1 1 200px;
+}
+.adm-audit-filters .k-date {
+  flex: 1 1 140px;
+  max-width: 180px;
+}
+.adm-audit-more {
+  display: flex;
+  justify-content: center;
+  padding-top: 12px;
+}
+
+/* Redirect URIs of an OAuth app, each with a copy button (ProviderDialog). */
+.adm-redirects {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.adm-redirects li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.adm-redirects code {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+/* Branding: a preview of the menu and a primary button, the logo with its buttons, the color picker. */
+.adm-brand-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--sidebar);
+}
+.adm-brand-preview .ws {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+}
+.adm-brand-preview .ws-mark {
+  margin: 0;
+}
+.adm-brand-sample {
+  pointer-events: none;
+}
+.adm-brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* The mark keeps the .ws-mark size (24px), the same as the preview above it. */
+.adm-brand-logo > .adm-brand-logo-mark {
+  margin: 0;
+}
+.adm-brand-logo-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.adm-brand-logo-mark:has(img) {
+  background: none;
+}
+.adm-brand-color {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.adm-brand-color input[type="color"] {
+  width: 36px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+}
+.adm-brand-color .k-input {
+  width: 120px;
+}
+
+/* Reply delay (ReplyDelay.tsx): one stacked bar per pipeline, a 2px surface gap between parts, 4px rounded ends. */
+.adm-series-1 {
+  background: #2a78d6;
+}
+.adm-series-2 {
+  background: #eb6834;
+}
+.adm-series-3 {
+  background: #1baf7a;
+}
+.adm-series-4 {
+  background: #eda100;
+}
+.adm-series-5 {
+  background: #e87ba4;
+}
+.adm-delay {
+  display: grid;
+  gap: 10px;
+}
+.adm-delay + .adm-delay {
+  margin-top: 20px;
+}
+.adm-delay-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.adm-delay-bar {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+}
+.adm-delay-seg {
+  min-width: 2px;
+}
+.adm-delay-seg:first-child {
+  border-radius: 4px 0 0 4px;
+}
+.adm-delay-seg:last-child {
+  border-radius: 0 4px 4px 0;
+}
+.adm-delay-seg:only-child {
+  border-radius: 4px;
+}
+/* The part's name wraps on a phone, so the median and p90 stay in view without scrolling. */
+.adm-delay-table tbody th {
+  white-space: normal;
+}
+.adm-delay-key {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  border-radius: 3px;
+  vertical-align: -1px;
+}
+
+/* Onboarding: a workspace's milestones, folded under where it stopped. */
+.adm-steps {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.adm-steps summary {
+  cursor: pointer;
+}
+.adm-steps ol {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.adm-table tbody th a {
+  color: inherit;
+  text-decoration: none;
+}
+.adm-table tbody th a:hover {
+  text-decoration: underline;
+}
+/* A provider's problem under its name (Server admin › Providers and its dialog). */
+.adm-prov-detail {
+  display: block;
+  font-size: 12.5px;
+  line-height: 17px;
+  color: var(--ink-muted);
+}
+.adm-prov-detail-danger {
+  color: var(--danger);
+}
+/* A provider's error (ProviderError): one line with an ellipsis, the full text only under Details. It never widens
+   its card or column: the line is cut, the full text wraps anywhere (long ids, JSON without spaces). */
+.adm-prov-error {
+  display: block;
+  flex-basis: 100%;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 12.5px;
+  line-height: 17px;
+  color: var(--danger);
+}
+.adm-prov-error-line {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.adm-prov-error-details > summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--ink-muted);
+}
+.adm-prov-error-full {
+  display: grid;
+  gap: 2px;
+  margin-top: 2px;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+.adm-prov-error-full time {
+  font-variant-numeric: tabular-nums;
+}
+/* A confirmation's list of what it affects (deleting a workspace). */
+.adm-confirm-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 3px;
+}
+
+/* Providers in one place (LIN-158): a group's status, its sub-lists (Answering calls), the quiet "Recommended" tag. */
+.adm-status-bad {
+  color: var(--danger);
+}
+.adm-group-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  margin: 0;
+  font-size: 13px;
+}
+.adm-group-status .adm-prov-detail,
+.adm-group-status .adm-prov-error {
+  flex-basis: 100%;
+}
+.adm-group-status {
+  min-width: 0;
+}
+.adm-provsub {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.adm-recommended {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+.adm-provcat > .help {
+  margin: 0;
+}
+/* "How to get a key" in the dialog, "How to set it up" for call audio: open until it works. */
+.adm-guide {
+  padding: 10px 12px;
+  font-size: 13px;
+  background: var(--bg);
+  border-radius: var(--radius-md);
+}
+.adm-guide summary {
+  cursor: pointer;
+  font-weight: 500;
+}
+.adm-guide[open] summary {
+  margin-bottom: 6px;
+}
+.adm-guide > :last-child {
+  margin-bottom: 0;
+}
+.adm-guide-steps {
+  margin: 0 0 6px;
+  padding-left: 18px;
+  display: grid;
+  gap: 3px;
+}
+/* One key for Answering calls, its empty state. */
+.adm-onekey-card {
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+.adm-onekey {
+  font-size: 13px;
+  display: grid;
+  gap: 6px;
+}
+.adm-onekey-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+.adm-onekey-form .k-field {
+  flex: 1 1 240px;
+  margin: 0;
+}
+/* The agent setup as a quiet line under the overview's status. */
+/* Text and buttons share one centre line (design rule 19); the buttons wrap below when the text needs the room. */
+.adm-agent-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.adm-agent-line .help {
+  flex: 1 1 240px;
+  line-height: 18px;
+}
+/* Try it (TryOut.tsx): a real round trip in the provider's dialog. */
+.adm-try {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.adm-try-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.adm-try-head > div {
+  display: grid;
+  gap: 2px;
+  max-width: 44ch;
+  font-size: 13.5px;
+}
+.adm-try-head b {
+  font-weight: 600;
+}
+.adm-try-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.adm-try-code-input input {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.adm-try-area {
+  width: 240px;
+  max-width: 100%;
+}
+.adm-try-code-input {
+  width: 128px;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+}
+.adm-try-result {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  font-size: 13px;
+  line-height: 19px;
+}
+/* The glyph is MarkGlyph (ui/StatusMark.tsx). */
+.adm-try-mark {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--on-action);
+}
+.adm-try-result.bad .adm-try-mark {
+  background: var(--danger);
+  color: var(--on-danger);
+}
+.adm-try-body {
+  display: grid;
+  gap: 8px;
+}
+.adm-try-quote {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+}
+.adm-try-heard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 10px;
+  margin: 0;
+}
+.adm-try-heard dt {
+  color: var(--ink-muted);
+}
+.adm-try-heard dd {
+  margin: 0;
+}
+.adm-try-audio {
+  width: 100%;
+  max-width: 360px;
+  height: 36px;
+}
+.adm-try-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+.adm-try-numbers li {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+}
+
+/* "Show more" under a long provider list (providerList.ts). */
+.adm-provlist-more {
+  margin-top: 6px;
+}
+
+/* Answering's two ways (one realtime model, or three parts), above their lists. */
+/* Answering's two ways as tabs (the inbox's .ib-tab style); the panel below shows the chosen way's lists. */
+.adm-provlists {
+  display: grid;
+  gap: 10px;
+}
+.adm-way-tabs {
+  margin-top: 4px;
+}
+/* "In use" next to a check (a working provider or Answering way): filled ink, so it never reads as part of the check
+   and stands out on a selected tab's grey. */
+.adm-in-use {
+  height: 18px;
+  padding: 0 7px;
+  font-size: 11.5px;
+  background: var(--signal);
+  color: var(--on-signal);
+}
+@media (max-width: 559px) {
+  .adm-way-tabs {
+    flex-wrap: nowrap;
+  }
+  .adm-way-tabs .ib-tab {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+/* Server admin › Providers › After-call transcription: the upload line above its providers (AfterCallTranscript.tsx). */
+.adm-after-call {
+  margin: 12px 0 4px;
+}
+
+/* The kind ask before "Powered by Linedesk" is hidden (Branding.tsx). */
+.adm-brand-ask {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+/* A switch label with its (?) beside it. */
+.adm-brand-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Branding page: the branding card, then Support Linedesk, spaced like other admin pages. */
+.adm-brand-form {
+  display: grid;
+  gap: 12px;
+}
+.adm-brand-heart {
+  color: var(--ink-muted);
+  flex: none;
+}
+
+/* ---- System prompt (LIN-346): the whole prompt as text; fixed text editable in place, variables as grey chips. ---- */
+.adm-prompt {
+  display: grid;
+  gap: 8px;
+}
+.adm-prompt-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+.adm-prompt-section {
+  gap: 2px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+/* LIN-393: each section collapses to its header and one line, so the whole prompt fits on one screen. */
+.adm-prompt-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 8px 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.adm-prompt-head:hover h3 {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.adm-prompt-head:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+.adm-prompt-chevron {
+  flex: none;
+  color: var(--ink-muted);
+  transform: rotate(-90deg);
+  transition: transform 0.12s ease;
+}
+.adm-prompt-section.is-open .adm-prompt-chevron {
+  transform: none;
+}
+.adm-prompt-section h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.adm-prompt-count {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+.adm-prompt-head .k-badge {
+  margin-left: auto;
+}
+.adm-prompt-text.adm-prompt-preview {
+  margin: -4px 0 6px 26px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+.adm-prompt-parts {
+  display: grid;
+  gap: 2px;
+  padding-bottom: 6px;
+}
+.adm-prompt-part {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border-left: 2px solid transparent;
+}
+.adm-prompt-part.is-edited {
+  border-left-color: var(--ink);
+}
+.adm-prompt-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 0;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.adm-prompt-meta:empty {
+  display: none;
+}
+.adm-prompt-when {
+  font-style: italic;
+}
+.adm-prompt-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.adm-prompt-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--ink);
+  font-weight: 500;
+}
+.adm-prompt-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* The editable text is drawn as a text field with a pencil (LIN-356), so it is clear it can change. */
+.adm-prompt-part > .adm-prompt-text {
+  position: relative;
+  padding: 8px 30px 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: text;
+}
+.adm-prompt-part > .adm-prompt-text::after {
+  content: "";
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  width: 12px;
+  height: 12px;
+  background: var(--ink-muted);
+  -webkit-mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  opacity: 0.6;
+}
+.adm-prompt-part:hover > .adm-prompt-text {
+  border-color: var(--ink-muted);
+}
+.adm-prompt-part.is-focused > .adm-prompt-text {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 25%, transparent);
+}
+/* The field shows the focus ring, not each piece in it. */
+.adm-prompt-part .adm-prompt-edit,
+.adm-prompt-part .adm-prompt-edit:focus-visible {
+  outline: none;
+}
+.adm-prompt-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.adm-prompt-edit:empty {
+  display: inline-block;
+  min-width: 1ch;
+}
+.adm-prompt-var {
+  display: inline-block;
+  margin: 0 1px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--line-soft);
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+  user-select: none;
+  cursor: default;
+}
+.adm-prompt-default {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.adm-prompt-default summary {
+  cursor: pointer;
+}
+.adm-prompt-default .adm-prompt-text {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+/* Server admin › Billing: its own page (one card of part rows, as on Overview), the rules and limits editors (fields
+   two a row, one on a phone), and a refund's payments. */
+.adm-billhome {
+  padding: 8px 12px;
+}
+/* Section tabs (Server admin › Partners): the inbox's tabs, scrolling sideways inside their row on a narrow screen,
+   never the page. */
+.adm-billtabs {
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.adm-billtabs .ib-tabs {
+  flex-wrap: nowrap;
+  width: max-content;
+}
+.adm-billtabs .ib-tab {
+  text-decoration: none;
+  white-space: nowrap;
+}
+.adm-billtabs .ib-tab[aria-current="page"] {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+.adm-billtabs .ib-tab .n {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--danger);
+}
+/* The bills filter: one chip per status that has bills, with its count. */
+.adm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.adm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--control-h-sm);
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.adm-chip:hover {
+  color: var(--ink);
+}
+.adm-chip[aria-pressed="true"] {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.adm-chip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.adm-chip .n {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+}
+.adm-rules {
+  display: grid;
+  gap: 12px;
+}
+.adm-lede {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.adm-rules-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+.adm-rules-levels {
+  display: grid;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+@media (max-width: 559px) {
+  .adm-rules-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* A field with a value of its own: the default and Reset next to the label. */
+.adm-default {
+  white-space: nowrap;
+}
+.adm-own .k-field-label label {
+  font-weight: 600;
+}
+.adm-unit {
+  flex: none;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+/* A card's first switch row has no line above it. */
+.swrow.adm-swrow-first {
+  padding-top: 0;
+  border-top: 0;
+}
+.swrow b .k-help {
+  vertical-align: middle;
+}
+.adm-checks-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+/* The Stripe events' last column holds a button: it stays inside the card. */
+.adm-events td:last-child {
+  white-space: nowrap;
+}
+/* The sign-up limits: the Radar levels that hold a bill for review, as a group of checkboxes. */
+.adm-checks {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.adm-checks legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.adm-checks .k-field-desc {
+  margin: 0;
+}
+.adm-refundable {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+/* The short forms of Server admin › Partners and the partner area: a gap between a field and the next label, the
+   button at the start under the last field, never stretched. */
+.adm-form {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.adm-form > .k-btn,
+.adm-form > .adm-actbar {
+  justify-self: start;
+}
+/* Server admin › Partners: the partner's name with its status. */
+.adm-partner-name {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Server admin › Providers › Call quality (CallQuality.tsx): the levels, the default level and the default models. */
+.adm-cq {
+  margin-bottom: 16px;
+}
+.adm-cq-always {
+  flex: none;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.adm-cq-models {
+  margin-top: 4px;
+}
+.adm-cq-foot {
+  margin: 0;
+}
+.adm-cq-group {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.adm-cq-group > .selrow {
+  padding-top: 0;
+  border-top: 0;
+}
+.adm-cq-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.adm-cq > .k-card-head + .swrow,
+.adm-cq > .k-card-head + * > .swrow:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* System › Sign-up countries (SignupAccess.tsx): a country with its mode per line, the invited addresses below. */
+.adm-access-countries {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  max-width: 440px;
+}
+.adm-access-countries li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 14px;
+}
+.adm-access-countries .k-select-btn {
+  min-width: 190px;
+}
+.adm-access-countries li + li {
+  border-top: 1px solid var(--line);
+}
+.adm-access-invites {
+  display: grid;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.adm-access-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  max-width: 440px;
+  margin-top: 4px;
+}
+.adm-access-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-width: 440px;
+}
+.adm-access-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+.adm-access-list li + li {
+  border-top: 1px solid var(--line);
+}
+/* German numbers (System.tsx): the fields one under the other; the requirement group's state at the carrier right
+   under its field (its mark on the first line, the address and the links in quiet lines), the area code read-only. */
+.adm-german-numbers {
+  display: grid;
+  gap: 16px;
+}
+.adm-german-numbers > p {
+  margin: 0;
+}
+.adm-de-group {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  margin-top: 2px;
+}
+.adm-de-group > .k-mark {
+  align-self: start;
+  margin-top: 2px;
+}
+.adm-de-group-text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.adm-de-group-text p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+.adm-de-group-text b {
+  font-weight: 600;
+  color: var(--ink);
+}
+.adm-de-group-text b.adm-status-bad {
+  color: var(--danger);
+}
+.adm-de-group-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.adm-de-area-label {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.adm-de-area {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin: 0;
+  font-size: 13.5px;
+}
+.adm-de-area b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Onboarding › Funnel (Funnel.tsx): the range's tiles over the weekly table; a week without sign-ups stays quiet. */
+.adm-funnel-stats {
+  margin-bottom: 14px;
+}
+.adm-funnel-pct {
+  display: inline-block;
+  min-width: 4ch;
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.adm-funnel-quiet td,
+.adm-funnel-quiet th {
+  color: var(--ink-muted);
+}
+
+/* Overview › Funnel: a total row. */
+.adm-funnel-table tfoot th,
+.adm-funnel-table tfoot td {
+  font-weight: 600;
+  border-top: 1px solid var(--line);
+}
+
+/* ---- Usage: names stay in view while the months scroll; empty months stay quiet. ---- */
+.adm-usage-name {
+  display: block;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.adm-usage-empty {
+  color: var(--ink-disabled);
+}
+.adm-usage td {
+  min-width: 96px;
+}
+@media (min-width: 560px) {
+  .adm-usage tbody th,
+  .adm-usage thead th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--surface);
+    padding-right: 24px;
+  }
+}
+.adm-usage-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.adm-usage-foot .k-btn-ghost {
+  margin-left: -10px;
+}
+.adm-usage-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.adm-usage .adm-total td[data-label]::before {
+  font-weight: 400;
+}
+
+/* After-call transcription as its own card (Settings › Calls): the card head spaces it already. */
+.k-card > .adm-after-call {
+  margin-top: 0;
+}
+.k-card > .adm-after-call > .help:first-child {
+  margin-top: 0;
+}
+
+/* Audit log: what happened wraps (workspace and owner names can be long); the workspace stays one line and is cut
+   with … (a deleted workspace shows its long id), the full name in its tooltip. So the row stays inside the card.
+   On a phone the table stacks and every cell wraps already (above). */
+@media (min-width: 560px) {
+  .adm-audit-table .adm-audit-what {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    min-width: 160px;
+  }
+  .adm-audit-table .adm-audit-workspace {
+    display: block;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* Server admin › Workspaces: the views (All, At risk, Usage by month) at the left, New workspace at the right. */
+.adm-views-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}

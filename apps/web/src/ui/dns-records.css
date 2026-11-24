@@ -1,0 +1,46 @@
+/* DNS records to add (DnsRecords.tsx): one row per record, the Copy buttons beside it, under it on phones. */
+.dns-value {
+  /* A token fills each line instead of breaking at its first hyphen. */
+  word-break: break-all;
+  font-size: 12px;
+}
+.dns-records {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.dns-record {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.dns-record:first-child {
+  border-top: 0;
+}
+.dns-record-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dns-record-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+.dns-record-copy {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+@media (max-width: 640px) {
+  .dns-record {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

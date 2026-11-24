@@ -1,0 +1,394 @@
+diff --git a/dist/audio.cjs b/dist/audio.cjs
+index 254fc8402cb3ff460da83fcbcf6886d65975a68b..50bc42cac1728fa651160799cf7a299871670728 100644
+--- a/dist/audio.cjs
++++ b/dist/audio.cjs
+@@ -61,7 +61,11 @@ class AudioByteStream {
+   }
+   write(data) {
+     const bytes = ArrayBuffer.isView(data) ? new Int8Array(data.buffer, data.byteOffset, data.byteLength) : new Int8Array(data);
+-    this.#buf = new Int8Array([...this.#buf, ...bytes]);
++    // Linedesk (LIN-413): join with set(), not a byte-by-byte spread through a JavaScript array (CPU on every TTS chunk).
++    const joined = new Int8Array(this.#buf.length + bytes.length);
++    joined.set(this.#buf, 0);
++    joined.set(bytes, this.#buf.length);
++    this.#buf = joined;
+     const frames = [];
+     while (this.#buf.length >= this.#bytesPerFrame) {
+       const frameData = this.#buf.slice(0, this.#bytesPerFrame);
+diff --git a/dist/audio.js b/dist/audio.js
+index 7322b820aad8dc33c9bc640dedb11350eea6db02..9643f04583173f2605186d166fe12ac139690eab 100644
+--- a/dist/audio.js
++++ b/dist/audio.js
+@@ -25,7 +25,11 @@ class AudioByteStream {
+   }
+   write(data) {
+     const bytes = ArrayBuffer.isView(data) ? new Int8Array(data.buffer, data.byteOffset, data.byteLength) : new Int8Array(data);
+-    this.#buf = new Int8Array([...this.#buf, ...bytes]);
++    // Linedesk (LIN-413): join with set(), not a byte-by-byte spread through a JavaScript array (CPU on every TTS chunk).
++    const joined = new Int8Array(this.#buf.length + bytes.length);
++    joined.set(this.#buf, 0);
++    joined.set(bytes, this.#buf.length);
++    this.#buf = joined;
+     const frames = [];
+     while (this.#buf.length >= this.#bytesPerFrame) {
+       const frameData = this.#buf.slice(0, this.#bytesPerFrame);
+diff --git a/dist/ipc/proc_pool.cjs b/dist/ipc/proc_pool.cjs
+index a9472fec9e254b0ea4f7e6d52cbd68f2b8d02c66..4446e443b291fe9daf523d460e3c1cc9211b219d 100644
+--- a/dist/ipc/proc_pool.cjs
++++ b/dist/ipc/proc_pool.cjs
+@@ -26,6 +26,22 @@ var import_throws = require("@livekit/throws-transformer/throws");
+ var import_utils = require("../utils.cjs");
+ var import_job_proc_executor = require("./job_proc_executor.cjs");
+ var import_job_trace = require("./job_trace.cjs");
++var import_node_os = require("node:os");
++var import_cpu = require("../cpu.cjs");
++// Linedesk patch (LIN-226): see proc_pool.js.
++function maxConcurrentInits() {
++  let cpus = import_node_os.availableParallelism();
++  try {
++    cpus = Math.min(cpus, Math.ceil((0, import_cpu.getCpuMonitor)().cpuCount()));
++  } catch {
++  }
++  return Math.max(1, Math.min(4, cpus));
++}
++// Linedesk patch (LIN-485): see proc_pool.js.
++function refillHoldMs() {
++  const ms = Number((process.env.LIVEKIT_AGENTS_REFILL_HOLD_MS ?? "").trim() || 5e3);
++  return Number.isFinite(ms) && ms > 0 ? ms : 0;
++}
+ class ProcPool {
+   agent;
+   initializeTimeout;
+@@ -36,7 +52,7 @@ class ProcPool {
+   started = false;
+   closed = false;
+   controller = new AbortController();
+-  initMutex = new import_mutex.Mutex();
++  initMutex = new import_mutex.MultiMutex(maxConcurrentInits());
+   procMutex;
+   // Keep each lock token paired with its warmed process so MultiMutex slots are always released correctly.
+   warmedProcQueue = new import_utils.Queue();
+@@ -44,6 +60,10 @@ class ProcPool {
+   memoryWarnMB;
+   memoryLimitMB;
+   onJobUpdate;
++  // Linedesk patch (LIN-485): see refillHoldMs().
++  lastLaunchAt = 0;
++  waitingJobs = 0;
++  heldInits = 0;
+   constructor({
+     agent,
+     numIdleProcesses,
+@@ -79,7 +99,14 @@ class ProcPool {
+     let warm = false;
+     if (this.procMutex) {
+       warm = this.warmedProcQueue.items.length > 0;
+-      const entry = await this.warmedProcQueue.get();
++      this.lastLaunchAt = Date.now();
++      this.waitingJobs++;
++      let entry;
++      try {
++        entry = await this.warmedProcQueue.get();
++      } finally {
++        this.waitingJobs--;
++      }
+       proc = entry.proc;
+       entry.unlock();
+     } else {
+@@ -130,6 +157,7 @@ class ProcPool {
+     });
+     try {
+       this.executors.push(proc);
++      const releaseHold = await this.waitForQuiet();
+       const unlock = await this.initMutex.lock();
+       let initReleased = false;
+       let procUnlockTransferred = false;
+@@ -144,6 +172,7 @@ class ProcPool {
+           procUnlockTransferred = true;
+           unlock();
+           initReleased = true;
++          releaseHold();
+         } catch {
+         }
+         await proc.join();
+@@ -151,6 +180,7 @@ class ProcPool {
+         if (!initReleased) {
+           unlock();
+         }
++        releaseHold();
+         if (!procUnlockTransferred) {
+           procUnlock();
+         }
+@@ -164,6 +194,27 @@ class ProcPool {
+       }
+     }
+   }
++  // Linedesk patch (LIN-485): see refillHoldMs(). Resolves when this warm process may load; the function it gives
++  // back is called once the process has loaded (or failed).
++  async waitForQuiet() {
++    const hold = refillHoldMs();
++    for (; ; ) {
++      const left = this.lastLaunchAt + hold - Date.now();
++      if (this.closed || left <= 0 || this.waitingJobs > 0) return () => {
++      };
++      if (this.warmedProcQueue.items.length === 0 && this.heldInits === 0) {
++        this.heldInits++;
++        let released = false;
++        return () => {
++          if (!released) {
++            released = true;
++            this.heldInits--;
++          }
++        };
++      }
++      await new Promise((resolve) => setTimeout(resolve, Math.min(250, left)));
++    }
++  }
+   start() {
+     if (this.started) {
+       return;
+diff --git a/dist/ipc/proc_pool.js b/dist/ipc/proc_pool.js
+index b395941db61248002ab9ee014ac64ee891db42b6..d57cf810527867ad233ae5c84edbe2c4e3809c12 100644
+--- a/dist/ipc/proc_pool.js
++++ b/dist/ipc/proc_pool.js
+@@ -1,8 +1,30 @@
++import os from "node:os";
+ import { MultiMutex, Mutex } from "@livekit/mutex";
+ import { ThrowsPromise } from "@livekit/throws-transformer/throws";
+ import { Queue } from "../utils.js";
+ import { JobProcExecutor } from "./job_proc_executor.js";
+ import { monotonicUs } from "./job_trace.js";
++import { getCpuMonitor } from "../cpu.js";
++// Linedesk patch (LIN-226): start up to min(4, CPUs) warm processes at once, as the Python SDK does
++// (MAX_CONCURRENT_INITIALIZATIONS); 1.10 starts them one at a time, so after a burst of calls the next callers
++// wait for each process in turn. os.availableParallelism() counts only the CPUs the container may use (cpuset).
++// On upgrade: drop this hunk if the SDK starts warm processes in parallel itself.
++function maxConcurrentInits() {
++  let cpus = os.availableParallelism();
++  try {
++    cpus = Math.min(cpus, Math.ceil(getCpuMonitor().cpuCount()));
++  } catch {
++  }
++  return Math.max(1, Math.min(4, cpus));
++}
++// Linedesk patch (LIN-485): a call that just started needs the CPU for its setup and greeting, and so do the warm
++// processes that replace the ones it took. While calls start (LIVEKIT_AGENTS_REFILL_HOLD_MS after the last one,
++// default 5000; 0 turns it off) new warm processes wait; only when none is left does one load, one at a time. A call
++// that waits for a process ends the hold at once. On upgrade: check launchJob and procWatchTask still look like this.
++function refillHoldMs() {
++  const ms = Number((process.env.LIVEKIT_AGENTS_REFILL_HOLD_MS ?? "").trim() || 5e3);
++  return Number.isFinite(ms) && ms > 0 ? ms : 0;
++}
+ class ProcPool {
+   agent;
+   initializeTimeout;
+@@ -13,7 +35,7 @@ class ProcPool {
+   started = false;
+   closed = false;
+   controller = new AbortController();
+-  initMutex = new Mutex();
++  initMutex = new MultiMutex(maxConcurrentInits());
+   procMutex;
+   // Keep each lock token paired with its warmed process so MultiMutex slots are always released correctly.
+   warmedProcQueue = new Queue();
+@@ -21,6 +43,10 @@ class ProcPool {
+   memoryWarnMB;
+   memoryLimitMB;
+   onJobUpdate;
++  // Linedesk patch (LIN-485): see refillHoldMs().
++  lastLaunchAt = 0;
++  waitingJobs = 0;
++  heldInits = 0;
+   constructor({
+     agent,
+     numIdleProcesses,
+@@ -56,7 +82,14 @@ class ProcPool {
+     let warm = false;
+     if (this.procMutex) {
+       warm = this.warmedProcQueue.items.length > 0;
+-      const entry = await this.warmedProcQueue.get();
++      this.lastLaunchAt = Date.now();
++      this.waitingJobs++;
++      let entry;
++      try {
++        entry = await this.warmedProcQueue.get();
++      } finally {
++        this.waitingJobs--;
++      }
+       proc = entry.proc;
+       entry.unlock();
+     } else {
+@@ -107,6 +140,7 @@ class ProcPool {
+     });
+     try {
+       this.executors.push(proc);
++      const releaseHold = await this.waitForQuiet();
+       const unlock = await this.initMutex.lock();
+       let initReleased = false;
+       let procUnlockTransferred = false;
+@@ -121,6 +155,7 @@ class ProcPool {
+           procUnlockTransferred = true;
+           unlock();
+           initReleased = true;
++          releaseHold();
+         } catch {
+         }
+         await proc.join();
+@@ -128,6 +163,7 @@ class ProcPool {
+         if (!initReleased) {
+           unlock();
+         }
++        releaseHold();
+         if (!procUnlockTransferred) {
+           procUnlock();
+         }
+@@ -141,6 +177,27 @@ class ProcPool {
+       }
+     }
+   }
++  // Linedesk patch (LIN-485): see refillHoldMs(). Resolves when this warm process may load; the function it gives
++  // back is called once the process has loaded (or failed).
++  async waitForQuiet() {
++    const hold = refillHoldMs();
++    for (; ; ) {
++      const left = this.lastLaunchAt + hold - Date.now();
++      if (this.closed || left <= 0 || this.waitingJobs > 0) return () => {
++      };
++      if (this.warmedProcQueue.items.length === 0 && this.heldInits === 0) {
++        this.heldInits++;
++        let released = false;
++        return () => {
++          if (!released) {
++            released = true;
++            this.heldInits--;
++          }
++        };
++      }
++      await new Promise((resolve) => setTimeout(resolve, Math.min(250, left)));
++    }
++  }
+   start() {
+     if (this.started) {
+       return;
+diff --git a/dist/tts/tts.cjs b/dist/tts/tts.cjs
+index 88a107fbc195c08f392cc680c0b55bc102e59ba9..c2c6f3aec29cd44f01881ef6f6ed437f63d802d1 100644
+--- a/dist/tts/tts.cjs
++++ b/dist/tts/tts.cjs
+@@ -668,6 +668,11 @@ class ChunkedStream {
+           attemptQueue.close();
+         }
+         await drainAttemptQueue;
++        if (this.abortController.signal.aborted) {
++          // Linedesk patch (LIN-516): the stream was closed on purpose (an interrupted reply, a dropped preemptive
++          // generation); a request that fails because of that abort is no error, else the session closes as unrecoverable.
++          return;
++        }
+         if (error instanceof import_exceptions.APIError) {
+           const shouldRetry = error.retryable && this._connOptions.maxRetry > 0 && i < this._connOptions.maxRetry;
+           if (!shouldRetry) {
+diff --git a/dist/tts/tts.js b/dist/tts/tts.js
+index 71d7fb7c1ad8e44e05ae8b736f7cfabd8935bff0..fcf872578ed8688d3daea178fe3354b343387a22 100644
+--- a/dist/tts/tts.js
++++ b/dist/tts/tts.js
+@@ -652,6 +652,11 @@ class ChunkedStream {
+           attemptQueue.close();
+         }
+         await drainAttemptQueue;
++        if (this.abortController.signal.aborted) {
++          // Linedesk patch (LIN-516): the stream was closed on purpose (an interrupted reply, a dropped preemptive
++          // generation); a request that fails because of that abort is no error, else the session closes as unrecoverable.
++          return;
++        }
+         if (error instanceof APIError) {
+           const shouldRetry = error.retryable && this._connOptions.maxRetry > 0 && i < this._connOptions.maxRetry;
+           if (!shouldRetry) {
+diff --git a/dist/utils.cjs b/dist/utils.cjs
+index 283765d34a86573e5dc984eed48b507e8a395543..d806af5c34a2e3137f974ff8bbc29d842c4e7de8 100644
+--- a/dist/utils.cjs
++++ b/dist/utils.cjs
+@@ -133,7 +133,7 @@ const mergeFrames = (buffer) => {
+     const sampleRate = buffer[0].sampleRate;
+     const channels = buffer[0].channels;
+     let samplesPerChannel = 0;
+-    let data = new Int16Array();
++    let length = 0;
+     for (const frame of buffer) {
+       if (frame.sampleRate !== sampleRate) {
+         throw new TypeError("sample rate mismatch");
+@@ -141,9 +141,16 @@ const mergeFrames = (buffer) => {
+       if (frame.channels !== channels) {
+         throw new TypeError("channel count mismatch");
+       }
+-      data = new Int16Array([...data, ...frame.data]);
++      length += frame.data.length;
+       samplesPerChannel += frame.samplesPerChannel;
+     }
++    // Linedesk (LIN-413): one allocation and set(), not a spread of everything so far for every frame (quadratic).
++    const data = new Int16Array(length);
++    let offset = 0;
++    for (const frame of buffer) {
++      data.set(frame.data, offset);
++      offset += frame.data.length;
++    }
+     return new import_rtc_node.AudioFrame(data, sampleRate, channels, samplesPerChannel);
+   }
+   return buffer;
+diff --git a/dist/utils.js b/dist/utils.js
+index 047893c809b6f2b1c6760b49f5a1548b45dab34a..dfd31255cf65012a17b6b237aaa6caa6c0c2fc50 100644
+--- a/dist/utils.js
++++ b/dist/utils.js
+@@ -71,7 +71,7 @@ const mergeFrames = (buffer) => {
+     const sampleRate = buffer[0].sampleRate;
+     const channels = buffer[0].channels;
+     let samplesPerChannel = 0;
+-    let data = new Int16Array();
++    let length = 0;
+     for (const frame of buffer) {
+       if (frame.sampleRate !== sampleRate) {
+         throw new TypeError("sample rate mismatch");
+@@ -79,9 +79,16 @@ const mergeFrames = (buffer) => {
+       if (frame.channels !== channels) {
+         throw new TypeError("channel count mismatch");
+       }
+-      data = new Int16Array([...data, ...frame.data]);
++      length += frame.data.length;
+       samplesPerChannel += frame.samplesPerChannel;
+     }
++    // Linedesk (LIN-413): one allocation and set(), not a spread of everything so far for every frame (quadratic).
++    const data = new Int16Array(length);
++    let offset = 0;
++    for (const frame of buffer) {
++      data.set(frame.data, offset);
++      offset += frame.data.length;
++    }
+     return new AudioFrame(data, sampleRate, channels, samplesPerChannel);
+   }
+   return buffer;
+diff --git a/dist/worker.cjs b/dist/worker.cjs
+index 360da761381211c8012e6d5f636977e46d99b4fd..09e43576e4e287d0ec92981aa36002ed2e4c2171 100644
+--- a/dist/worker.cjs
++++ b/dist/worker.cjs
+@@ -68,6 +68,8 @@ let localEotRunnerRegistered = false;
+ function _maybeRegisterLocalEotRunner() {
+   if (localEotRunnerRegistered) return;
+   localEotRunnerRegistered = true;
++  // Linedesk patch (LIN-226): see worker.js.
++  if (["0", "false", "no", "off"].includes((process.env.LIVEKIT_AGENTS_LOCAL_EOT ?? "").trim().toLowerCase())) return;
+   if (import_inference_runner.InferenceRunner.registeredRunners[import_runner.EOT_INFERENCE_METHOD]) return;
+   if ((0, import_warmup._getLocalInferenceModule)() === void 0) {
+     (0, import_log.log)().warn(
+diff --git a/dist/worker.js b/dist/worker.js
+index 42a8d366bd62383546dec6842e5d380629119e4a..47b07c820de5acb5518ea6d4f1989e328410e21b 100644
+--- a/dist/worker.js
++++ b/dist/worker.js
+@@ -48,6 +48,10 @@ let localEotRunnerRegistered = false;
+ function _maybeRegisterLocalEotRunner() {
+   if (localEotRunnerRegistered) return;
+   localEotRunnerRegistered = true;
++  // Linedesk patch (LIN-226): LIVEKIT_AGENTS_LOCAL_EOT=0 registers no local end-of-turn runner, so no inference
++  // process is started (~350-500 MB). Only the audio TurnDetector with a VAD uses it; Linedesk's pipelines do not.
++  // On upgrade: check that this function still exists and is the only place that registers the runner.
++  if (["0", "false", "no", "off"].includes((process.env.LIVEKIT_AGENTS_LOCAL_EOT ?? "").trim().toLowerCase())) return;
+   if (InferenceRunner.registeredRunners[EOT_INFERENCE_METHOD]) return;
+   if (_getLocalInferenceModule() === void 0) {
+     log().warn(

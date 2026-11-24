@@ -1,0 +1,706 @@
+// Integrations (#integrations, G O): everything Linedesk connects to, as lines by category, with a search and one
+// key per category. A line opens its detail view here (#integrations/zapier, /hubspot, /zoho, /slack, /jobber, /shopify,
+// /gmail, /outlook-mail, /api-keys, /rest-api, /mcp) or
+// the place where it is set up (the assistant's webhooks and booking; #integrations/make and the like go there too); one not
+// built yet shows "Coming soon", and an address with nothing behind it says so. The catalog itself is catalog.ts; API keys and
+// Zapier were Workspace settings › Developers (old links are rewritten, useRoute.ts).
+import type { AgentClient } from '@linedesk/actions'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { T, useT } from '@linedesk/i18n/react'
+import { type ChangeEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { brandName } from '../brand.ts'
+import { pollWhileVisible, useQuery } from '../cachedQuery.ts'
+import { AgentSteps } from '../onboarding/AgentForm.tsx'
+import { AgentPicker, saveClient, savedClient } from '../onboarding/AgentPicker.tsx'
+import { kindLabel } from '../settings/businessKind.ts'
+import { useCalendarProviders } from '../settings/calendar-providers.ts'
+import type { ProviderId } from '../settings/calendarModel.ts'
+import { Section } from '../settings/fields.tsx'
+import { useWorkspaceSettings } from '../settings/settings-api.ts'
+import { setPageKeys } from '../shell/keys.ts'
+import { useRows } from '../store.tsx'
+import { AppLink, adminLink, appLink, LinkButton } from '../ui/AppLink.tsx'
+import { providerAudience } from '../providerAudience.ts'
+import { Input } from '../ui/form.tsx'
+import { copyText } from '../ui/HelpTip.tsx'
+import { Badge, Button, Kbd, Note } from '../ui/kit.tsx'
+import { SkeletonText, useLoadState } from '../ui/LoadStates.tsx'
+import { ConnectedApp } from './ConnectedApp.tsx'
+import {
+  CATALOG,
+  catalogView,
+  CATEGORIES,
+  CATEGORY_LABEL,
+  type CategoryId,
+  claudeCodeKeyCommand,
+  curlExample,
+  type DetailId,
+  type Facts,
+  type Integration,
+  type IntegrationsPlace,
+  KEY_VARIABLE,
+  lineKey,
+  mcpAddress,
+  mcpJson,
+  nameKey,
+  openApiAddress,
+  placeOf,
+  type Status,
+  searchIntegrations,
+  statusOf,
+} from './catalog.ts'
+import {
+  API_KEYS,
+  ApiKeys,
+  INTEGRATIONS,
+  KEYS_POLL_MS,
+  loadIntegrations,
+  loadKeys,
+  ZapierSubscriptions,
+} from './Developers.tsx'
+import { type DirectConnect, useDirectConnect } from './directConnect.tsx'
+import { markFromIntegrations } from './fromIntegrations.tsx'
+import { IntegrationMark } from './IntegrationMark.tsx'
+import { SupportEmailPage } from './SupportEmail.tsx'
+import { connectPlan } from './connectPlan.ts'
+import './integrations.css'
+
+const SEARCH_ID = 'integrations-search'
+const HOME = '#integrations'
+
+type Props = {
+  /** Owners and admins, also during support access: API keys and Zapier (settings:write). */
+  canManageKeys: boolean
+  toast: (text: string) => void
+}
+
+export function Integrations({ canManageKeys, toast }: Props) {
+  const place = usePlace()
+  const inside = place.view === 'detail' || place.view === 'missing'
+  // Esc in a detail view (or the note that there is none) goes back to the catalog (the catalog's own keys are in Catalog).
+  useEffect(() => {
+    if (!inside) return
+    setPageKeys(key => {
+      if (key !== 'Escape') return false
+      window.location.hash = HOME
+      return true
+    })
+    return () => setPageKeys(null)
+  }, [inside])
+  return (
+    <div className="page">
+      <div className="page-in st-page ig-page">
+        {place.view === 'detail' ? (
+          <Detail id={place.id} canManageKeys={canManageKeys} toast={toast} />
+        ) : place.view === 'missing' ? (
+          <Missing section={place.section} />
+        ) : place.view === 'catalog' ? (
+          <Catalog canManageKeys={canManageKeys} toast={toast} />
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The catalog or the detail view the hash names; follows Back and links. A card set up elsewhere (#integrations/make)
+ * goes to its place in the app, in place of this address in the history.
+ */
+function usePlace(): IntegrationsPlace {
+  const [place, setPlace] = useState(() => placeOf(window.location.hash))
+  useEffect(() => {
+    const onHash = () => setPlace(placeOf(window.location.hash))
+    window.addEventListener('hashchange', onHash)
+    onHash()
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+  useEffect(() => {
+    if (place.view !== 'elsewhere') return
+    if (!place.to.startsWith(HOME)) markFromIntegrations()
+    window.location.replace(place.to)
+  }, [place])
+  return place
+}
+
+/** An address with no integration behind it: say so, with the way back, never the catalog as if nothing were wrong. */
+function Missing({ section }: { section: string }) {
+  const t = useT()
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1>{t('settings.integrations.title')}</h1>
+        </div>
+      </div>
+      <Note title={t('settings.integrations.missing.title', { section })}>
+        <T k="settings.integrations.missing.text" values={{ link: appLink(HOME) }} />
+      </Note>
+    </>
+  )
+}
+
+const mailboxCount = (rows: { status: string }[]) => ({
+  count: rows.length,
+  needsReconnect: rows.filter(m => m.status === 'needs_reconnect').length,
+})
+
+/** What the workspace has set up, from the same cached reads and synced rows as the places that set it up. */
+function useFacts(canManageKeys: boolean): Facts {
+  const keys = useQuery(canManageKeys ? API_KEYS : null, loadKeys, { persist: true })
+  const zaps = useQuery(canManageKeys ? INTEGRATIONS : null, loadIntegrations, { persist: true })
+  useEffect(() => (canManageKeys ? pollWhileVisible(API_KEYS, KEYS_POLL_MS) : undefined), [canManageKeys])
+  const hooks = useRows('webhook_endpoints')
+  const hooksLoad = useLoadState('webhook_endpoints')
+  const calendars = useRows('calendar_connections')
+  const calendarsLoad = useLoadState('calendar_connections')
+  const apps = useRows('app_connections')
+  const appsLoad = useLoadState('app_connections')
+  const mailboxes = useRows('mail_connections')
+  const mailboxesLoad = useLoadState('mail_connections')
+  const calendarProviders = useCalendarProviders()
+  return useMemo(() => {
+    const perProvider: Partial<Record<ProviderId, number>> = {}
+    for (const c of calendars) perProvider[c.provider] = (perProvider[c.provider] ?? 0) + 1
+    return {
+      zaps: canManageKeys ? zaps.data?.subscriptions.length : null,
+      apiKeys: canManageKeys ? keys.data?.keys.filter(k => !k.revoked_at).length : null,
+      // Webhooks that send something: on, for an assistant, with at least one hook. Only admins get these rows.
+      webhookUrls: !canManageKeys
+        ? null
+        : hooksLoad === 'ready'
+          ? hooks.filter(h => h.status === 'active' && h.assistant_id && h.hooks.length > 0).map(h => h.url)
+          : undefined,
+      calendars: calendarsLoad === 'ready' ? perProvider : undefined,
+      calendarProviders,
+      apps: appsLoad === 'ready' ? Object.fromEntries(apps.map(a => [a.provider, a.status])) : undefined,
+      mailboxes:
+        mailboxesLoad === 'ready'
+          ? {
+              google: mailboxCount(mailboxes.filter(m => m.provider === 'google')),
+              microsoft: mailboxCount(mailboxes.filter(m => m.provider === 'microsoft')),
+            }
+          : undefined,
+    }
+  }, [
+    canManageKeys,
+    zaps.data,
+    keys.data,
+    hooks,
+    hooksLoad,
+    calendars,
+    calendarsLoad,
+    calendarProviders,
+    apps,
+    appsLoad,
+    mailboxes,
+    mailboxesLoad,
+  ])
+}
+
+/** The keys that pick a category: 0 shows all, 1 to 7 one category each (as in the chips' tooltips). */
+const categoryKey = (i: number) => String(i + 1)
+
+function Catalog({ canManageKeys, toast }: Props) {
+  const t = useT()
+  const connect = useDirectConnect(canManageKeys, toast)
+  const [query, setQuery] = useState('')
+  const [only, setOnly] = useState<CategoryId | null>(null)
+  const [showFolded, setShowFolded] = useState(false)
+  const facts = useFacts(canManageKeys)
+  // On top, the ones suggested for this kind of business (LIN-767); not while searching or filtering by category.
+  const kind = useWorkspaceSettings().data?.businessKind ?? null
+  const statusById = (id: Integration['id']) => statusOf(id, facts)
+  const { suggested, groups, folded, chips } = catalogView(
+    searchIntegrations(CATALOG, query, k => t(k)),
+    {
+      only,
+      searching: query.trim() !== '',
+      kind,
+      status: id => statusById(id).kind,
+    },
+  )
+
+  const keys = useRef<(key: string) => boolean>(() => false)
+  keys.current = key => {
+    if (key === '/') {
+      document.getElementById(SEARCH_ID)?.focus()
+      return true
+    }
+    if (key === '0') {
+      setOnly(null)
+      return true
+    }
+    const i = CATEGORIES.findIndex((_, n) => categoryKey(n) === key)
+    if (i >= 0 && chips.includes(CATEGORIES[i]!)) {
+      setOnly(c => (c === CATEGORIES[i] ? null : CATEGORIES[i]!))
+      return true
+    }
+    if (key === 'Escape' && (query || only)) {
+      setQuery('')
+      setOnly(null)
+      return true
+    }
+    return false
+  }
+  useEffect(() => {
+    setPageKeys(key => keys.current(key))
+    return () => setPageKeys(null)
+  }, [])
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1>{t('settings.integrations.title')}</h1>
+          <p>{t('settings.integrations.lede')}</p>
+        </div>
+      </div>
+      <div className="ig-tools">
+        <Input
+          id={SEARCH_ID}
+          type="search"
+          size="sm"
+          className="ig-search"
+          value={query}
+          placeholder={t('settings.integrations.search.placeholder')}
+          aria-label={t('settings.integrations.search.label')}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
+          end={<Kbd keys={['/']} />}
+        />
+        <div className="ig-chips" role="group" aria-label={t('settings.integrations.category.label')}>
+          <Chip
+            label={t('settings.integrations.category.all')}
+            shortcut="0"
+            on={only === null}
+            onClick={() => setOnly(null)}
+          />
+          {CATEGORIES.map((c, i) =>
+            chips.includes(c) ? (
+              <Chip
+                key={c}
+                label={t(CATEGORY_LABEL[c])}
+                shortcut={categoryKey(i)}
+                on={only === c}
+                onClick={() => setOnly(only === c ? null : c)}
+              />
+            ) : null,
+          )}
+        </div>
+      </div>
+      {kind && suggested.length > 0 && (
+        <section className="ig-group ig-suggested" aria-labelledby="ig-cat-suggested">
+          <h2 id="ig-cat-suggested">
+            {t('settings.integrations.suggested.title', { kind: kindLabel(kind) })}
+            <span className="ig-group-change">
+              <AppLink to="#workspace/general" title={t('settings.integrations.suggested.changeTip')}>
+                {t('settings.integrations.suggested.change')}
+              </AppLink>
+            </span>
+          </h2>
+          <div className="k-card ig-list">
+            {suggested.map(i => (
+              <Row key={i.id} integration={i} status={statusById(i.id)} connect={connect} suggested />
+            ))}
+          </div>
+        </section>
+      )}
+      {groups.length === 0 && folded.length === 0 ? (
+        <p className="ig-empty">{t('settings.integrations.search.none', { query })}</p>
+      ) : (
+        groups.map(g => (
+          <section key={g.category} className="ig-group" aria-labelledby={`ig-cat-${g.category}`}>
+            <h2 id={`ig-cat-${g.category}`}>{t(CATEGORY_LABEL[g.category])}</h2>
+            <div className="k-card ig-list">
+              {g.items.map(i => (
+                <Row key={i.id} integration={i} status={statusById(i.id)} connect={connect} />
+              ))}
+            </div>
+          </section>
+        ))
+      )}
+      {folded.length > 0 && (
+        <Folded
+          count={folded.length}
+          open={showFolded || groups.length === 0}
+          // A search that finds only these lists them at once, with nothing to toggle.
+          onToggle={groups.length === 0 ? undefined : () => setShowFolded(v => !v)}
+        >
+          {folded.map(i => (
+            <Row key={i.id} integration={i} status={statusById(i.id)} connect={connect} />
+          ))}
+        </Folded>
+      )}
+      {connect.dialog}
+    </>
+  )
+}
+
+/**
+ * The integrations this server does not offer, as one quiet line at the end (LIN-767): how many, who can switch them on
+ * (an instance admin gets the link to Server admin › Providers), and Show, which lists them with their badge.
+ */
+function Folded({
+  count,
+  open,
+  onToggle,
+  children,
+}: {
+  count: number
+  open: boolean
+  /** Show and Hide; none when the list is always open. */
+  onToggle?: (() => void) | undefined
+  children: ReactNode
+}) {
+  const t = useT()
+  const admin = providerAudience() === 'admin'
+  return (
+    <section className="ig-group ig-folded" aria-label={t('settings.integrations.folded.label')}>
+      <p className="ig-folded-line">
+        {admin ? (
+          <T k="settings.integrations.folded.admin" values={{ count, link: adminLink('#admin/providers', true) }} />
+        ) : (
+          t('settings.integrations.folded.member', { count })
+        )}
+        {onToggle && (
+          <>
+            <span aria-hidden="true"> · </span>
+            <LinkButton
+              onClick={onToggle}
+              title={t(open ? 'settings.integrations.folded.hideTip' : 'settings.integrations.folded.showTip')}
+            >
+              {t(open ? 'settings.integrations.folded.hide' : 'settings.integrations.folded.show')}
+            </LinkButton>
+          </>
+        )}
+      </p>
+      {open && <div className="k-card ig-list">{children}</div>}
+    </section>
+  )
+}
+
+function Chip({ label, shortcut, on, onClick }: { label: string; shortcut: string; on: boolean; onClick: () => void }) {
+  return (
+    <button type="button" className="ig-chip" aria-pressed={on} title={`${label} (${shortcut})`} onClick={onClick}>
+      {label}
+    </button>
+  )
+}
+
+/**
+ * One integration as a line: mark and name on the left, its one line in the middle, its state and its button on the
+ * right. Only the button acts: Connect opens the provider's sign-in at once where it can (directConnect.tsx), else the
+ * place where it is set up; Manage, Fix and Open go to its page.
+ */
+function Row({
+  integration,
+  status,
+  connect,
+  suggested,
+}: {
+  integration: Integration
+  status: Status
+  connect: DirectConnect
+  /** In the suggested group: one this server does not offer says whom to ask instead of its badge. */
+  suggested?: boolean
+}) {
+  const t = useT()
+  const name = t(nameKey(integration.id))
+  const line = t(lineKey(integration.id))
+  const action = integration.opens ? ACTION[status.kind] : undefined
+  const direct = status.kind === 'notConnected' && connect.can(integration.id)
+  const opening = connect.opening === integration.id
+  const asks = suggested && status.kind === 'unavailable'
+  // Secondary everywhere: a list of black Connect buttons has no focal point (LIN-767).
+  const className = 'k-btn k-btn-secondary k-btn-sm ig-row-action'
+  return (
+    <article className={asks ? 'ig-row ig-row-asks' : 'ig-row'}>
+      <div className="ig-row-name">
+        <IntegrationMark mark={integration.mark} />
+        <h3>{name}</h3>
+      </div>
+      <p className="ig-row-line" title={line}>
+        {line}
+      </p>
+      <div className="ig-row-end">
+        {asks ? <AskAdmin /> : <StatusBadge id={integration.id} status={status} />}
+        {direct ? (
+          <button
+            type="button"
+            className={className}
+            disabled={connect.opening !== null}
+            aria-busy={opening || undefined}
+            title={t('settings.integrations.app.connectTip', { name })}
+            onClick={() => connect.start(integration.id)}
+          >
+            <span>{t(opening ? 'settings.integrations.action.opening' : 'settings.integrations.action.connect')}</span>
+          </button>
+        ) : (
+          action &&
+          integration.opens && (
+            <a
+              className={className}
+              href={integration.opens}
+              title={line}
+              onClick={() => integration.opens?.startsWith(HOME) || markFromIntegrations()}
+            >
+              <span>{t(action)}</span>
+            </a>
+          )
+        )}
+      </div>
+    </article>
+  )
+}
+
+/** In place of "Not on this server" in the suggested group: who switches it on, as quiet words. */
+function AskAdmin() {
+  const t = useT()
+  return (
+    <p className="ig-row-ask">
+      {providerAudience() === 'admin' ? (
+        <T k="settings.integrations.suggested.askAdmin" values={{ link: adminLink('#admin/providers', true) }} />
+      ) : (
+        t('settings.integrations.suggested.ask')
+      )}
+    </p>
+  )
+}
+
+/** What a click on a line does, as its button says; none while it loads or where there is nothing to do. */
+const ACTION: Partial<Record<Status['kind'], MessageKey>> = {
+  connected: msg('settings.integrations.action.manage'),
+  notConnected: msg('settings.integrations.action.connect'),
+  needsAttention: msg('settings.integrations.action.fix'),
+  ready: msg('settings.integrations.action.open'),
+  adminsOnly: msg('settings.integrations.action.open'),
+}
+
+/** "3 Zaps", "2 keys", "1 account": what a count means on each card. */
+const COUNTED: Partial<Record<Integration['id'], MessageKey>> = {
+  zapier: msg('settings.integrations.status.zaps'),
+  'api-keys': msg('settings.integrations.status.keys'),
+  webhooks: msg('settings.integrations.status.webhooks'),
+  google: msg('settings.integrations.status.accounts'),
+  microsoft: msg('settings.integrations.status.accounts'),
+  caldav: msg('settings.integrations.status.accounts'),
+  calcom: msg('settings.integrations.status.accounts'),
+  calendly: msg('settings.integrations.status.accounts'),
+  gmail: msg('settings.integrations.status.mailboxes'),
+  'outlook-mail': msg('settings.integrations.status.mailboxes'),
+}
+
+function StatusBadge({ id, status }: { id: Integration['id']; status: Status }) {
+  const t = useT()
+  switch (status.kind) {
+    case 'loading':
+      return <SkeletonText width={72} />
+    case 'connected': {
+      const counted = COUNTED[id]
+      return (
+        <Badge tone="ok" dot>
+          {counted && status.count !== undefined
+            ? t(counted, { count: status.count })
+            : t('settings.integrations.status.connected')}
+        </Badge>
+      )
+    }
+    case 'notConnected':
+      // The Connect button says it; no badge beside it.
+      return null
+    case 'unavailable':
+      return (
+        <Badge tone="outline" title={t('settings.integrations.status.unavailableTip')}>
+          {t('settings.integrations.status.unavailable')}
+        </Badge>
+      )
+    case 'needsAttention':
+      return (
+        <Badge tone="danger" dot title={t('settings.integrations.status.needsAttentionTip')}>
+          {t('settings.integrations.status.needsAttention')}
+        </Badge>
+      )
+    case 'ready':
+      return <Badge tone="outline">{t('settings.integrations.status.ready')}</Badge>
+    case 'inProgress':
+      return (
+        <Badge tone="neutral" title={t('settings.integrations.status.inProgressTip')}>
+          {t('settings.integrations.status.inProgress')}
+        </Badge>
+      )
+    case 'adminsOnly':
+      return (
+        <Badge tone="outline" title={t('settings.integrations.status.adminsOnlyTip')}>
+          {t('settings.integrations.status.adminsOnly')}
+        </Badge>
+      )
+  }
+}
+
+/**
+ * Pages whose Connection card says what connecting does (and the one line on trust): their header names only the
+ * category, so nothing is said twice. The other pages keep their line in the header (their card holds steps).
+ */
+const CARD_SAYS_WHAT: ReadonlySet<DetailId> = new Set([
+  'hubspot',
+  'zoho',
+  'slack',
+  'jobber',
+  'shopify',
+  'gmail',
+  'outlook-mail',
+])
+
+/**
+ * A detail view: back to the catalog, the integration's header, and what is set up here. One primary per screen:
+ * while the integration is not set up, its card's Connect is the primary and the header's way out is a quiet Back;
+ * once it is set up (or has nothing to set up), the header's Done is.
+ */
+function Detail({ id, canManageKeys, toast }: { id: DetailId; canManageKeys: boolean; toast: Props['toast'] }) {
+  const t = useT()
+  const integration = CATALOG.find(i => i.id === id)!
+  const status = statusOf(id, useFacts(canManageKeys)).kind
+  const home = () => (window.location.hash = HOME)
+  return (
+    <>
+      <p className="ig-back">
+        <AppLink to={HOME} title={t('settings.integrations.backTip')}>
+          {t('settings.integrations.back')}
+        </AppLink>
+      </p>
+      <div className="ig-detail-head">
+        <IntegrationMark mark={integration.mark} />
+        <div className="ig-detail-title">
+          <h1>{t(nameKey(id))}</h1>
+          <p>{t(CARD_SAYS_WHAT.has(id) ? CATEGORY_LABEL[integration.category] : lineKey(id))}</p>
+        </div>
+        {status === 'loading' ? (
+          <SkeletonText width={72} height={32} />
+        ) : status === 'connected' || status === 'ready' ? (
+          <Button variant="primary" shortcut={['esc']} onClick={home} title={t('settings.integrations.doneTip')}>
+            {t('settings.integrations.done')}
+          </Button>
+        ) : (
+          <Button variant="ghost" onClick={home} title={t('settings.integrations.doneTip')}>
+            {t('settings.integrations.backButton')}
+          </Button>
+        )}
+      </div>
+      {id === 'zapier' && <ZapierSubscriptions canEdit={canManageKeys} toast={toast} />}
+      {id === 'hubspot' && <ConnectedApp app="hubspot" canEdit={canManageKeys} toast={toast} />}
+      {id === 'zoho' && <ConnectedApp key="zoho" app="zoho" canEdit={canManageKeys} toast={toast} />}
+      {id === 'slack' && <ConnectedApp key="slack" app="slack" canEdit={canManageKeys} toast={toast} />}
+      {id === 'jobber' && <ConnectedApp key="jobber" app="jobber" canEdit={canManageKeys} toast={toast} />}
+      {id === 'shopify' && <ConnectedApp key="shopify" app="shopify" canEdit={canManageKeys} toast={toast} />}
+      {id === 'gmail' && <SupportEmailPage key="google" provider="google" canEdit={canManageKeys} toast={toast} />}
+      {id === 'outlook-mail' && (
+        <SupportEmailPage key="microsoft" provider="microsoft" canEdit={canManageKeys} toast={toast} />
+      )}
+      {id === 'api-keys' && <ApiKeys canEdit={canManageKeys} toast={toast} />}
+      {id === 'rest-api' && <RestApi toast={toast} />}
+      {id === 'mcp' && <Mcp toast={toast} />}
+    </>
+  )
+}
+
+/** The server's own address: what other programs reach (the API serves the app, so it's this page's origin). */
+const origin = () => window.location.origin
+
+function RestApi({ toast }: { toast: Props['toast'] }) {
+  const t = useT()
+  return (
+    <Section id="ig-rest" title={t('settings.integrations.rest.title')} help={t('settings.integrations.rest.help')}>
+      <CopyField label={t('settings.integrations.rest.base')} value={origin()} toast={toast} />
+      <CopyField label={t('settings.integrations.rest.openapi')} value={openApiAddress(origin())} toast={toast} />
+      <CopyField label={t('settings.integrations.rest.first')} value={curlExample(origin())} toast={toast} block />
+      <p className="help">
+        <T
+          k="settings.integrations.keyNeeded"
+          values={{ variable: KEY_VARIABLE, link: appLink('#integrations/api-keys') }}
+        />
+      </p>
+    </Section>
+  )
+}
+
+/**
+ * Connecting an AI agent for everyday use: the same picker and steps as the agent setup page (AgentPicker, AgentSteps),
+ * with this install's MCP address and the OAuth sign-in instead of a setup link (connectPlan).
+ */
+function Mcp({ toast }: { toast: Props['toast'] }) {
+  const t = useT()
+  const brand = brandName()
+  const [client, setClient] = useState<AgentClient>(savedClient)
+  const pick = (next: AgentClient) => {
+    setClient(next)
+    saveClient(next)
+  }
+  return (
+    <Section id="ig-mcp" title={t('settings.integrations.mcp.title')} help={t('settings.integrations.mcp.help')}>
+      <CopyField label={t('settings.integrations.mcp.address')} value={mcpAddress(origin())} toast={toast} />
+      <div className="ig-copy">
+        <span className="ig-copy-label">{t('settings.integrations.mcp.agent')}</span>
+        <AgentPicker client={client} onPick={pick} />
+      </div>
+      <div className="ig-mcp-agent">
+        <AgentSteps plan={connectPlan(client, origin(), brand, t)} />
+      </div>
+      <p className="help">{t('settings.integrations.mcp.firstUse')}</p>
+      <details className="ig-mcp-key">
+        <summary>{t('settings.integrations.mcp.withKey')}</summary>
+        <div className="ig-mcp-key-body">
+          <p className="help">{t('settings.integrations.mcp.withKeyHelp')}</p>
+          <CopyField
+            label={t('settings.integrations.mcp.claudeCodeKey')}
+            value={claudeCodeKeyCommand(origin())}
+            toast={toast}
+            block
+          />
+          <CopyField label={t('settings.integrations.mcp.json')} value={mcpJson(origin())} toast={toast} block />
+          <p className="help">
+            <T
+              k="settings.integrations.keyNeeded"
+              values={{ variable: KEY_VARIABLE, link: appLink('#integrations/api-keys') }}
+            />
+          </p>
+        </div>
+      </details>
+    </Section>
+  )
+}
+
+/** A label, the text in code type, and Copy. `block`: several lines (a command, a JSON file). */
+function CopyField({
+  label,
+  value,
+  toast,
+  block,
+}: {
+  label: string
+  value: string
+  toast: Props['toast']
+  block?: boolean
+}) {
+  const t = useT()
+  async function copy() {
+    const done = await copyText(value)
+    toast(t(done === 'copied' ? 'settings.integrations.copied' : 'settings.integrations.copyFailed', { what: label }))
+  }
+  return (
+    <div className="ig-copy">
+      <span className="ig-copy-label">{label}</span>
+      <div className={block ? 'ig-copy-row ig-copy-block' : 'ig-copy-row'}>
+        <pre className="ig-code">
+          <code>{value}</code>
+        </pre>
+        <Button
+          size="sm"
+          icon="copy"
+          onClick={() => void copy()}
+          title={t('settings.integrations.copyTip', { what: label })}
+        >
+          {t('common.copy.copy')}
+        </Button>
+      </div>
+    </div>
+  )
+}

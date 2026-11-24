@@ -1,0 +1,447 @@
+/* Integrations (#integrations): search and category chips, then a list of lines per category; detail views below. */
+/* Wider than other settings pages: a line has room for the name, its line and the state side by side. */
+.page-in.ig-page {
+  max-width: 960px;
+}
+.ig-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.ig-search {
+  flex: 1 1 240px;
+  max-width: 320px;
+}
+.ig-search input {
+  min-width: 0;
+}
+/* Phone: the search takes the whole line, like the chips under it. */
+@media (max-width: 560px) {
+  .ig-search {
+    max-width: none;
+  }
+}
+.ig-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ig-chip {
+  height: 28px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+}
+.ig-chip:hover {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+.ig-chip[aria-pressed="true"] {
+  color: var(--surface);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.ig-chip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.ig-empty {
+  margin: 8px 0;
+  color: var(--ink-muted);
+}
+.ig-group {
+  display: grid;
+  gap: 8px;
+}
+.ig-group h2 {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+/* The suggested group's way to change the kind of business: quiet, after its heading. */
+.ig-group-change {
+  margin-left: 8px;
+  font-weight: 400;
+}
+/* The ones this server does not offer: one quiet line at the end, Show lists them. */
+.ig-folded {
+  margin-top: 4px;
+}
+.ig-folded-line {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+/* In the suggested group, in place of the badge and the button: whom to ask. */
+.ig-row-ask {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+/* One raised card per category, a line per integration: mark and name, its line, state and button. */
+.ig-list {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.ig-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 184px minmax(0, 1fr) 228px;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+}
+.ig-row + .ig-row {
+  border-top: 1px solid var(--line);
+}
+.ig-row-name {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.ig-row h3 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* One line; the whole text is in its tooltip. */
+.ig-row-line {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 17px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* State and button in fixed columns, so they line up from line to line. */
+.ig-row-end {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px;
+  align-items: center;
+  justify-items: end;
+  gap: 12px;
+}
+/* The one thing on a line that acts. */
+.ig-row-action {
+  grid-column: 2;
+  width: 100%;
+  justify-content: center;
+}
+/* Narrow: mark and name, state and button on one line; the description under them. */
+@media (max-width: 720px) {
+  .ig-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 12px;
+  }
+  .ig-row-line {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    padding-left: 44px;
+    white-space: normal;
+  }
+  .ig-row-end {
+    grid-template-columns: auto auto;
+  }
+  /* Whom to ask goes under the description: next to the name it would squeeze it. */
+  .ig-row-asks .ig-row-end {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-items: start;
+    padding-left: 44px;
+  }
+}
+
+.ig-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.ig-mark svg {
+  position: static;
+  transform: none;
+}
+.ig-mono {
+  background: var(--ig-mono);
+  color: #fff;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Detail views. */
+.ig-back {
+  margin: 0;
+  font-size: 12.5px;
+}
+.ig-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+/* The name shows here: the page bar names only the page (Integrations), and .page-head h1 is hidden app-wide. */
+.ig-detail-head h1 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+}
+.ig-detail-head p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+.ig-detail-title {
+  flex: 1;
+  min-width: 0;
+}
+.ig-detail-head .ig-mark {
+  width: 40px;
+  height: 40px;
+}
+.ig-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.ig-copy-label {
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.ig-copy-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+.ig-copy-block {
+  align-items: flex-start;
+}
+/* Commands and JSON wrap inside the card instead of pushing Copy out of it. */
+.ig-copy-block .ig-code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* Phone: a command gets the card's full width, Copy goes under it at the right (beside it the command broke
+   every few words). */
+@media (max-width: 560px) {
+  .ig-copy-block {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ig-copy-block > .k-btn {
+    align-self: flex-end;
+  }
+}
+.ig-code {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 6px 10px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 18px;
+  background: var(--surface-hover);
+  border-radius: var(--radius-sm);
+  white-space: pre;
+}
+
+/* A connected app that is not connected yet: what it does, then Connect. */
+.ig-app-connect {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+/* Integrations › MCP: the chosen agent's steps (AgentSteps, as on the setup page); the API key way folded away below. */
+.ig-mcp-agent {
+  display: grid;
+  gap: 12px;
+}
+.ig-mcp-key-body {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+.ig-mcp-key > summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 500;
+  width: fit-content;
+}
+.ig-mcp-key-body > .help {
+  margin: 0;
+}
+
+/* Integrations › Shopify, not connected: the store's address and Connect on one line. */
+
+/* A connected app's switches in groups with a short heading (Shopify). */
+.ig-swgroups {
+  display: grid;
+  gap: 20px;
+}
+.ig-swgroup > h3 {
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.ig-swgroup > .help {
+  margin: 0 0 10px;
+}
+.ig-swgroup > h3 + .st-swlist {
+  margin-top: 8px;
+}
+
+/* Shopify: the setup as a short summary (ShopifySetupSummary). */
+.ig-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ig-setup-actions,
+.ig-setup-done {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ig-setup-done {
+  justify-content: flex-end;
+}
+
+.ig-setup-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ig-setup-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+.ig-setup-col {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  padding: 12px 14px;
+}
+.ig-setup-col.is-off {
+  background: var(--surface);
+}
+.ig-setup-col h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+.ig-setup-count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+}
+.ig-setup-col ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ig-setup-col li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ig-setup-col.is-on li svg {
+  color: var(--ink);
+}
+.ig-setup-col.is-off li {
+  color: var(--ink-muted);
+}
+
+/* Shopify: the caller verification, apart from the switches: checkboxes in a box of its own, since it gives the
+   assistant no rights, it only adds steps for the caller (LIN-733). */
+.ig-verify {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  padding: 12px 14px;
+}
+.ig-verify > h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.ig-verify > .help {
+  margin: 0 0 6px;
+}
+.ig-checks {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+.ig-check.is-dimmed {
+  opacity: 0.55;
+}
+.ig-check .k-check {
+  align-items: flex-start;
+}
+.ig-check .k-check-text > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ig-check .k-check-text .help {
+  font-weight: 400;
+}
+.ig-setup-verify {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+/* Every integration's detail view ends with Done (bottom right): back to all integrations, no way back by hand (LIN-734). */
+.ig-detail-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+}

@@ -1,0 +1,53 @@
+#!/bin/sh
+# Lets the web ports (80, 443 tcp and udp) reach Caddy only from Cloudflare (/etc/linedesk/cloudflare-v4.txt, -v6.txt,
+# from https://www.cloudflare.com/ips/, refreshed by setup.sh), for an install behind Cloudflare's proxy, where nobody
+# else needs the origin. IPv4 and IPv6, in DOCKER-USER (container traffic, past ufw), in INPUT (Docker's userland
+# proxy takes IPv6 on the host itself) and in mangle PREROUTING, which every incoming packet passes before any filter
+# chain: a chain another program puts in front of DOCKER-USER (Tailscale's ts-forward accepts all of its own traffic)
+# cannot let anyone else reach the origin. Traffic from Docker's own bridges and loopback passes. It also drops web
+# traffic forwarded through this server (a VPN exit node or subnet router would not pass ports 80 and 443).
+#
+# Fails closed: each chain is replaced in one step (ip(6)tables-restore), so it never exists without its final DROP,
+# and an invalid range in a list makes that chain allow nobody (and the unit fail, which sends an alert) rather than
+# leave the ports open. Idempotent; runs before Docker at boot.
+set -eu
+rules=$(mktemp) entries=$(mktemp); trap 'rm -f "$rules" "$entries"' EXIT
+# allow_lines <list> <pattern>: one RETURN rule per range; fails on the first line that is not a range.
+allow_lines() {
+  sed 's/#.*//; s/[[:space:]]//g; /^$/d' "$1" | while read -r range; do
+    printf '%s\n' "$range" | grep -Eq "$2" || { echo "linedesk-web-firewall: not a range in $1: $range" >&2; exit 1; }
+    echo "-A LINEDESK-WEB -s $range -j RETURN"
+  done
+}
+status=0
+for v in 4 6; do
+  ipt=iptables; [ "$v" = 6 ] && ipt=ip6tables
+  list=/etc/linedesk/cloudflare-v$v.txt
+  if [ "$v" = 4 ]; then valid='^([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]|[12][0-9]|3[0-2])$'; else valid='^[0-9a-fA-F:]+/[0-9]{1,3}$'; fi
+  # A missing or invalid list allows nobody: the web ports stay shut until it is fixed (the unit fails and alerts).
+  allow_lines "$list" "$valid" > "$entries" || { status=1; : > "$entries"; }
+  for table in filter mangle; do
+    echo "*$table"
+    echo ':LINEDESK-WEB - [0:0]'
+    echo '-A LINEDESK-WEB -i docker0 -j RETURN'
+    echo '-A LINEDESK-WEB -i br-+ -j RETURN'
+    echo '-A LINEDESK-WEB -i lo -j RETURN'
+    cat "$entries"
+    echo '-A LINEDESK-WEB -j DROP'
+    echo 'COMMIT'
+  done > "$rules"
+  $ipt -w -N DOCKER-USER 2>/dev/null || true
+  $ipt-restore -w --noflush < "$rules"
+  for chain in filter:DOCKER-USER filter:INPUT mangle:PREROUTING; do
+    for rule in "-p tcp -m multiport --dports 80,443 -m conntrack --ctdir ORIGINAL -j LINEDESK-WEB" \
+      "-p udp --dport 443 -m conntrack --ctdir ORIGINAL -j LINEDESK-WEB"; do
+      # shellcheck disable=SC2086
+      $ipt -w -t "${chain%%:*}" -C "${chain#*:}" $rule 2>/dev/null || $ipt -w -t "${chain%%:*}" -I "${chain#*:}" $rule
+    done
+  done
+  $ipt -w -S DOCKER-USER | grep -- ' -i .*-j LINEDESK-WEB$' | sed 's/^-A /-D /' | while read -r old; do
+    # shellcheck disable=SC2086
+    $ipt -w $old
+  done
+done
+exit "$status"

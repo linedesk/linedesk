@@ -1,0 +1,3 @@
+# Written by the bootstrap script (scripts/bootstrap.ts): account ids and, once, a webhook signing secret.
+stripe-ids.*.json
+stripe-webhook-secret.*

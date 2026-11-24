@@ -1,0 +1,45 @@
+{
+  "name": "@linedesk/agent",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "worker": "tsx --env-file=../../.env src/worker.ts start",
+    "setup-test-caller": "tsx --env-file-if-exists=../../.env src/setup-test-caller.ts",
+    "call-test": "tsx --env-file-if-exists=../../.env src/call-test.ts",
+    "setup-sip": "tsx --env-file=../../.env src/setup-sip.ts",
+    "setup-oncall-test": "tsx --env-file=../../.env src/setup-oncall-test.ts",
+    "talk": "tsx --env-file=../../.env src/talk.ts",
+    "simulate": "tsx --env-file=../../.env src/simulate.ts",
+    "load-test": "tsx src/load-test/main.ts",
+    "llm-test": "node --env-file-if-exists=../../.env src/llm-test/run.ts",
+    "typecheck": "tsc -p . --checkers 1",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@linedesk/actions": "workspace:*",
+    "@linedesk/db": "workspace:*",
+    "@linedesk/i18n": "workspace:*",
+    "@linedesk/scrub": "workspace:*",
+    "@linedesk/telephony": "workspace:*",
+    "@livekit/agents": "^1.10.0",
+    "@livekit/agents-plugin-assemblyai": "^1.10.0",
+    "@livekit/agents-plugin-cartesia": "^1.10.0",
+    "@livekit/agents-plugin-deepgram": "^1.10.0",
+    "@livekit/agents-plugin-elevenlabs": "^1.10.0",
+    "@livekit/agents-plugin-openai": "^1.10.0",
+    "@livekit/protocol": "1.53.0",
+    "@livekit/rtc-node": "^1.2.2",
+    "@sentry/node": "11.12.0",
+    "livekit-server-sdk": "^2.20.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/ws": "^8.18.2",
+    "esbuild": "0.28.2",
+    "tsx": "^4.23.15",
+    "vitest": "^5.1.0",
+    "ws": "^8.23.0"
+  }
+}

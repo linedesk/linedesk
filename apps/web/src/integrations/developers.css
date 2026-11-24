@@ -1,0 +1,50 @@
+/* Integrations › API keys and Zapier: the API keys list is the kit's (ui/list.css). */
+.dev-prefix {
+  font-family: var(--font-mono);
+}
+.dev-secret {
+  display: flex;
+  gap: 8px;
+}
+.dev-secret .k-input {
+  flex: 1;
+}
+.dev-secret input {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+.dev-support {
+  margin: 4px 0 0;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+/* The Zapier guide: four numbered steps above the list of Zaps. */
+.dev-guide {
+  margin: 0 0 16px;
+}
+.dev-guide h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.dev-guide ol {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+.dev-guide .dev-secret {
+  margin-top: 6px;
+  max-width: 420px;
+}
+.dev-guide .k-field-msg,
+.dev-guide .k-field-desc {
+  margin: 6px 0 0;
+}
+/* A step with its action on the same line ("Create a key for Zapier. [Create key]"). */
+.dev-guide .dev-step {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}

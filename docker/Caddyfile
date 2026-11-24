@@ -1,0 +1,215 @@
+# Entry point (the `proxy` service): /api, /v1, /mcp, /oauth and the OAuth /.well-known documents go to the API, /rtc to LiveKit, everything else
+# to the web app (the `web` service, docker/web.Caddyfile).
+# Default: plain HTTP on port 80 for any host name (directly, or behind another reverse proxy that
+# terminates TLS). With SITE_ADDRESS=https://your.domain Caddy gets the certificate itself.
+#
+# Updates without downtime (scripts/deploy.sh): this file changes rarely, so the proxy keeps running
+# while a new API or web container starts next to the old one. The upstreams are looked up by name
+# every second (all containers of the service answer), and a request that cannot connect, to a
+# container that is still starting or already stopping, is retried on another one for up to 30 s.
+# Only those are retried, and no container is ever marked as down (no passive health check): Caddy 2.11
+# counts a browser's cancelled HTTP/3 request as the container's failure, which took the only API out
+# for 10 s, and retried that cancelled request for 30 s, looking `api` up again with its cancelled
+# context every time (`lookup api: operation was canceled`). A cancelled request that reached a
+# container is no longer retried. A stopped container leaves the look-up within a second, and a
+# refused connection is retried meanwhile.
+{
+	servers {
+		# Behind your own reverse proxy: its address or range (LINEDESK_TRUSTED_PROXY_RANGES, e.g. the
+		# Docker gateway 172.16.0.0/12), so the X-Forwarded-For it sends is kept and rate limits see each
+		# client. Empty (the default): no upstream is trusted and a client cannot pick its own address.
+		trusted_proxies static {$LINEDESK_TRUSTED_PROXY_RANGES}
+		# Which header of a trusted proxy names the client. Behind Cloudflare (docker-compose.cloudflare.yml):
+		# CF-Connecting-IP, which Cloudflare sets itself. From anyone not trusted, no header is read at all.
+		client_ip_headers {$LINEDESK_CLIENT_IP_HEADERS:X-Forwarded-For}
+		# Read a forwarded chain right to left, skipping trusted hops: a value the client put in front is never taken.
+		trusted_proxies_strict
+		# A partner's address behind Cloudflare for SaaS (docs/white-label.md) arrives with the custom origin's name as SNI
+		# (saas-origin.example.com) and the partner's name as Host. Caddy would refuse that mismatch (421) as soon as a
+		# site checks client certificates (LINEDESK_TLS=origin-pull), so it is off here; without client certificates
+		# Caddy does not compare them anyway. With origin-pull every TLS connection needs Cloudflare's certificate, so a
+		# mismatch cannot be used to skip Cloudflare.
+		strict_sni_host insecure_off
+	}
+}
+
+# The certificate: Caddy gets one itself (automatic), or, behind Cloudflare's proxy, it serves the Cloudflare
+# Origin CA certificate mounted at /etc/caddy/certs (LINEDESK_TLS=origin, docker-compose.cloudflare.yml).
+# LINEDESK_TLS=origin-pull also requires Cloudflare's Authenticated Origin Pulls client certificate, checked against
+# its CA in /etc/caddy/certs/origin-pull-ca.pem: only Cloudflare can open a TLS connection (docs/hosting.md).
+(tls-automatic) {
+}
+(tls-origin) {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+}
+(tls-origin-pull) {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key {
+		client_auth {
+			mode require_and_verify
+			trust_pool file /etc/caddy/certs/origin-pull-ca.pem
+		}
+	}
+}
+
+# Idle connections to an upstream are kept for 60 s (Caddy's default: 2 minutes), shorter than the upstreams keep
+# them: the API 75 s (apps/api/src/keep-alive.ts), the web container's Caddy 5 minutes (its default). An
+# upstream that closes an idle connection first can do so just as Caddy sends the next request on it: Caddy gets EOF
+# and answers 502, since a request that reached a container is not retried (below). Node's default of 5 s did that
+# (staging, 2026-11-18).
+(upstream-keepalive) {
+	transport http {
+		keepalive 60s
+	}
+}
+
+# The API, with retries while a container starts or stops. The argument says where the request came in
+# (`public` or `internal`); it replaces any X-Linedesk-Entry the client sent, and the API accepts the voice
+# agent's tokens only on `internal` requests (apps/api/src/context.ts).
+(api) {
+	# In this order (route): the visitor's country as the proxy in front names it, for the country a new workspace is
+	# prefilled with (apps/api/src/country-hint.ts). Any X-Linedesk-Country the client sent is dropped. It is set only
+	# when LINEDESK_COUNTRY_HEADER names a header (CF-IPCountry behind Cloudflare, docker-compose.cloudflare.yml) and
+	# the request came through a trusted proxy (LINEDESK_TRUSTED_PROXY_RANGES): a client that reaches Caddy directly
+	# never picks it. Without the setting the header read is X-Linedesk-Country-Unset, removed first, so never set.
+	route {
+		request_header -X-Linedesk-Country
+		request_header -X-Linedesk-Country-Unset
+		@countryFromProxy {
+			vars {http.vars.trusted_proxy} true
+			header {$LINEDESK_COUNTRY_HEADER:X-Linedesk-Country-Unset} *
+		}
+		request_header @countryFromProxy X-Linedesk-Country {http.request.header.{$LINEDESK_COUNTRY_HEADER:X-Linedesk-Country-Unset}}
+		reverse_proxy {
+			header_up X-Linedesk-Entry {args[0]}
+			# The client as Caddy determined it (the trusted proxies above), as the only hop: the API's rate limits
+			# and logs then see the visitor, also behind Cloudflare, whose own address would otherwise be the last hop.
+			header_up X-Forwarded-For {client_ip}
+			dynamic a {
+				name {$API_HOST:api}
+				port 3100
+				refresh 1s
+			}
+			lb_try_duration 30s
+			lb_try_interval 250ms
+			# Retry only a request that reached no container (header above): this matches no request.
+			lb_retry_match {
+				expression false
+			}
+			# Flush at once: /v1/shape/* responses are long-lived streams.
+			flush_interval -1
+			import upstream-keepalive
+		}
+	}
+}
+
+# Inside the compose network only (not published): the voice agent reaches the API here
+# (LINEDESK_API_URL=http://proxy:3100), so its calls to the API also ride over an API update. Voice servers reach it
+# through the voice link (docker-compose.voice-link.yml), which adds X-Linedesk-Voice-Node.
+:3100 {
+	import api internal
+}
+
+# What the site serves, on the install's own address and on partners' addresses alike (the site blocks below).
+(app-routes) {
+	encode zstd gzip
+
+	# Security headers on every response (the app, the API and LiveKit signalling):
+	# - CSP: only this origin's scripts, styles, fonts and frames. connect-src: the API and LiveKit on this
+	#   origin ('self' covers its ws/wss), LiveKit on the host browsers are given (LIVEKIT_PUBLIC_URL, also
+	#   a separate ws:// or wss:// host; empty adds nothing) and OpenRouter's key exchange (admin, "Connect
+	#   with OpenRouter"); media-src: call recordings and voice previews; font-src data: for fonts Vite inlines.
+	#   LINEDESK_CSP_DEV adds sources to script-src and style-src; docker-compose.dev.yml sets 'unsafe-inline' for
+	#   the Vite dev server's inline preamble and injected styles. Empty in production.
+	#   challenges.cloudflare.com: Cloudflare Turnstile on the self-serve sign-up page (its script and its frame);
+	#   the page loads it only when sign-up is open with the bot check set up.
+	# - No framing (clickjacking), no MIME sniffing, the origin only as referrer to other sites,
+	#   the microphone for this origin only (test calls), no camera or location.
+	# - The Shopify app's embedded page (/shopify/app, apps/api/src/shopify-embedded.ts) is the one page a store's
+	#   Shopify admin may frame: the API sends its own CSP (frame-ancestors that store's admin only, App Bridge's
+	#   script), so the site's CSP and X-Frame-Options are left off that one path.
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "microphone=(self), camera=(), geolocation=()"
+	}
+	@notShopifyEmbedded not path /shopify/app
+	header @notShopifyEmbedded {
+		Content-Security-Policy "default-src 'self'; script-src 'self' https://challenges.cloudflare.com {$LINEDESK_CSP_DEV}; style-src 'self' {$LINEDESK_CSP_DEV}; connect-src 'self' {$LIVEKIT_PUBLIC_URL} https://openrouter.ai {$LINEDESK_CSP_CONNECT}; img-src 'self' data:; font-src 'self' data:; media-src 'self' blob: https:; worker-src 'self' blob:; frame-src 'self' https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"
+		X-Frame-Options DENY
+	}
+	# HSTS only where this Caddy serves HTTPS itself (docker-compose.https.yml). Behind your own TLS proxy, set it there.
+	@https protocol https
+	header @https Strict-Transport-Security "max-age=31536000"
+	# Which voice server a request came from is set by the voice link (docker-compose.voice-link.yml) and counts on the
+	# internal listener only (apps/api/src/context.ts, VOICE_NODE_HEADER): from the public site, nobody picks it.
+	request_header -X-Linedesk-Voice-Node
+	# The voice agent's own routes are for the internal listener above only.
+	@agentOnly path /v1/agent /v1/agent/*
+	handle @agentOnly {
+		respond 404
+	}
+
+	# /oauth/* and the /.well-known OAuth documents: MCP clients sign in with OAuth (apps/api/src/oauth.ts). /shopify/app:
+	# the Shopify app's embedded page, served by the API.
+	@api path /api/* /v1/* /shopify/app /mcp /mcp/setup /mcp/setup/* /mcp/.well-known/* /oauth/* /.well-known/oauth-protected-resource /.well-known/oauth-protected-resource/* /.well-known/oauth-authorization-server /.well-known/oauth-authorization-server/* /.well-known/openid-configuration /.well-known/openid-configuration/* /.well-known/openai-apps-challenge
+	handle @api {
+		import api public
+	}
+
+	# LiveKit signalling (WebSocket) on the same address: browsers need no extra port or certificate.
+	@livekit path /rtc /rtc/*
+	handle @livekit {
+		reverse_proxy {$LIVEKIT_UPSTREAM:livekit:7880} {
+			import upstream-keepalive
+		}
+	}
+
+	handle {
+		reverse_proxy {
+			dynamic a {
+				name {$WEB_HOST:web}
+				port 80
+				refresh 1s
+			}
+			lb_try_duration 30s
+			lb_try_interval 250ms
+			lb_retry_match {
+				expression false
+			}
+			import upstream-keepalive
+		}
+	}
+}
+
+{$SITE_ADDRESS::80} {
+	import tls-{$LINEDESK_TLS:automatic}
+	import app-routes
+}
+
+# Partners' own addresses (white-label S5, docs/white-label.md) behind Cloudflare for SaaS. Cloudflare connects with the
+# custom origin's name as SNI (LINEDESK_SAAS_ORIGIN, e.g. saas-origin.example.com), checks the certificate against that
+# name (Full (strict), decision D1) and sends the partner's name only as Host. So the certificate is tied to that SNI in
+# a site of its own, and a host-less :443 without tls routes any other Host on a connection that got through TLS here.
+# Never a host-less :443 with its own tls: it becomes the TLS policy for every other SNI and serves its certificate to
+# every other site, e.g. one from /etc/caddy/sites with its own certificate (staging was offline for a minute,
+# 2026-11-18). Caddy never decides which names are valid: the API answers 421 for a name that is neither the install's
+# own nor a live partner address (apps/api/src/request-host.ts).
+# Off unless LINEDESK_PARTNER_SITE=on and LINEDESK_SAAS_ORIGIN is set (docker-compose.cloudflare.yml); without the name
+# the site waits on saas-origin.invalid, which no connection uses. Off: other names get an empty answer.
+(partner-site-off) {
+}
+(partner-site-on) {
+	{$LINEDESK_SAAS_ORIGIN:saas-origin.invalid}:443 {
+		import tls-{$LINEDESK_TLS:automatic}
+		import app-routes
+	}
+	:443 {
+		import app-routes
+	}
+}
+import partner-site-{$LINEDESK_PARTNER_SITE:off}
+
+# This server's own extra sites, optional: every *.caddy file in /etc/caddy/sites (docker-compose.sites.yml mounts a
+# directory there), e.g. an old address that redirects to the new one. Without the mount nothing is imported (Caddy
+# logs one warning at start).
+import /etc/caddy/sites/*.caddy

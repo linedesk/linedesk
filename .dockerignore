@@ -1,0 +1,15 @@
+**/node_modules
+**/dist
+**/.turbo
+.git
+.github
+.claude
+.env
+.env.*
+backup.env
+docs
+prototypes
+*.md
+*.log
+integrations
+private

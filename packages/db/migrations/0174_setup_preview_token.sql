@@ -1,0 +1,2 @@
+ALTER TABLE "feedback" ADD COLUMN "preview_token_hash" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "feedback_setup_preview_token" ON "feedback" USING btree ("setup_key_id","preview_token_hash") WHERE "feedback"."preview_token_hash" is not null;

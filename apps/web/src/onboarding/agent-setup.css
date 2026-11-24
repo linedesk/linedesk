@@ -1,0 +1,387 @@
+/* Agent-first setup (AgentSetup.tsx): the onboarding page shell (.ob) with one card for the agent and one for progress. */
+.as-main {
+  gap: 20px;
+}
+/* The agent page starts a little higher than the other setup pages (8vh), so connecting the agent fits on one screen. */
+.ob-main.as-main {
+  padding-top: 6vh;
+}
+.as-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  background: var(--highlight);
+  color: var(--highlight-ink);
+  font-size: 12px;
+  font-weight: 500;
+}
+.as-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+/* Giving the agent its link: the title with its (?) help, the agent picker, then the link or the button that makes it. */
+.as-link-step {
+  display: grid;
+  gap: 10px;
+  font-size: 13.5px;
+}
+.as-link-step > b {
+  font-weight: 600;
+  line-height: 20px;
+}
+/* A step title with its (?) help (HelpTip). */
+.as-step-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* An active setup link: what it is and, next to it, the one thing to do with it (end it). */
+.as-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+.as-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13.5px;
+}
+.as-progress-head b {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.as-waiting {
+  color: var(--ink-muted);
+}
+.as-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--live-ok);
+}
+/* One part of the setup (This server, Workspace, Partner account): a group label over its steps, in sentence case. */
+.as-group {
+  display: grid;
+  gap: 2px;
+}
+.as-group-label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.as-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+.as-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink-muted);
+}
+/* A label that wraps (phone width): its mark stays on the first line, not between the lines. */
+.as-item > .as-mark {
+  align-self: flex-start;
+  margin-top: 1px;
+}
+.as-item-label {
+  min-width: 0;
+}
+/* A row with a button (passkey, forwarding, test call): mark, label and button on one centre line. */
+.as-item:has(> .as-item-action) > .as-mark {
+  align-self: center;
+  margin-top: 0;
+}
+.as-item.done {
+  color: var(--ink);
+}
+/* The industry term or usual providers next to a step's name: quieter than the name. */
+.as-hint {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+/* The workspace steps: a line apart from the server's (one server, many workspaces), headed by the workspace dropdown. */
+.as-group-ws {
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+/* The first part of the card (changing a workspace's settings: no server steps above it), or the first under the
+   card's head (a workspace owner's page: the business is its only part): no line over it. */
+.as-group-ws:first-child,
+.as-progress-head + .as-group-ws {
+  padding-top: 0;
+  border-top: 0;
+}
+.as-ws-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.as-ws-head .k-select {
+  min-width: 0;
+  max-width: 100%;
+}
+.as-item .as-small,
+.as-item .as-item-action {
+  margin-left: auto;
+}
+/* 18px with its ring (border-box: the ring once made it 20-21px, a pixel low on its line); the glyph is MarkGlyph. */
+.as-mark {
+  box-sizing: border-box;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-soft);
+}
+.as-item.done .as-mark {
+  border-color: var(--action);
+  background: var(--action);
+  color: var(--on-action);
+}
+.as-item.failing {
+  color: var(--danger);
+}
+.as-item.failing .as-mark {
+  border-color: var(--danger);
+}
+/* The start page of an admin without a workspace (AdminStart.tsx): the setup top bar over the sign-in page's centred
+   column (its fields and spacing, .auth-card): the agent card, then the way by hand under it. Every button in the column
+   takes its full width, so the page has one button width. */
+.as-home-main {
+  max-width: 440px;
+}
+.as-home .as-card {
+  text-align: left;
+}
+.as-home .auth-card > .k-btn,
+.as-home .as-link-step > .k-btn,
+.as-home .as-byhand .k-btn {
+  width: 100%;
+  justify-content: center;
+}
+.as-byhand {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+}
+.as-byhand-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+/* On the start page (inside .auth-card), the kit's input keeps its own frame, not the sign-in page's input style. */
+.auth-card .as-card .k-input input {
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+/* The title and lede while the setup state is read (AgentSetup, rule 15): a bar in the h1's line, the lede's lines. */
+.as-sk-h1 {
+  height: 22px;
+  margin: 6px 0;
+  border-radius: 11px;
+}
+.as-sk-lede {
+  display: grid;
+}
+.as-sk-lede .sk-text {
+  display: block;
+  margin: 6.5px 0;
+}
+@media (max-width: 719px) {
+  .as-sk-h1 {
+    height: 18px;
+    margin: 5.5px 0;
+  }
+}
+/* A workspace owner's page: the one workspace, named, where the admin's page has the dropdown. */
+.as-ws-name {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+/* A second line under a step's name (a partner's Client workspaces row before Checkout: the draft limit). */
+.as-hint-line {
+  display: block;
+}
+/* A button whose ⏎ means Enter (Create a setup link, the Start-trial dialog's main button): the hint only with a
+   keyboard's fine pointer, never on a touch phone, as in the setup footer. */
+@media not ((hover: hover) and (pointer: fine)) {
+  .as-enter .k-kbds {
+    display: none;
+  }
+}
+/* A phone: a row's button goes under its label (a label squeezed beside it broke into two or three lines), lined up
+   with the label, at the 44 px touch height. */
+@media (max-width: 519px) {
+  .as-item:has(> .as-item-action) {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .as-item:has(> .as-item-action) > .as-mark {
+    align-self: flex-start;
+    margin-top: 1px;
+  }
+  .as-item:has(> .as-item-action) > .as-item-label {
+    flex: 1 1 0;
+  }
+  .as-item > .as-item-action {
+    flex-basis: calc(100% - 28px);
+    margin-left: 28px;
+  }
+  .as-item > .as-item-action .k-btn {
+    min-height: 44px;
+  }
+  /* The optional providers: a short Open link and a short Show/Hide fit beside their text, so they stay on its line. */
+  .as-optional .as-item:has(> .as-item-action) {
+    flex-wrap: nowrap;
+  }
+  .as-optional .as-item > .as-item-action {
+    flex-basis: auto;
+    margin-left: auto;
+  }
+  .as-optional .as-ws-head {
+    flex-wrap: nowrap;
+  }
+}
+/* The Start-trial dialog: what happens next, said under the plan (the button's tooltip alone hid it). */
+.as-dialog-hint {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+/* The way without an AI agent, under the agent card (SetUpYourself): one line and a secondary button, easy to find. */
+.as-by-hand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+/* The way is chosen (AgentSetup `compactHead`: a link is made, or the agent works): the title without its kicker and lede, a size smaller, so the progress
+   card is the page and the whole page fits without scrolling. */
+.ob .as-head-compact h1 {
+  font-size: 22px;
+  line-height: 28px;
+}
+.ob .as-head-compact .ob-lede {
+  display: none;
+}
+/* The agent card folded to one line: connected, how long the link works, and the button that unfolds it. */
+.as-connected {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 10px 12px 10px 18px;
+}
+.as-connected-what {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.as-connected .as-fold {
+  margin-left: auto;
+}
+/* Fold or unfold the agent card: quiet, at the right end of its line. */
+.as-step-title .as-fold {
+  margin-left: auto;
+}
+/* The progress card's head while the agent works: the label and count on one line, the bar under them. */
+.as-progress-focus {
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+.as-bar {
+  flex: 1 0 100%;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--line);
+}
+.as-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--action);
+  transition: width 0.4s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .as-bar > span {
+    transition: none;
+  }
+}
+/* Connected: less room above the title (the page's 8vh is for the hero before), so the checklist fits on one screen. */
+.ob-main.as-main-focus {
+  padding-top: 4vh;
+  gap: 16px;
+}
+/* Under the link's steps until the agent connects: the page is watching for it. */
+.as-waiting-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+/* Connected: the checklist's rows a little closer, so all its steps fit on a laptop screen too. */
+.as-main-focus .as-item {
+  padding: 3px 0;
+}
+.as-main-focus .as-progress {
+  gap: 12px;
+}
+/* The optional providers (AgentSetup's OptionalProviders): a part of its own under the checklist, folded while setting up. */
+.as-optional-name {
+  margin: 0;
+  min-width: 0;
+}
+.as-optional-name .as-group-label {
+  margin-right: 4px;
+}
+.as-optional-name .as-hint {
+  white-space: nowrap;
+}
+.as-optional .as-optional-toggle {
+  margin-left: auto;
+}
+.as-optional-lede {
+  margin: 0;
+}

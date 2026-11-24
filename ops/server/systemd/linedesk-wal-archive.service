@@ -1,0 +1,10 @@
+[Unit]
+Description=Linedesk: move archived WAL to the backup bucket (scripts/wal-archive.sh)
+After=docker.service
+OnFailure=linedesk-alert@%n.service
+[Service]
+Type=oneshot
+User=@USER@
+StateDirectory=linedesk-wal
+WorkingDirectory=@APP_DIR@
+ExecStart=@APP_DIR@/scripts/wal-archive.sh

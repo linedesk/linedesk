@@ -1,0 +1,122 @@
+import { expect, test } from 'vitest'
+import {
+  actions,
+  assistantUpdate,
+  callTransfer,
+  isActiveContact,
+  isBriefed,
+  onCallNumberProblem,
+  setsTransferNumber,
+  TRANSFER_CONTACTS_MAX,
+} from './index.ts'
+
+const US = ['US']
+
+test('on-call numbers of a workspace with a US number: US landlines and mobiles, as before', () => {
+  for (const ok of ['+15035550199', '+12125550123', '+13125550123', '+14155552671'])
+    expect(onCallNumberProblem(ok, US)).toBeNull()
+  expect(onCallNumberProblem('5035550199', US)).toMatch(/country code/)
+  expect(onCallNumberProblem('+10355550199', US)).toMatch(/area code/) // area codes start with 2-9
+})
+
+test('Canada, the Caribbean and US territories with their own region are their own countries', () => {
+  for (const foreign of [
+    '+16045550123',
+    '+14165550123',
+    '+18765550123',
+    '+18095550123',
+    '+12845550123',
+    '+14735550123',
+    '+16495550123',
+    '+17875550123',
+  ])
+    expect(onCallNumberProblem(foreign, US)).toMatch(/Only numbers in the United States can take transferred calls/)
+  // The server admin allows Canada: Canadian numbers then work, the Caribbean still does not.
+  expect(onCallNumberProblem('+16045550123', ['CA', 'US'])).toBeNull()
+  expect(onCallNumberProblem('+18765550123', ['CA', 'US'])).toMatch(/Canada and the United States/)
+})
+
+test('premium rate (900, 976 anywhere), personal, 700, toll-free and N11 numbers are refused', () => {
+  expect(onCallNumberProblem('+19005550199', US)).toMatch(/Premium-rate/)
+  expect(onCallNumberProblem('+19765550199', US)).toMatch(/Premium-rate/)
+  expect(onCallNumberProblem('+12129765555', US)).toMatch(/Premium-rate/) // 976 behind a New York area code
+  expect(onCallNumberProblem('+15005550199', US)).toMatch(/Premium-rate and personal/)
+  expect(onCallNumberProblem('+17005550199', US)).toMatch(/Premium-rate and personal/)
+  for (const tollFree of ['+18005550199', '+18885550199', '+18335550199'])
+    expect(onCallNumberProblem(tollFree, US)).toMatch(/Toll-free/)
+  expect(onCallNumberProblem('+14115550199', US)).toMatch(/Service numbers/)
+  expect(onCallNumberProblem('+15039110199', US)).toMatch(/Service numbers/)
+})
+
+const contact = (over: Record<string, unknown> = {}) => ({
+  id: 'oncall',
+  name: 'Mike',
+  number: '+15035550199',
+  condition: 'Urgent: a burst pipe',
+  hours_only: true,
+  ring_seconds: 25,
+  if_no_answer: 'message_urgent',
+  enabled: true,
+  ...over,
+})
+
+test('assistant.update takes the list of transfer contacts and validates each number', () => {
+  const update = (transfers: unknown) => assistantUpdate.input.safeParse({ assistantId: 'as_1', transfers }).success
+  expect(update([contact(), contact({ id: 'person', name: 'Owner', number: null, if_no_answer: 'next' })])).toBe(true)
+  expect(update([])).toBe(true)
+  expect(update([contact({ number: '+19005550199' })])).toBe(false)
+  // The country is the workspace's policy, checked by the handler; the kind of number is checked here.
+  expect(update([contact({ number: '+18765550123' })])).toBe(true)
+  expect(update([contact({ number: '+4980012345678' })])).toBe(false)
+  expect(update([contact({ number: '(503) 555-0199' })])).toBe(false)
+  expect(update([contact({ condition: ' ' })])).toBe(false)
+  expect(update([contact({ ring_seconds: 5 })])).toBe(false)
+  expect(update([contact({ ring_seconds: 61 })])).toBe(false)
+  expect(update([contact({ if_no_answer: 'hang_up' })])).toBe(false)
+  // The assistant picks contacts by name: two of the same name (or id) are refused.
+  expect(update([contact(), contact({ id: 'other', name: 'mike' })])).toBe(false)
+  expect(update([contact(), contact({ name: 'Sarah' })])).toBe(false)
+  expect(update(Array.from({ length: TRANSFER_CONTACTS_MAX + 1 }, (_, i) => contact({ id: `c${i}`, name: `C${i}` })))).toBe(false)
+  // The old single on-call number is gone from the input.
+  expect(Object.keys(assistantUpdate.input.shape)).not.toContain('transfer_number')
+})
+
+test('a transfer contact\'s briefing: on unless switched off; only true or false', () => {
+  const parse = (over: Record<string, unknown>) => assistantUpdate.input.safeParse({ assistantId: 'as_1', transfers: [contact(over)] })
+  const briefingOf = (over: Record<string, unknown>) => {
+    const parsed = parse(over)
+    return parsed.success ? isBriefed(parsed.data.transfers![0]!) : 'refused'
+  }
+  expect(briefingOf({})).toBe(true) // not given: announced, as before
+  expect(briefingOf({ briefing: true })).toBe(true)
+  expect(briefingOf({ briefing: false })).toBe(false)
+  expect(briefingOf({ briefing: 'no' })).toBe('refused')
+  expect(briefingOf({ briefing: null })).toBe('refused')
+  expect(isBriefed({})).toBe(true)
+  expect(isBriefed({ briefing: true })).toBe(true)
+  expect(isBriefed({ briefing: false })).toBe(false)
+})
+
+test('which assistant.update inputs let calls be put through to a number', () => {
+  expect(setsTransferNumber({ transfers: [contact()] })).toBe(true)
+  expect(setsTransferNumber({ transfers: [contact({ enabled: false })] })).toBe(false)
+  expect(setsTransferNumber({ transfers: [contact({ number: null })] })).toBe(false)
+  expect(setsTransferNumber({ transfers: [] })).toBe(false)
+  expect(setsTransferNumber({ greeting: 'Hi' })).toBe(false)
+  expect(setsTransferNumber(null)).toBe(false)
+  expect(isActiveContact({ enabled: true, number: '+15035550199' })).toBe(true)
+})
+
+test('call.transfer: agent only, a server handler (the limits), dialing first', () => {
+  expect(actions.get('call.transfer')?.permission).toBe('agent')
+  expect(callTransfer.patch).toBeUndefined()
+  expect(callTransfer.input.safeParse({ callId: 'call_1', to: '+15035550199', result: 'dialing' }).success).toBe(true)
+  expect(callTransfer.input.safeParse({ callId: 'call_1', to: '+15035550199', result: 'maybe' }).success).toBe(false)
+  expect(
+    callTransfer.input.safeParse({ callId: 'call_1', to: '+15035550199', result: 'dialing', name: 'Office', urgent: false })
+      .success,
+  ).toBe(true)
+  expect(callTransfer.input.safeParse({ callId: 'call_1', to: '+19005550199', result: 'connected' }).success).toBe(
+    false,
+  )
+})

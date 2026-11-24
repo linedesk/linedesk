@@ -1,0 +1,100 @@
+/* The phone field (PhoneInput.tsx): the country button and the number share one input frame; the country list
+   opens under the whole field, as wide as it. */
+.k-input.k-phone {
+  padding-left: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+.k-phone-country {
+  display: flex;
+  flex: none;
+  align-self: stretch;
+}
+.k-phone-country-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 6px 0 9px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.k-input-sm .k-phone-country-btn {
+  font-size: 12.5px;
+  padding-left: 7px;
+}
+.k-phone-country-btn .k-icon {
+  color: var(--ink-muted);
+}
+.k-phone-country-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+.k-phone-country-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.k-phone-country-btn:disabled {
+  color: var(--ink-disabled);
+  cursor: not-allowed;
+}
+.k-phone-flag {
+  font-size: 15px;
+  line-height: 1;
+}
+.k-phone-list {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  max-height: 320px;
+  overflow: hidden;
+  padding: 0;
+}
+.k-phone-search {
+  min-width: 0;
+  margin: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.k-phone-search:focus {
+  border-color: var(--focus);
+}
+.k-phone-options {
+  overflow-y: auto;
+  padding: 0 4px 4px;
+}
+.k-phone-options .k-select-opt {
+  justify-content: flex-start;
+  gap: 8px;
+}
+/* The country's name shows in full: the list is as wide as the field, and a long name ("British Indian Ocean
+   Territory" in a narrow field) wraps onto a second line, never an ellipsis. */
+.k-phone-opt-name {
+  flex: 1;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.k-phone-opt-code {
+  flex: none;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.k-phone-empty {
+  padding: 8px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}

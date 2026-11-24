@@ -1,0 +1,254 @@
+/* Partner area (PartnerArea.tsx, ClientTable.tsx): the client list, one row per client that fits the settings column
+   at every width (business | usage | Open and "…"), with the type of the settings lists (ui/list.css). */
+.pc-list {
+  display: grid;
+  min-width: 0;
+}
+.pc-cols.ib-cols,
+.pc-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 184px 104px;
+  column-gap: 16px;
+  align-items: center;
+}
+.pc-cols.ib-cols {
+  position: static;
+  height: 24px;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+}
+.pc-rows {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+.pc-row {
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+.pc-row:first-child {
+  border-top: 0;
+}
+.pc-row:last-child {
+  padding-bottom: 0;
+}
+.pc-main,
+.pc-usage {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.pc-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+.pc-title {
+  min-width: 0;
+  font-size: 13.5px;
+  line-height: 20px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.pc-sub {
+  font-size: 12.5px;
+  line-height: 17px;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+/* A number or a date stays on one line; the owner's address may break. */
+.pc-fact {
+  white-space: nowrap;
+}
+.pc-amount {
+  font-size: 13px;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pc-amount b {
+  font-weight: 600;
+}
+.pc-of,
+.pc-dash {
+  color: var(--ink-muted);
+}
+/* The usage bar: ink up to 80 %, amber near the limit, red at it. */
+.pc-bar {
+  display: block;
+  height: 4px;
+  margin: 3px 0 2px;
+  border-radius: var(--radius-full);
+  background: var(--surface-hover);
+  overflow: hidden;
+}
+.pc-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ink);
+}
+.pc-bar.is-warning > span {
+  background: var(--warning);
+}
+.pc-bar.is-danger > span {
+  background: var(--danger);
+}
+.pc-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+/* Phones and narrow tablets: each client a stacked block, the name and its lines, then the usage, then Open and "…"
+   across the row as 44px touch targets, so nothing starts off-screen. */
+@media (max-width: 767px) {
+  .pc-cols.ib-cols {
+    display: none;
+  }
+  .pc-row {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 10px;
+    align-items: start;
+    padding: 14px 0;
+  }
+  .pc-row:first-child {
+    padding-top: 0;
+  }
+  .pc-usage {
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 12px;
+    align-items: baseline;
+  }
+  .pc-usage > .pc-bar {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .pc-usage > .pc-counts {
+    grid-column: 2;
+    grid-row: 1;
+    text-align: right;
+  }
+  .pc-actions {
+    justify-content: stretch;
+    gap: 8px;
+  }
+  .pc-actions > .k-btn {
+    flex: 1;
+    justify-content: center;
+    height: 44px;
+    font-size: 13.5px;
+  }
+  .pc-actions .k-menu-btn {
+    width: 44px;
+    height: 44px;
+  }
+  /* A draft's "Set up ▾": as wide as Open would be, next to "…". */
+  .pc-actions > .pc-setup,
+  .pc-setup > .k-menu-wrap {
+    display: flex;
+    flex: 1;
+  }
+  .pc-actions .pc-setup .k-menu-btn {
+    width: 100%;
+    justify-content: center;
+    font-size: 13.5px;
+  }
+}
+
+/* Usage limit…: this period's use above the limit field. */
+.pc-used {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-hover);
+}
+.pc-used-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.pc-used .pc-bar {
+  background: var(--surface);
+}
+
+/* New client: country and time zone side by side. */
+/* Country and time zone under each other: the time zone's name, offset and time need the dialog's whole width. */
+.pc-place {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+/* Partner › Team: Invite at the end of the list, the address and its button on one line. */
+.pt-invite {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.pt-invite > .k-btn {
+  margin-top: 26px;
+}
+@media (max-width: 479px) {
+  .pt-invite {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pt-invite > .k-btn {
+    margin-top: 0;
+    justify-self: start;
+  }
+}
+
+/* Partner › Team: the owner's row keeps the place of the remove button, so the roles line up. */
+.pt-rm-space {
+  display: block;
+  width: var(--control-h-sm);
+}
+.pa-fine {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+.pa-empty {
+  padding: 32px 16px;
+}
+.pa-activate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+/* The price a month, the yearly note under it (ui/price.tsx) and the drafts line, at the left of Activate. */
+.pa-activate-text {
+  flex: 1 1 280px;
+  display: grid;
+  gap: 2px;
+}
+.pa-activate-text b {
+  font-size: 14px;
+  font-weight: 600;
+}
+.pa-activate-text > .pa-fine {
+  margin-top: 6px;
+}
+/* Activate: at the right of the price, under it on a phone. */
+.pa-activate-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}

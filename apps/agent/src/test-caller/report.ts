@@ -1,0 +1,256 @@
+// The report of a call test, from what the business's side recorded: transcript, summary,
+// pass/fail per check, and how quickly the assistant answered.
+import type { CallTestFinding } from '@linedesk/actions'
+import { type AgentSetup, GREETING_TARGET_MS, type LatencySample } from './latency.ts'
+import type { Expectation, Scenario } from './scenarios.ts'
+import { promisesUrgent } from '../urgent-promise.ts'
+import { greetingAfterPickup, inOrder } from '../setup-timing.ts'
+
+export type Check = { ok: boolean; label: string; detail: string }
+type Line = CallTestFinding['lines'][number]
+
+const assistantText = (lines: Line[]) =>
+  lines
+    .filter(l => l.speaker === 'agent')
+    .map(l => l.text)
+    .join(' ')
+/** What the assistant said once the caller had spoken: answers, not the fixed greeting. */
+const assistantReplies = (lines: Line[]) => {
+  const first = lines.findIndex(l => l.speaker === 'caller')
+  return first < 0 ? '' : assistantText(lines.slice(first + 1))
+}
+
+/** A booked call: outcome booked, a confirmed booking whose event the calendar has, in the right calendar. */
+function bookingChecks(finding: CallTestFinding, expectation: NonNullable<Scenario['booking']>): Check[] {
+  const booked = (finding.bookings ?? []).filter(b => b.status !== 'cancelled')
+  const first = booked[0]
+  const checks: Check[] = [
+    { ok: finding.call?.outcome === 'booked', label: 'outcome', detail: `${finding.call?.outcome ?? 'none'} (expected booked)` },
+    { ok: !!first, label: 'booking', detail: first ? `${first.title ?? 'booking'} at ${first.start_at} in ${first.calendar_name ?? '?'}` : 'no booking on the call' },
+  ]
+  if (first) {
+    checks.push({
+      ok: first.event === 'found' && first.event_start === first.start_at,
+      label: 'calendar event',
+      detail: first.event === 'found' ? `found at ${first.event_start}` : `${first.event}${first.note ? ` (${first.note})` : ''}`,
+    })
+  }
+  if (first && expectation.calendarInstruction) {
+    checks.push({
+      ok: expectation.calendarInstruction.test(first.calendar_instruction ?? ''),
+      label: 'calendar choice',
+      detail: `${first.calendar_name ?? '?'} ("${first.calendar_instruction ?? ''}"), expected a note matching ${expectation.calendarInstruction}`,
+    })
+  }
+  return checks
+}
+
+/** How long after the assistant said the call is urgent its "Flagged as urgent" line may be written. */
+export const FLAG_AFTER_PROMISE_MS = 5000
+const isFlagLine = (l: Line) => l.speaker === 'system' && /flagged as urgent/i.test(l.text)
+
+/**
+ * Words and actions match: when the assistant said it flags the call as urgent, the flag follows
+ * right away. With `required` the call must be flagged by the tool even if nothing was said.
+ */
+export function urgentPromiseCheck(lines: Line[], required: boolean): Check | null {
+  const promise = lines.find(l => l.speaker === 'agent' && promisesUrgent(l.text))
+  const flag = lines.find(isFlagLine)
+  if (!promise && !required) return null
+  if (!flag) return { ok: false, label: 'flagged urgent', detail: promise ? `said "${promise.text}" but never flagged the call` : 'never flagged the call' }
+  const late = promise && flag.at_ms > promise.at_ms + FLAG_AFTER_PROMISE_MS
+  return {
+    ok: !late,
+    label: 'flagged urgent',
+    detail: late ? `flagged ${((flag.at_ms - promise.at_ms) / 1000).toFixed(1)} s after saying "${promise.text}"` : `flagged at ${(flag.at_ms / 1000).toFixed(1)} s`,
+  }
+}
+
+export function evaluateCall(finding: CallTestFinding, scenario: Scenario, { expectRecording = false } = {}): Check[] {
+  const { call, turns, lines } = finding
+  if (!call) return [{ ok: false, label: 'call in the inbox', detail: 'no call from the test caller arrived' }]
+  const booking = scenario.booking && finding.bookingReady ? scenario.booking : null
+  // A booking scenario on a business that can book: the message expectations do not apply.
+  const expect: Expectation = booking ? {} : scenario.expect
+  const transcriptOk = expect.silentCaller
+    ? turns.agent >= 1 && turns.caller === 0
+    : turns.agent >= 2 && turns.caller >= 1
+  const checks: Check[] = [
+    { ok: true, label: 'call in the inbox', detail: `${call.id} in workspace ${finding.workspaceId}` },
+    {
+      ok: call.status === 'completed',
+      label: 'call finished',
+      detail: `${call.status}${call.duration_sec !== null ? `, ${call.duration_sec} s` : ''}`,
+    },
+    {
+      ok: transcriptOk,
+      label: 'transcript',
+      detail: `${turns.agent} assistant, ${turns.caller} caller, ${turns.system} tool lines${expect.silentCaller ? ' (silent caller expected)' : ''}`,
+    },
+    { ok: Boolean(call.title && call.summary), label: 'summary', detail: call.title ? `"${call.title}"` : 'none' },
+  ]
+  if (expect.outcome)
+    checks.push({
+      ok: call.outcome !== null && expect.outcome.includes(call.outcome),
+      label: 'outcome',
+      detail: `${call.outcome ?? 'none'} (expected ${expect.outcome.join(' or ')})`,
+    })
+  if (expect.urgency)
+    checks.push({
+      ok: call.urgency === expect.urgency,
+      label: 'urgency',
+      detail: `${call.urgency} (expected ${expect.urgency})`,
+    })
+  if (expect.actionItems)
+    checks.push({
+      ok: call.action_items >= expect.actionItems,
+      label: 'message taken',
+      detail: `${call.action_items} action item${call.action_items === 1 ? '' : 's'}`,
+    })
+  const said = assistantText(lines)
+  if (expect.greeting) {
+    const first = lines.find(l => l.speaker === 'agent')?.text ?? ''
+    checks.push({ ok: expect.greeting.test(first), label: 'greeting', detail: first ? `"${first}"` : 'none' })
+  }
+  if (expect.assistantSays)
+    checks.push({
+      ok: expect.assistantSays.test(assistantReplies(lines)),
+      label: 'assistant says',
+      detail: `${expect.assistantSays} (after the caller spoke)`,
+    })
+  if (expect.assistantAvoids) {
+    const match = said.match(expect.assistantAvoids)
+    checks.push({
+      ok: !match,
+      label: 'assistant avoids',
+      detail: match ? `said "${match[0]}"` : `${expect.assistantAvoids} not said`,
+    })
+  }
+  if (expect.toolSays) {
+    const tools = lines.filter(l => l.speaker === 'system').map(l => l.text)
+    checks.push({
+      ok: tools.some(t => expect.toolSays!.test(t)),
+      label: 'tool line',
+      detail: `${expect.toolSays} in ${tools.length ? tools.map(t => `"${t}"`).join(', ') : 'no tool lines'}`,
+    })
+  }
+  if (expect.transferResult)
+    checks.push({
+      ok: call.transfer_result === expect.transferResult,
+      label: 'transfer',
+      detail: `${call.transfer_result ?? 'no transfer'} (expected ${expect.transferResult})`,
+    })
+  if (expect.stillThere) {
+    const asked = lines.filter(l => l.speaker === 'agent' && /are you still there/i.test(l.text)).length
+    checks.push({ ok: asked >= expect.stillThere, label: 'silence reminders', detail: `asked ${asked} time${asked === 1 ? '' : 's'} (expected ${expect.stillThere})` })
+  }
+  if (expect.lastLine) {
+    const last = lines.filter(l => l.speaker === 'agent').at(-1)?.text ?? ''
+    checks.push({ ok: expect.lastLine.test(last), label: 'last line', detail: last ? `"${last}"` : 'none' })
+  }
+  if (expect.assistantSaysLate) {
+    const { atMs, patterns } = expect.assistantSaysLate
+    const late = lines.filter(l => l.speaker === 'agent' && l.at_ms >= atMs).map(l => l.text).join(' ')
+    for (const pattern of patterns)
+      checks.push({ ok: pattern.test(late), label: 'assistant still knows', detail: `${pattern} from ${Math.round(atMs / 1000)} s on` })
+  }
+  if (expect.summarySays) {
+    const summary = `${call.title ?? ''} ${call.summary ?? ''}`
+    checks.push({ ok: expect.summarySays.test(summary), label: 'summary says', detail: `${expect.summarySays} in "${summary.slice(0, 120)}"` })
+  }
+  const urgent = urgentPromiseCheck(lines, !!expect.flaggedByTool)
+  if (urgent) checks.push(urgent)
+  if (booking) checks.push(...bookingChecks(finding, booking))
+  else if (scenario.booking) checks.push({ ok: true, label: 'booking', detail: 'the business cannot book (no appointment type or calendar): a message is expected' })
+  checks.push({
+    ok: !expectRecording || Boolean(call.recording_key),
+    label: 'recording',
+    detail: call.recording_key ? 'stored' : expectRecording ? 'missing' : 'none (not expected)',
+  })
+  return checks
+}
+
+export type Latency = { greetingMs: number | null; replyGapsMs: number[] }
+
+/**
+ * Approximate timings from when transcript lines were written: the greeting after the call started,
+ * and for each caller turn the time until the assistant's next line. Lines are written once a turn
+ * is complete, so a gap includes the assistant's speaking time.
+ */
+export function latencyOf(lines: Line[]): Latency {
+  const greeting = lines.find(l => l.speaker === 'agent')
+  const replyGapsMs: number[] = []
+  lines.forEach((line, i) => {
+    if (line.speaker !== 'caller') return
+    const reply = lines.slice(i + 1).find(l => l.speaker === 'agent')
+    if (reply) replyGapsMs.push(reply.at_ms - line.at_ms)
+  })
+  return { greetingMs: greeting?.at_ms ?? null, replyGapsMs }
+}
+
+const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`
+
+/** The value below which `p` percent of the samples fall (nearest rank). */
+export function percentile(samples: number[], p: number): number | null {
+  if (!samples.length) return null
+  const sorted = [...samples].sort((a, b) => a - b)
+  return sorted[Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1)]!
+}
+
+/** What the caller heard: time to the greeting and from the end of each caller turn to the reply. */
+export function formatCallerLatency(sample: LatencySample | null): string {
+  if (!sample) return 'Latency heard by the caller: not measured'
+  const replies = sample.replyMs
+  const stats = replies.length
+    ? `p50 ${seconds(percentile(replies, 50)!)}, p90 ${seconds(percentile(replies, 90)!)}, max ${seconds(Math.max(...replies))} over ${replies.length} replies (${replies.map(seconds).join(', ')})`
+    : 'no replies'
+  return `Latency heard by the caller: greeting after ${sample.greetingMs === null ? 'none' : seconds(sample.greetingMs)}; reply ${stats}`
+}
+
+/** The business agent's own timing: from its job start (pickup, in room mode) to each setup step. */
+export function formatAgentSetup(setup: AgentSetup | null): string {
+  if (!setup) return 'Greeting from pickup (business agent): not measured'
+  const { steps, greeting } = setup
+  const greetingAt = steps['greeting audio']
+  const parts = inOrder(steps).map(([step, ms]) => `${step} ${seconds(ms)}`).join(', ')
+  const after = greetingAfterPickup(steps)
+  const subscribed = after === null ? '' : `; greeting ${seconds(after)} after the caller's side subscribed`
+  return `Greeting from pickup (business agent): ${greetingAt === undefined ? 'none' : seconds(greetingAt)}${greeting ? ` (greeting ${greeting})` : ''}; steps: ${parts}${subscribed}`
+}
+
+/** The greeting starts within GREETING_TARGET_MS of pickup, measured by the business's agent. */
+export function greetingCheck(setup: AgentSetup | null): Check {
+  const at = setup?.steps['greeting audio']
+  return {
+    ok: at !== undefined && at <= GREETING_TARGET_MS,
+    label: 'greeting from pickup',
+    detail: at === undefined ? 'not measured' : `${seconds(at)} (target ${seconds(GREETING_TARGET_MS)})`,
+  }
+}
+
+export function formatReport(finding: CallTestFinding, checks: Check[], heard: LatencySample | null = null, setup: AgentSetup | null = null): string {
+  const out: string[] = []
+  if (finding.lines.length) {
+    out.push(
+      'Transcript:',
+      ...finding.lines.map(
+        l => `  [${seconds(l.at_ms)}] ${l.speaker === 'agent' ? 'assistant' : l.speaker}: ${l.text}`,
+      ),
+    )
+  }
+  if (finding.call?.summary) out.push(`Summary: ${finding.call.title ?? ''}: ${finding.call.summary}`)
+  const { greetingMs, replyGapsMs } = latencyOf(finding.lines)
+  if (greetingMs !== null) {
+    const gaps = replyGapsMs.length
+      ? `${replyGapsMs.map(seconds).join(', ')} (median ${seconds([...replyGapsMs].sort((a, b) => a - b)[Math.floor(replyGapsMs.length / 2)]!)})`
+      : 'none'
+    out.push(
+      `Transcript timing (lines are written after each turn, so this includes speaking time): greeting ${seconds(greetingMs)}; caller turn to next assistant line: ${gaps}`,
+    )
+  }
+  out.push(formatCallerLatency(heard))
+  if (setup) out.push(formatAgentSetup(setup))
+  out.push('Checks:', ...checks.map(c => `  ${c.ok ? 'PASS' : 'FAIL'}  ${c.label}: ${c.detail}`))
+  out.push(checks.every(c => c.ok) ? 'Call test passed.' : 'Call test failed.')
+  return out.join('\n')
+}

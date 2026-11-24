@@ -1,0 +1,1 @@
+ALTER TABLE "assistants" ADD COLUMN "languages" jsonb DEFAULT '{"mode":"english","allowed":[]}'::jsonb NOT NULL;

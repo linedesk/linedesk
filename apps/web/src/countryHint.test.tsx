@@ -1,0 +1,148 @@
+import { renderToStaticMarkup } from 'react-dom/server'
+import { describe, expect, test, vi } from 'vitest'
+import { loadCountryHint, phoneCountryFrom } from './countryHint.ts'
+import { i18n } from './i18n/index.tsx'
+import { CountrySelect } from './settings/CountrySelect.tsx'
+import { createWorkspace } from './auth.ts'
+import { businessCountry, countryNotServed, localeToSave } from './onboarding/BusinessStep.tsx'
+import { countryOptions, explicitCountryPatch, servedOptions } from './settings/workspaceLocaleModel.ts'
+import { PhoneInput } from './ui/PhoneInput.tsx'
+
+const answer = (body: unknown, status = 200) =>
+  (async () => new Response(JSON.stringify(body), { status })) as typeof fetch
+
+describe('the country New workspace starts with', () => {
+  test("the API's hint, with the sign-up location it alone knows", async () => {
+    const hint = { country: 'DE', source: 'sign_up_location' }
+    expect(await loadCountryHint(answer({ ok: true, hint }))).toEqual(hint)
+  })
+
+  test("without the API's answer, the browser's own hint (time zone, language), never an error", async () => {
+    const local = await loadCountryHint(answer({ ok: false }, 500))
+    const offline = await loadCountryHint((async () => {
+      throw new Error('offline')
+    }) as typeof fetch)
+    expect(offline).toEqual(local)
+    expect(local === null || ['time_zone', 'browser_language'].includes(local.source)).toBe(true)
+  })
+
+  test('the field has the label and placeholder of Workspace settings › General, and no Automatic', () => {
+    const html = renderToStaticMarkup(<CountrySelect id="c" value="" onChange={() => {}} />)
+    expect(html).toContain(i18n().t('settings.general.country.label'))
+    expect(html).toContain(i18n().t('settings.general.country.choose'))
+    expect(html).not.toContain('Automatic')
+    const set = renderToStaticMarkup(<CountrySelect id="c" value="DE" onChange={() => {}} />)
+    expect(set).toContain('Germany')
+  })
+
+  test('Workspace settings keeps Automatic, saying what it stands for', () => {
+    const html = renderToStaticMarkup(
+      <CountrySelect id="c" value="" automatic={{ country: 'ES', source: 'time_zone' }} onChange={() => {}} />,
+    )
+    expect(html).toContain('Automatic (Spain, from the time zone it was created in)')
+  })
+})
+
+describe('the phone field and onboarding start with the country the API works out', () => {
+  const local = { assistantNumber: null, businessPhone: null, timeZone: 'Europe/Madrid', locale: 'de-DE' }
+
+  test('once the settings have loaded: their resolved country, whatever the browser says', () => {
+    expect(phoneCountryFrom({ resolvedCountry: 'DE' }, local)).toBe('DE')
+  })
+
+  test('before: the same order on what the browser has (numbers, business phone, time zone, language)', () => {
+    expect(phoneCountryFrom(null, local)).toBe('ES')
+    expect(phoneCountryFrom(null, { ...local, businessPhone: '+43 1 234567' })).toBe('AT')
+    expect(phoneCountryFrom(null, { ...local, assistantNumber: '+15035550142', businessPhone: '+43 1 234567' })).toBe(
+      'US',
+    )
+    expect(phoneCountryFrom(undefined, { ...local, timeZone: 'UTC' })).toBe('DE')
+    expect(phoneCountryFrom(undefined, { ...local, timeZone: null, locale: null })).toBe('US')
+  })
+})
+
+describe('a prefilled country left as it is is not saved as set (it stays Automatic on the hint)', () => {
+  test('New workspace sends the country only when picked; the time zone and language always go along', async () => {
+    const bodies: Record<string, unknown>[] = []
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)))
+      return new Response(JSON.stringify({ ok: true }), { status: 200 })
+    })
+    try {
+      await createWorkspace('Left As Shown', null)
+      await createWorkspace('Picked', 'ES')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+    expect(bodies[0]).not.toHaveProperty('country')
+    expect(bodies[0]).toHaveProperty('timeZone')
+    expect(bodies[1]).toMatchObject({ name: 'Picked', country: 'ES' })
+  })
+
+  test("onboarding's Business step saves the country only after Change", () => {
+    expect(localeToSave(null, null)).toEqual({})
+    expect(localeToSave('ES', null)).toEqual({ country: 'ES' })
+    expect(localeToSave('ES', 'ES')).toEqual({})
+  })
+
+  test("the listing's country is saved as the business's; what the owner picks wins", () => {
+    expect(localeToSave(null, null, 'CA')).toEqual({ country: 'CA' })
+    expect(localeToSave('US', null, 'CA')).toEqual({ country: 'US' })
+    expect(localeToSave(null, 'CA', 'CA')).toEqual({})
+  })
+
+  test('a business outside the countries a Cloud workspace is served in stops the Business step', () => {
+    const served = ['US', 'CA', 'PR']
+    expect(countryNotServed('DE', served)).toBe(true)
+    expect(countryNotServed('PR', served)).toBe(false)
+    // A workspace not on a Cloud bill (or an older API): every country.
+    expect(countryNotServed('DE', null)).toBe(false)
+    expect(countryNotServed('DE', undefined)).toBe(false)
+  })
+
+  test('signed up from Germany: the Business step asks for a served country, the United States first, and saves the pick', () => {
+    const served = ['US', 'CA', 'PR']
+    const local = { assistantNumber: null, businessPhone: null, timeZone: 'Europe/Berlin', locale: 'de-DE' }
+    // Worked out from where the owner signed up (never set): Germany, which the step does not take.
+    const shown = phoneCountryFrom({ resolvedCountry: 'DE' }, local)
+    expect(shown).toBe('DE')
+    expect(countryNotServed(shown, served)).toBe(true)
+    // The choice offers only the served countries, the United States first, nothing picked yet.
+    const all = countryOptions('US', 'explicit').slice(1)
+    expect(servedOptions(all, served, '').map(o => o.value)).toEqual(['US', 'CA', 'PR'])
+    // The United States picked: the step goes on and saves it as set.
+    expect(countryNotServed('US', served)).toBe(false)
+    expect(localeToSave('US', null)).toEqual({ country: 'US' })
+  })
+
+  test("before the settings load, the phone field uses this browser's own hint in the same order", () => {
+    const local = { assistantNumber: null, businessPhone: null, timeZone: 'Europe/Madrid', locale: 'de-DE' }
+    expect(phoneCountryFrom(undefined, local)).toBe('ES')
+    expect(phoneCountryFrom(undefined, { ...local, assistantNumber: '+15035550142' })).toBe('US')
+  })
+})
+
+describe('Germany picked on the Business step (staging test of the German launch)', () => {
+  const local = { assistantNumber: null, businessPhone: null, timeZone: 'America/New_York', locale: 'en-US' }
+
+  test('the business phone field starts with +49, not the +1 of the workspace country before', () => {
+    expect(businessCountry('DE', null, 'US')).toBe('DE')
+    expect(businessCountry(null, 'CA', 'US')).toBe('CA')
+    expect(businessCountry(null, null, 'US')).toBe('US')
+    const field = (country: string, value = '') =>
+      renderToStaticMarkup(<PhoneInput id="p" value={value} onChange={() => {}} defaultCountry={country} />)
+    expect(field(businessCountry('DE', null, 'US'))).toContain('+49')
+    expect(field(businessCountry('DE', null, 'US'))).not.toContain('+1<')
+    // A number already typed keeps its own country.
+    expect(field(businessCountry('DE', null, 'US'), '+15035550142')).toContain('+1')
+  })
+
+  test('the settings the next steps read have the country and its language at once, without a reload', () => {
+    const before = { country: null, resolvedCountry: 'US', countrySource: 'default' as const, resolvedLanguage: 'en' }
+    const after = { ...before, ...explicitCountryPatch('DE') }
+    expect(after).toMatchObject({ country: 'DE', resolvedCountry: 'DE', countrySource: 'explicit' })
+    expect(after.resolvedLanguage).toBe('de')
+    expect(phoneCountryFrom(after, local)).toBe('DE')
+    expect(explicitCountryPatch('US').resolvedLanguage).toBe('en')
+  })
+})

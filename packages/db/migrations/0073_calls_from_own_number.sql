@@ -1,0 +1,1 @@
+ALTER TABLE "calls" ADD COLUMN "from_own_number" boolean DEFAULT false NOT NULL;

@@ -1,0 +1,110 @@
+# The full test suite, in four parallel parts: the API tests in three shards (they take most of the time), every other
+# package in one (docs/ci.md, "Tests"). It runs:
+#   - on every push to the trunk (`main`), without holding anything up. A red run comments on the PR that was merged
+#     (job `report`), or on the commit, so whoever merged it sees it and fixes it in a new PR.
+#   - on pull requests from automated branches (`autopilot/`), which merge only when this passed.
+#   - by hand (Actions → Tests → Run workflow).
+# Other pull requests do not run it: they need typecheck, lint and the image build (ci.yml) only.
+name: Tests
+
+on:
+  push:
+    branches: [main, master-dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Runners: GitHub-hosted `ubuntu-24.04`, unless the repository variable `CI_RUNNER` names other runners (a repository
+# with its own runners sets it). A pull request from a fork always runs GitHub-hosted. Never set CI_RUNNER for the
+# whole organization.
+
+# A newer push to the trunk (or to the same pull request) replaces the run of the older one. A run by hand has its
+# own group, so it never cancels the push run.
+concurrency:
+  group: tests-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.part }})
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'autopilot/')
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # No "/" in the names: GitHub leaves jobs with one out of `gh run view --log`.
+        part: [api 1 of 3, api 2 of 3, api 3 of 3, other packages]
+    env:
+      # Each run of the API integration tests creates its own database next to this one (the name must end in _test).
+      TEST_DATABASE_URL: postgres://linedesk:linedesk@localhost:5432/linedesk_test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Not a service container: those take no command, and the API tests need more lock slots than Postgres's
+      # default 64 per connection. global-setup.ts migrates one database per test project at the same time, each in one
+      # transaction that locks every table it touches; at 64 that fails with "out of shared memory" (53200). Same image
+      # and first arguments as docker-compose.yml, like the dev Postgres in docker-compose.ports.yml (docs/ci.md, "Tests").
+      - name: Start Postgres
+        run: |
+          docker run -d --name linedesk-test-postgres -p 5432:5432 \
+            -e POSTGRES_USER=linedesk -e POSTGRES_PASSWORD=linedesk -e POSTGRES_DB=linedesk_test \
+            postgres:17@sha256:846a7ddaa67a4b354ae1d21087b683901aa6113a4ed626d3787cfbf6c85e3e07 \
+            postgres -c wal_level=logical -c shared_buffers=64MB -c max_locks_per_transaction=1024
+          for _ in $(seq 60); do
+            # -h: the image's init step answers on the socket only; wait for the real server on TCP.
+            docker exec linedesk-test-postgres pg_isready -h 127.0.0.1 -U linedesk -d linedesk_test >/dev/null 2>&1 && break
+            sleep 1
+          done
+          docker exec linedesk-test-postgres psql -h 127.0.0.1 -U linedesk -d linedesk_test -Atc 'show max_locks_per_transaction'
+      - name: Run this part of the tests
+        env:
+          PART: ${{ matrix.part }}
+        run: |
+          case "$PART" in
+            "api "*) part=${PART#api }; pnpm --filter @linedesk/api exec vitest run --shard="${part%% of *}/${part##* of }" ;;
+            *) pnpm turbo run test --continue --filter='!@linedesk/api' ;;
+          esac
+
+  # A red run on the trunk (the repository's default branch): one comment on the PR the head commit came from (or on the commit, for a direct push),
+  # written for whoever merged it, a person or an AI session that watches its PR.
+  report:
+    needs: test
+    if: failure() && github.event_name == 'push'
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 5
+    permissions:
+      contents: write # commit comments
+      pull-requests: write
+      actions: read
+    steps:
+      - name: Comment on the merged PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TRUNK: ${{ github.event.repository.default_branch }}
+          SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          failed=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" --jq '[.jobs[] | select(.conclusion == "failure") | .name] | join(", ")')
+          body="**Tests failed on $TRUNK** after this merge (\`${SHA:0:8}\`): ${failed:-see the run}.
+
+          Run: $RUN_URL (failed logs: \`gh run view $RUN_ID --repo $REPO --log-failed\`).
+
+          Whoever merged this, a person or an AI session: please fix it in a new PR into $TRUNK, or say here why it is not caused by this change. The cause can also be an earlier commit since the last green run of Tests. Nothing waits for this run, so fix it before the next release."
+          pr=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '[.[] | select(.base.ref == "'"$TRUNK"'" and .merged_at != null)][0].number // empty')
+          if [ -n "$pr" ]; then
+            gh pr comment "$pr" --repo "$REPO" --body "$body"
+          else
+            gh api "repos/$REPO/commits/$SHA/comments" -f body="$body" >/dev/null
+          fi

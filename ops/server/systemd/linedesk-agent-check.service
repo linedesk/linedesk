@@ -1,0 +1,7 @@
+[Unit]
+Description=Linedesk: the voice server's agent worker takes calls (linedesk-agent-check)
+OnFailure=linedesk-alert@%n.service
+[Service]
+Type=oneshot
+StateDirectory=linedesk-agent-check
+ExecStart=/usr/local/sbin/linedesk-agent-check

@@ -1,0 +1,1 @@
+ALTER TABLE "assistants" ADD COLUMN "greet_by_name" boolean DEFAULT true NOT NULL;

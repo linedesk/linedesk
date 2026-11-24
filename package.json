@@ -1,0 +1,50 @@
+{
+  "name": "linedesk",
+  "private": true,
+  "license": "MIT",
+  "packageManager": "pnpm@10.34.9",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "typecheck": "turbo run typecheck",
+    "lint": "biome lint",
+    "format": "biome format --write",
+    "test": "turbo run test",
+    "db:up": "sh scripts/compose-dev.sh up -d postgres electric",
+    "voice:up": "sh scripts/compose-dev.sh up -d redis livekit livekit-sip",
+    "recording:up": "sh scripts/compose-dev.sh --profile recording up -d redis livekit livekit-egress",
+    "db:generate": "pnpm --filter @linedesk/db generate",
+    "db:migrate": "pnpm --filter @linedesk/db migrate",
+    "db:check-journal": "node --disable-warning=ExperimentalWarning packages/db/scripts/check-journal.ts && node --disable-warning=ExperimentalWarning --test packages/db/scripts/check-journal.test.ts",
+    "db:seed": "pnpm --filter @linedesk/api seed",
+    "dev:snapshot": "sh scripts/dev-snapshot.sh snapshot",
+    "dev:restore": "sh scripts/dev-snapshot.sh restore",
+    "i18n:check": "node --disable-warning=ExperimentalWarning packages/i18n/scripts/check.ts",
+    "i18n:translate": "node --disable-warning=ExperimentalWarning packages/i18n/scripts/translate.ts",
+    "i18n:lock": "node --disable-warning=ExperimentalWarning packages/i18n/scripts/lock.ts",
+    "i18n:changed": "node --disable-warning=ExperimentalWarning packages/i18n/scripts/changed.ts",
+    "zapier:generate": "node --disable-warning=ExperimentalWarning packages/actions/scripts/zapier.ts",
+    "linedesk": "node --disable-warning=ExperimentalWarning packages/cli/bin/linedesk.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.6",
+    "turbo": "^2.11.12",
+    "typescript": "^7.0.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "@esbuild-kit/core-utils>esbuild": "^0.25.12",
+      "@livekit/throws-transformer>glob": "^14.0.6"
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-gcqx-w48m-w2h4"
+      ]
+    },
+    "patchedDependencies": {
+      "@livekit/agents@1.10.0": "patches/@livekit__agents@1.10.0.patch"
+    }
+  }
+}

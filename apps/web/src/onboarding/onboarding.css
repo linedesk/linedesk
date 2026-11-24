@@ -1,0 +1,462 @@
+/* Onboarding: the .ob and .ob2 rules from the reference UI live in styles.css; these are the few additions. */
+/* Onboarding uses the large control height for every field, select included, so a step's fields match. */
+.ob .k-input,
+.ob .k-select-btn {
+  height: var(--control-h-lg);
+}
+.ob .ta {
+  min-height: 112px;
+}
+.ob-prompt .ob2-row {
+  flex: none;
+}
+.ob2-dial .ob2-row {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.ob-label {
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.ob2-dial > b {
+  user-select: all;
+}
+.ob .st-list {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 10px 16px;
+}
+.ob .st-li:first-child {
+  padding-top: 8px;
+}
+.ob-tight {
+  margin: 0;
+}
+/* Choices as cards one under the other: pick-up (the recommended first) and urgent matters. */
+.ob .ob-pickup,
+.ob .ob-choices {
+  grid-template-columns: 1fr;
+}
+/* Who hears about calls: the summaries (email, push on this device), then the mobile and condition under "Put them through". */
+.ob-urgent {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ob .ob-urgent .ta {
+  min-height: 64px;
+}
+/* The assistant step's test call: the button with a short line beside it (wraps under it on phones). */
+.ob-talk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+/* Phones: the times of a day go under its name, so the week fits without scrolling sideways. */
+@media (max-width: 520px) {
+  .ob .st-list {
+    padding: 4px 14px;
+  }
+  .ob .st-day {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .ob .st-day > .st-times {
+    grid-column: 1 / -1;
+  }
+  .ob .st-day > .help {
+    display: none;
+  }
+}
+/* The last step's quiet word about GitHub (Onboarding.tsx, StarLine). */
+.ob-star {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.ob-star a {
+  color: var(--ink);
+}
+.ob-star-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 8px;
+  vertical-align: -1px;
+  font-variant-numeric: tabular-nums;
+}
+.ob-instance {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.ob-instance a {
+  color: var(--ink);
+}
+.ob-instance-note {
+  margin: 0 0 16px;
+}
+/* Find your business: the search field with its button, the listings, and the review's two-column fields. */
+.ob-biz-search {
+  display: flex;
+  gap: 8px;
+}
+.ob-biz-search > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.ob-biz-results {
+  display: grid;
+  gap: 6px;
+}
+.ob-biz-results ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ob-biz-result {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ob-biz-result:hover {
+  background: var(--surface-hover);
+}
+.ob-biz-result:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.ob-biz-result span {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+/* Google's attribution for Places content shown without a map: its product name, in plain text. */
+.ob-biz-credit {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+/* The import's progress (BusinessStep.tsx, ImportProgress): its stages, a quiet moving bar, how long it can take. */
+.ob-imp {
+  display: grid;
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-raised);
+}
+.ob-imp-what {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.ob-imp-steps {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ob-imp-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  color: var(--ink-disabled);
+  transition: color 0.3s ease;
+}
+.ob-imp-step.is-active {
+  color: var(--ink);
+}
+.ob-imp-step.is-done {
+  color: var(--ink-muted);
+}
+.ob-imp-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-soft);
+  color: var(--surface-raised);
+}
+.ob-imp-step.is-done .ob-imp-mark {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+.ob-imp-step.is-active .ob-imp-mark {
+  border-color: var(--ink);
+  border-top-color: transparent;
+}
+.ob-imp-bar {
+  position: relative;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--line);
+}
+.ob-imp-bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 35%;
+  border-radius: 2px;
+  background: var(--ink);
+}
+.ob-imp-hint {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ob-imp-step.is-active .ob-imp-mark {
+    animation: ob-imp-spin 0.9s linear infinite;
+  }
+  .ob-imp-step.is-done .ob-imp-mark {
+    animation: ob-imp-pop 0.25s ease-out;
+  }
+  .ob-imp-bar span {
+    animation: ob-imp-slide 1.6s ease-in-out infinite;
+  }
+}
+@keyframes ob-imp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ob-imp-pop {
+  from {
+    transform: scale(0.6);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes ob-imp-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(290%);
+  }
+}
+.ob-biz-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+}
+.ob-biz-hours {
+  display: grid;
+  gap: 6px;
+}
+.ob-biz-hours ul {
+  margin: 0;
+  padding-left: 26px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  list-style: none;
+}
+@media (max-width: 520px) {
+  .ob-biz-pair {
+    grid-template-columns: 1fr;
+  }
+}
+/* The thank-you heart: quiet like the line around it (red is only for urgent and missed). */
+.ob-star-heart {
+  color: var(--ink);
+}
+/* The phone step: a quiet link (to a number already in the carrier account, and back to the choices). */
+.ob-link {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.ob-link:hover {
+  color: var(--ink);
+}
+.ob-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.ob-existing {
+  display: grid;
+  gap: 2px;
+}
+.ob-existing > b {
+  font-size: 13px;
+  font-weight: 600;
+}
+/* Saves refused after their step was left (Onboarding.tsx SaveErrors): one line each, with the way back. */
+.ob-save-errors {
+  display: grid;
+  gap: var(--space-2);
+}
+/* Done: what is left before calls are answered. */
+.ob-left {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  display: grid;
+  gap: 4px;
+}
+.ob-left .ob-link {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+/* Business step: the country set when the workspace was made, with Change to pick another (CountrySelect). */
+.ob-biz-country {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--control-h-lg);
+}
+/* Business lookup: the Search button is as tall as the field beside it (controls in one row share one size). */
+.ob .ob-biz-search .k-btn {
+  height: var(--control-h-lg);
+  padding: 0 14px;
+}
+/* The other way in, for a business that isn't on Google Maps: a plain line under the search, flush with the field. */
+.ob-biz-manual {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink-muted);
+}
+
+/* The activation step (ActivateStep.tsx): the plan, the trial's timeline, the reminder promise and the fine print. */
+
+.ob-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.ob-timeline li {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding: 0 0 14px;
+}
+.ob-timeline li:last-child {
+  padding-bottom: 0;
+}
+/* The line between the dots. */
+.ob-timeline li:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 14px;
+  bottom: 0;
+  width: 2px;
+  background: var(--line);
+}
+.ob-timeline-dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-top: 3px;
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  border: 2px solid var(--line-control);
+  box-sizing: border-box;
+}
+.ob-timeline-start .ob-timeline-dot,
+.ob-timeline-charge .ob-timeline-dot {
+  background: var(--action);
+  border-color: var(--action);
+}
+.ob-timeline li > div {
+  display: grid;
+  line-height: 18px;
+}
+.ob-timeline-when {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.ob-timeline b {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.ob-timeline li > div > span:last-child {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+/* Business details: what callers hear (services, about, common calls) folds away under the basics. */
+.ob-more {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+.ob-more > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+}
+.ob-more > summary::-webkit-details-marker {
+  display: none;
+}
+.ob-more > summary > span {
+  color: var(--ink-muted);
+}
+.ob-more > summary:hover > span {
+  color: var(--ink);
+}
+.ob-more-chevron {
+  transform: rotate(-90deg);
+  transition: transform 120ms ease;
+  color: var(--ink-muted);
+}
+.ob-more[open] .ob-more-chevron {
+  transform: none;
+}
+.ob-more-body {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+/* The last step: what is left before calls are answered, one row each with the way back to it (Onboarding.tsx). */
+.ob-left {
+  display: grid;
+  margin: 0;
+  padding: 4px 16px;
+  list-style: none;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+.ob-left li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 6px 0;
+  font-size: 13.5px;
+}
+.ob-left li + li {
+  border-top: 1px solid var(--line-soft);
+}

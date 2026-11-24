@@ -1,0 +1,1 @@
+ALTER TABLE "calls" ADD COLUMN "missing_info" jsonb DEFAULT '[]'::jsonb NOT NULL;

@@ -1,0 +1,145 @@
+// Step 3, "When should Maya pick up?": when the business can't answer (the default), when it is closed,
+// or every call. The choices speak as the business ("we"). Business hours are asked only for "when we're closed". The choice picks the forwarding
+// code on the phone step; routing stays with the number's mode and the hours (no new call routing). Calls at the same
+// time are not asked here: the app offers more when the included ones run out.
+import type { PickupMode, WorkspaceSettingsData } from '@linedesk/actions'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { useT } from '@linedesk/i18n/react'
+import { useState } from 'react'
+import { HoursGrid, TimeZoneSelect } from '../settings/BusinessHours.tsx'
+import { type DayHours, hoursProblem, spansOf } from '../settings/businessHoursModel.ts'
+import { Field } from '../settings/fields.tsx'
+import { patchWorkspaceSettings, useWorkspaceSettings, useWriteAction } from '../settings/settings-api.ts'
+import { browserTimeZone } from '../settings/timeZones.ts'
+import { useAssistantName, useRows, useRun } from '../store.tsx'
+import { RadioCard } from '../ui/controls.tsx'
+import { Note } from '../ui/kit.tsx'
+import { useClientWord } from './clientWords.tsx'
+import { Foot, StepLoading } from './Frame.tsx'
+import {
+  firstHoursDraft,
+  firstPickup,
+  oldForwardingAfter,
+  type PickupMemory,
+  pickupNeedsHours,
+  pickupNumberMode,
+  pickupOrder,
+  pickupSettings,
+} from './flow.ts'
+import { useSetupKeys } from './setup-keys.ts'
+
+type StepProps = {
+  onBack: () => void
+  onNext: () => void
+  memory: PickupMemory
+  onMemory: (memory: PickupMemory) => void
+}
+
+const choiceText: Record<PickupMode, { title: MessageKey; description: MessageKey }> = {
+  no_answer: {
+    title: msg('onboarding.pickup.noAnswer.title'),
+    description: msg('onboarding.pickup.noAnswer.description'),
+  },
+  after_hours: {
+    title: msg('onboarding.pickup.afterHours.title'),
+    description: msg('onboarding.pickup.afterHours.description'),
+  },
+  always: {
+    title: msg('onboarding.pickup.always.title'),
+    description: msg('onboarding.pickup.always.description'),
+  },
+}
+
+export function PickupStep(p: StepProps) {
+  const { onBack, onNext } = p
+  const t = useT()
+  const settings = useWorkspaceSettings()
+  const name = useAssistantName()
+  if (settings.data) return <PickupForm saved={settings.data} {...p} />
+  // Not loaded: the step waits for later (the quiet Later), never as the primary.
+  return (
+    <StepLoading
+      title={t('onboarding.pickup.title', { name })}
+      what={t('onboarding.pickup.loading')}
+      error={settings.error}
+      onRetry={() => void settings.reload()}
+      foot={{ onBack, onContinue: onNext, onSkipStep: settings.error ? onNext : undefined }}
+    />
+  )
+}
+
+function PickupForm({ saved, onBack, onNext, memory, onMemory }: StepProps & { saved: WorkspaceSettingsData }) {
+  const t = useT()
+  const word = useClientWord()
+  const run = useRun()
+  const write = useWriteAction()
+  const name = useAssistantName()
+  const numbers = useRows('phone_numbers')
+  const [mode, setMode] = useState<PickupMode>(() => firstPickup(saved, numbers[0]?.mode))
+  const [first] = useState(() => firstHoursDraft(saved, browserTimeZone()))
+  const [days, setDays] = useState<DayHours[]>(first.days)
+  const [timeZone, setTimeZone] = useState(first.timeZone)
+  const needsHours = pickupNeedsHours(mode)
+  const problem = needsHours ? hoursProblem(days) : null
+
+  function next() {
+    if (problem) return
+    const { input, hoursOnBefore } = pickupSettings(saved, mode, memory)
+    // The zone only when it is not the saved one: saved, it counts as set by hand and stops following the country.
+    const settingsInput = needsHours && timeZone !== saved.timeZone ? { ...input, timeZone } : input
+    if (needsHours) {
+      const hours = spansOf(days)
+      void run('businessHours.set', { hours })
+      patchWorkspaceSettings({ ...settingsInput, businessHours: hours })
+    } else patchWorkspaceSettings(settingsInput)
+    void run('workspace.updateSettings', settingsInput)
+    // A number connected already (back from the phone step, or set up before): its forwarding follows the choice.
+    // Run directly so the phone step shows the new code at once (phone_numbers is polled); if that fails, the
+    // outbox takes it and reports a refusal like any other change.
+    const wanted = pickupNumberMode(mode)
+    let oldForwarding = memory.oldForwarding
+    for (const n of numbers)
+      if ((n.mode === 'forward_conditional' || n.mode === 'forward_all') && n.mode !== wanted) {
+        oldForwarding = oldForwardingAfter(n.mode, wanted, oldForwarding)
+        const input = { phoneNumberId: n.id, mode: wanted }
+        write('phoneNumber.update', input).catch(() => void run('phoneNumber.update', input))
+      }
+    onMemory({ hoursOnBefore, oldForwarding })
+    onNext()
+  }
+  useSetupKeys({ onEnter: next, onEscape: onBack })
+
+  const set = (weekday: number, change: Partial<DayHours>) =>
+    setDays(all => all.map(d => (d.weekday === weekday ? { ...d, ...change } : d)))
+  return (
+    <>
+      <div className="ob-body">
+        <h1>{t('onboarding.pickup.title', { name })}</h1>
+        <p className="ob-lede">{t(word('onboarding.pickup.lede'))}</p>
+        <div className="k-radios ob-pickup" role="radiogroup" aria-label={t('onboarding.pickup.groupLabel', { name })}>
+          {pickupOrder.map(m => (
+            <RadioCard
+              key={m}
+              name="ob-pickup"
+              checked={mode === m}
+              onPick={() => setMode(m)}
+              title={t(word(choiceText[m].title))}
+              description={t(word(choiceText[m].description), { name })}
+            />
+          ))}
+        </div>
+        {needsHours && (
+          <>
+            <Field id="ob-tz" label={t('onboarding.pickup.timeZone')}>
+              <TimeZoneSelect id="ob-tz" value={timeZone} onChange={setTimeZone} />
+            </Field>
+            <span className="ob-label">{t('onboarding.pickup.businessHours')}</span>
+            <HoursGrid days={days} set={set} canEdit />
+          </>
+        )}
+        {problem && <Note tone="danger">{problem}</Note>}
+      </div>
+      <Foot onBack={onBack} onContinue={next} canContinue={!problem} />
+    </>
+  )
+}

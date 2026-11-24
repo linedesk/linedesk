@@ -1,0 +1,718 @@
+/* Form pieces (form.tsx): card sections, fields, save bar, dialog. One look for every edit form:
+   label above the control, a muted line under the label only when needed, the message under it. */
+
+/* Card: a raised section with a title row */
+.k-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+  scroll-margin-top: 56px;
+  min-width: 0;
+}
+.k-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.k-card-title {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.k-card-title h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+.k-card-title p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+.k-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  /* A small button (28px) fits the title's line (20px) without making the header taller; anything lower (a switch,
+     a value) is centred in the same 28px, so it sits on the title's centre line too. */
+  min-height: var(--control-h-sm);
+  margin: -4px 0;
+}
+/* Phone: the actions share only the title's line; the description below takes the card's full width instead of a
+   narrow column beside an Add button. */
+@media (max-width: 560px) {
+  .k-card-head:has(> .k-card-actions) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 2px 12px;
+  }
+  .k-card-head:has(> .k-card-actions) > .k-card-title {
+    display: contents;
+  }
+  .k-card-head:has(> .k-card-actions) > .k-card-title > h2 {
+    grid-area: 1 / 1;
+  }
+  .k-card-head:has(> .k-card-actions) > .k-card-title > p {
+    grid-column: 1 / -1;
+  }
+  .k-card-head > .k-card-actions {
+    grid-area: 1 / 2;
+  }
+}
+
+/* Field */
+.k-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.k-field-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 18px;
+}
+.k-field-label label {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.k-field-aside {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.k-field-desc {
+  margin: -2px 0 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+.k-field-msg {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--danger);
+}
+.k-fields {
+  display: grid;
+  gap: 14px;
+}
+.k-fields-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+/* Input states */
+.k-input.k-input-invalid,
+.ta.k-input-invalid {
+  border-color: var(--danger);
+}
+.k-input.k-input-invalid:focus-within,
+.ta.k-input-invalid:focus {
+  box-shadow: 0 0 0 1px var(--danger);
+  border-color: var(--danger);
+}
+/* A field that cannot be changed has the same filled frame as a disabled select beside it, also when it is read-only
+   (a setting only admins change, a key to copy): its text stays readable and selectable. */
+.k-input:has(input:read-only),
+.k-input:has(input:disabled) {
+  background: var(--surface-hover);
+}
+.k-input input:read-only {
+  cursor: default;
+}
+.ta:read-only {
+  background: var(--surface-hover);
+}
+.k-input input:disabled {
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+/* A text area that cannot be changed (read-only settings) looks like a disabled text field. */
+.ta:disabled {
+  background: var(--surface-hover);
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+/* Date field (DateInput): the day in the app's words; the browser's own field lies see-through over the whole
+   frame, so a click anywhere opens its calendar and its format ("tt.mm.jjjj") never shows. */
+.k-date {
+  position: relative;
+  cursor: pointer;
+  min-width: 140px;
+}
+.k-date > .k-icon {
+  flex: none;
+}
+.k-date-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.k-input-sm .k-date-text {
+  font-size: 12.5px;
+}
+.k-date-text.is-empty {
+  color: var(--ink-muted);
+}
+.k-input.k-date input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.k-input.k-date input::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  cursor: pointer;
+}
+.k-date.is-disabled {
+  background: var(--surface-hover);
+  cursor: not-allowed;
+}
+.k-date.is-disabled .k-date-text {
+  color: var(--ink-muted);
+}
+.k-date.is-disabled input {
+  cursor: not-allowed;
+}
+.k-input-btn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin-right: -4px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.k-input-btn:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+.k-input-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.k-secret input {
+  -webkit-text-security: disc;
+}
+.k-secret-stored {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+.k-secret-dots {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+
+/* (?) help. One size and one place on every line it follows: the wrapper is exactly one line of its parent tall
+   (1lh) and sits at the line's top, and the circle is centred in it, so its centre is the line's centre whatever
+   the font size (a heading, a label, a muted line, a list row's second line). The circle scales with the text
+   (1.1em, at least 14px); the glyph inside is a fixed share of it. */
+.k-help {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 1lh;
+  vertical-align: top;
+  margin-inline-start: 0.35em;
+}
+/* Rows that space their items with a gap: no extra space of its own. */
+:is(.k-field-label, .k-card-title h2, .as-step-title, .adm-provcat h2) > .k-help,
+.k-help.is-in-field {
+  margin-inline-start: 0;
+}
+.k-help-btn {
+  box-sizing: border-box;
+  display: inline-grid;
+  place-items: center;
+  width: max(14px, 1.1em);
+  height: max(14px, 1.1em);
+  padding: 0;
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.k-help-q {
+  font-size: max(9.5px, 0.75em);
+  line-height: 1;
+}
+/* Touch screens: a finger-sized target around the small mark. */
+@media (pointer: coarse) {
+  .k-help-btn {
+    position: relative;
+  }
+  .k-help-btn::after {
+    content: "";
+    position: absolute;
+    inset: -12px;
+  }
+}
+.k-help-btn:hover,
+.k-help-btn[aria-expanded="true"] {
+  color: var(--ink);
+  border-color: var(--ink-muted);
+}
+/* A ring only for keyboard focus, and a quiet one. */
+.k-help-btn:focus {
+  outline: none;
+}
+.k-help-btn:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 3px var(--ink-muted);
+}
+/* Placed by Floating UI (HelpTip.tsx) in the top layer (popover), so no dialog, card or scroll area cuts it off.
+   The browser's own popover look (centred, bordered) is reset. */
+.k-help-pop {
+  position: fixed;
+  inset: auto;
+  z-index: 60;
+  box-sizing: border-box;
+  display: grid;
+  gap: 6px;
+  width: max-content;
+  max-width: min(300px, calc(100vw - 16px));
+  margin: 0;
+  padding: 7px 9px;
+  overflow: visible;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: var(--bg);
+  font-family: var(--font-sans, inherit);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-align: left;
+  text-transform: none;
+  box-shadow: var(--shadow-2);
+  white-space: normal;
+}
+/* With commands or a link: wide enough for a command line, and room around it. */
+.k-help-pop.is-rich {
+  width: 300px;
+  padding: 10px 12px;
+  gap: 8px;
+}
+.k-help-title {
+  display: block;
+  font-weight: 600;
+}
+.k-help-text {
+  display: block;
+}
+.k-help-pop code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.k-help-cmd {
+  display: grid;
+  gap: 3px;
+}
+.k-help-cmd-label {
+  opacity: 0.75;
+}
+.k-help-cmd-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 4px 8px;
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--bg) 14%, transparent);
+}
+.k-help-cmd-line code {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.k-help-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  height: 22px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.k-help-copy:hover {
+  background: color-mix(in srgb, var(--bg) 18%, transparent);
+}
+.k-help-copy:focus-visible,
+.k-help-more:focus-visible,
+.k-help-pop .k-link:focus-visible {
+  outline: 2px solid var(--bg);
+  outline-offset: 1px;
+}
+/* A place named in the help (ui/AppLink.tsx) on the dark tip: the tip's own ink, the same underline. */
+.k-help-pop .k-link {
+  color: inherit;
+}
+.k-help-more {
+  justify-self: start;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.k-help-arrow {
+  position: absolute;
+  bottom: -4px;
+  width: 8px;
+  height: 8px;
+  background: inherit;
+  transform: rotate(45deg);
+}
+.k-help-arrow.is-below {
+  top: -4px;
+  bottom: auto;
+}
+/* Inside a field, at its right end: the field's wrapper is .k-has-help (a plain input), or the kit Input's `end`. */
+.k-has-help {
+  position: relative;
+  display: block;
+}
+.k-has-help > input {
+  padding-right: 36px;
+}
+.k-help.is-in-field {
+  flex: none;
+}
+.k-has-help > .k-help.is-in-field {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+}
+
+.k-sep {
+  height: 1px;
+  margin: 0;
+  border: 0;
+  background: var(--line);
+}
+
+/* Save bar: sticky at the bottom while there are changes */
+.k-savebar {
+  position: sticky;
+  bottom: 12px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 8px 16px;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+  animation: k-savebar-in 0.15s ease-out;
+}
+.k-savebar-note {
+  margin-right: auto;
+  font-size: 13px;
+  font-weight: 500;
+}
+@keyframes k-savebar-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .k-savebar {
+    animation: none;
+  }
+}
+
+/* Dialog */
+.overlay:has(> .k-dialog) {
+  align-items: center;
+  padding: 16px;
+}
+.k-dialog {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: min(720px, calc(100dvh - 32px));
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+  overflow: hidden;
+}
+/* Focused itself only when it has no field to start in: no ring around the whole box. */
+.k-dialog:focus {
+  outline: none;
+}
+.k-dialog-sm {
+  max-width: 400px;
+}
+.k-dialog-md {
+  max-width: 480px;
+}
+.k-dialog-lg {
+  max-width: 880px;
+}
+.k-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 12px 0 20px;
+}
+.k-dialog-title {
+  flex: 1;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.k-dialog-title h2 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+}
+.k-dialog-title p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+.k-dialog-form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.k-dialog-body {
+  display: grid;
+  gap: 16px;
+  padding: 16px 20px;
+  overflow: auto;
+  min-height: 0;
+}
+.k-dialog-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--line);
+}
+.k-dialog-foot .k-dialog-foot-start {
+  margin-right: auto;
+}
+
+@media (max-width: 560px) {
+  .k-card {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+  .overlay:has(> .k-dialog) {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .k-dialog {
+    max-width: none;
+    max-height: calc(100dvh - 24px);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+  .k-dialog-foot {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+  .k-savebar {
+    bottom: 8px;
+    padding-left: 12px;
+  }
+}
+
+/* A switch row's quiet note next to its title ("Team default"). */
+.swrow-aside {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+
+/* A danger confirmation's list of what it affects (ui/DangerConfirmDialog.tsx: deleting a workspace). */
+.danger-confirm-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 3px;
+}
+
+/* The crop step (ImageCrop.tsx): the image in a square frame, the part outside the shown shape dimmed. */
+.k-crop {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+}
+.k-crop-frame {
+  position: relative;
+  overflow: hidden;
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.k-crop-frame.is-dragging {
+  cursor: grabbing;
+}
+.k-crop-frame:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.k-crop-frame img {
+  position: absolute;
+  max-width: none;
+  pointer-events: none;
+}
+/* The shape the image is shown in; everything around it is dimmed, yet part of the saved square. */
+.k-crop-mask {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.45);
+  outline: 2px solid rgb(255 255 255 / 0.9);
+  outline-offset: -2px;
+}
+.k-crop-frame.is-circle .k-crop-mask {
+  border-radius: 50%;
+}
+/* The workspace square's corners (styles.css .ws-initial.is-lg: 10px on 48px). */
+.k-crop-frame.is-rounded-square .k-crop-mask {
+  border-radius: 20.8%;
+}
+.k-crop-zoom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 280px;
+  max-width: 100%;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.k-crop-zoom input {
+  flex: 1;
+}
+/* "Drag to move" on the picture until it first moves: a dark pill, readable on any photo. */
+.k-crop-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.6);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+.k-crop-hint.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .k-crop-hint {
+    transition:
+      opacity 0.16s ease-out,
+      visibility 0s linear 0.16s;
+  }
+}
+/* How to move and zoom, one muted line; the short words on touch screens. */
+.k-crop-help {
+  margin: -6px 0 0;
+  font-size: 12px;
+  color: var(--ink-muted);
+  text-align: center;
+  white-space: nowrap;
+}
+.k-crop-help-touch {
+  display: none;
+}
+@media (pointer: coarse) {
+  .k-crop-help-pointer {
+    display: none;
+  }
+  .k-crop-help-touch {
+    display: inline;
+  }
+}
+
+/* Type the name to confirm (ConfirmByName.tsx): the quoted name stands out in the label, Copy right next to it. */
+.confirm-name .k-field-label {
+  align-items: flex-start;
+}
+.confirm-name .k-field-label label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.confirm-name-value {
+  font-weight: 600;
+}
+.confirm-name-copy {
+  flex: none;
+  margin-top: -5px;
+  color: var(--ink-muted);
+}
+.confirm-name-copy:hover {
+  color: var(--ink);
+}

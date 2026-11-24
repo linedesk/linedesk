@@ -1,0 +1,3 @@
+ALTER TABLE "billing_recharges" DROP CONSTRAINT "billing_recharges_amount";--> statement-breakpoint
+ALTER TABLE "billing_recharges" ADD COLUMN "manual" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "billing_recharges" ADD CONSTRAINT "billing_recharges_amount" CHECK ("billing_recharges"."amount_cents" between (case when "billing_recharges"."manual" then 500 else 2000 end) and 50000);

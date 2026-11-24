@@ -1,0 +1,103 @@
+/* Assistant settings > Advanced > Webhook: the webhook is the kit's list row (ui/list.css), its log opens under it; the hook switches below. */
+.wh-reason {
+  color: var(--danger);
+}
+.wh-log {
+  width: 100%;
+  margin-top: 4px;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.wh-log th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--ink-muted);
+  padding: 4px 8px 4px 0;
+}
+.wh-log td {
+  padding: 5px 8px 5px 0;
+  border-top: 1px solid var(--line);
+}
+.sk-list.wh-log .sk-row {
+  height: 29px;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+.wh-hooks {
+  margin-top: 4px;
+}
+@media (max-width: 640px) {
+  .wh-status-on {
+    display: none;
+  }
+}
+.wh-hook-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+.wh-secret {
+  display: flex;
+  gap: 8px;
+}
+.wh-secret .k-input {
+  flex: 1;
+}
+.wh-secret input {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+/* Settings > Export calls: the date range and button on one line. */
+.cf-export {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.cf-export .k-field {
+  margin: 0;
+}
+
+/* The during-call lookups: a sub-list under its switch, indented like a nested switch row (.swrow.is-nested);
+   a lookup's fields in its dialog, one row each. */
+.wh-lookups {
+  margin: 2px 0 12px 14px;
+  padding-left: 12px;
+  border-left: 2px solid var(--line);
+}
+.wh-lookups-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.wh-lookups-title {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+/* A lookup's name is what the webhook receives: the one thing here in monospace. */
+.wh-key {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+.wh-fields {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.wh-field {
+  display: grid;
+  grid-template-columns: 9rem auto 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+@media (max-width: 640px) {
+  .wh-field {
+    grid-template-columns: 1fr auto;
+  }
+}

@@ -1,0 +1,37 @@
+name: Language request
+description: Ask for Linedesk in a language it doesn't speak yet.
+labels: [language-request]
+body:
+  - type: markdown
+    attributes:
+      value: Requests collect 👍 votes; the most wanted languages come first. Translations are made by AI and improved by people (docs/translations.md).
+  - type: input
+    id: language
+    attributes:
+      label: Language and region
+      placeholder: Italian (Italy)
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Who would use it
+      description: The kind of business and the country, and whether the team, the callers or both need it.
+    validations:
+      required: true
+  - type: checkboxes
+    id: voice
+    attributes:
+      label: Voice assistant
+      options:
+        - label: The assistant should answer calls in this language too.
+  - type: checkboxes
+    id: review
+    attributes:
+      label: Reviewing
+      options:
+        - label: I can review translations in this language.
+  - type: input
+    id: handle
+    attributes:
+      label: Your GitHub handle (if you can review)

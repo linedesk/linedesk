@@ -1,0 +1,26 @@
+#!/bin/sh
+# Sends one email: linedesk-alert-text "<subject>" "<body>", to LINEDESK_ALERT_TO (/etc/linedesk/ops.env; one address
+# or several, separated by commas) through the stack's own SMTP (SMTP_URL and EMAIL_FROM in the app's .env). Every alert
+# on the server goes through here.
+set -eu
+[ -r /etc/linedesk/ops.env ] && . /etc/linedesk/ops.env
+to=${LINEDESK_ALERT_TO:?set LINEDESK_ALERT_TO in /etc/linedesk/ops.env}
+label=${LINEDESK_ALERT_LABEL:-$(hostname)}
+# Every alert is also recorded for the intranet's Alerts list and Slack (linedesk-alert-queue; linedesk-capacity sends
+# new ones within a minute), before the email, so a failing SMTP never loses it.
+[ -w /var/lib/linedesk-alerts ] && /usr/local/sbin/linedesk-alert-queue add "$1" "$2" 2>/dev/null || true
+env=${LINEDESK_APP_DIR:-/opt/linedesk/app}/.env
+smtp=$(sed -n 's/^SMTP_URL=//p' "$env" | tail -1)
+from_line=$(sed -n 's/^EMAIL_FROM=//p' "$env" | tail -1)
+from_addr=$(printf '%s' "$from_line" | sed -E 's/.*<([^>]+)>.*/\1/')
+[ -n "$smtp" ] && [ -n "$from_addr" ] || { echo "linedesk-alert-text: SMTP_URL or EMAIL_FROM missing in $env" >&2; exit 1; }
+mail=$(mktemp); trap 'rm -f "$mail"' EXIT
+printf 'From: %s\nTo: %s\nSubject: [Linedesk %s] %s\n\n%s\n' "$from_line" "$(printf '%s' "$to" | sed 's/,/, /g')" "$label" "$1" "$2" > "$mail"
+rcpts=''
+set -f # no glob expansion of the addresses
+for addr in $(printf '%s' "$to" | tr ',' ' '); do rcpts="$rcpts --mail-rcpt $addr"; done
+# $rcpts: one --mail-rcpt per address, split on purpose (setup.sh only lets plain addresses in).
+# shellcheck disable=SC2086
+# The SMTP URL holds the password: given to curl on stdin, never on its command line (ps would show it).
+printf 'url = "%s"\n' "$(printf '%s' "$smtp" | sed 's/\\/\\\\/g; s/"/\\"/g')" |
+  curl -sS --ssl-reqd -K - --mail-from "$from_addr" $rcpts --upload-file "$mail"

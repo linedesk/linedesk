@@ -1,0 +1,335 @@
+/* What your support mail shows (MailReview.tsx): start, status and the review of the topics found. */
+.mr-start {
+  display: grid;
+  gap: var(--space-2);
+}
+.mr-lead {
+  margin: 0;
+}
+.mr-start-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.mr-seg {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+}
+.mr-seg-btn {
+  height: calc(var(--control-h) - 4px);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.mr-seg-btn.is-on {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-xs);
+}
+.mr-seg-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.mr-run {
+  display: grid;
+  gap: var(--space-3);
+}
+.mr-run-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.mr-run-head b {
+  font-weight: 500;
+}
+.mr-run-pct {
+  margin-left: auto;
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.mr-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-hover);
+  overflow: hidden;
+}
+.mr-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ink);
+  transition: width 0.6s ease;
+}
+.mr-steps {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mr-step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: 13.5px;
+}
+.mr-step-text {
+  display: grid;
+  gap: 1px;
+}
+.mr-step-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border: 1.5px solid var(--line-control);
+  border-radius: 50%;
+}
+.mr-step.is-todo {
+  color: var(--ink-muted);
+}
+.mr-step.is-active .mr-step-mark {
+  border-color: var(--ink);
+  border-top-color: transparent;
+  animation: mr-spin 0.9s linear infinite;
+}
+.mr-step.is-done .mr-step-mark {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--surface);
+}
+@keyframes mr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mr-step.is-active .mr-step-mark {
+    animation: none;
+    border-top-color: var(--ink);
+  }
+  .mr-bar > span {
+    transition: none;
+  }
+}
+.mr-sofar {
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.mr-sofar-head {
+  display: grid;
+  gap: 2px;
+}
+.mr-sofar-head b {
+  font-weight: 500;
+}
+.mr-sofar ul {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mr-sofar li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 6px 0;
+  font-size: 13.5px;
+  animation: mr-in 0.3s ease;
+}
+.mr-sofar li + li {
+  border-top: 1px solid var(--line);
+}
+@keyframes mr-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}
+.mr-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  color: var(--ink-muted);
+  font-size: 13px;
+  margin-bottom: var(--space-3);
+}
+.mr-target {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  font-size: 13px;
+}
+.mr-again {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.mr-start.is-compact .k-btn-secondary {
+  height: var(--control-h-sm);
+}
+
+/* One topic: the head and the fields. */
+.mr-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.mr-card-head b {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.mr-step-pos {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.mr-editor {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.mr-field {
+  display: grid;
+  gap: 4px;
+}
+.mr-field > span {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.mr-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--space-3);
+}
+.mr-folded {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  color: var(--ink-muted);
+}
+.mr-folded b {
+  font-weight: 500;
+  color: var(--ink);
+}
+.mr-folded.is-dropped b {
+  color: var(--ink-muted);
+  text-decoration: line-through;
+}
+.mr-folded .kn-sub a {
+  color: inherit;
+}
+/* All topics reviewed. */
+.mr-all-done {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.mr-all-done b {
+  font-weight: 500;
+}
+
+/* The review: the topics on the left, the chosen one on the right; stacked on a phone. */
+.mr-split {
+  display: grid;
+  grid-template-columns: minmax(0, 34%) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+.mr-split-list {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mr-split-list li {
+  min-width: 0;
+}
+.mr-split-item {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 6px var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mr-split-item:hover {
+  background: var(--surface-hover);
+}
+.mr-split-item.is-at {
+  background: var(--highlight);
+}
+.mr-split-item.is-dropped .mr-split-title {
+  color: var(--ink-muted);
+  text-decoration: line-through;
+}
+.mr-split-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.mr-split-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mr-split-count {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.mr-split-detail {
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-card);
+  min-width: 0;
+}
+@media (max-width: 720px) {
+  .mr-split {
+    grid-template-columns: 1fr;
+  }
+}
+.mr-all-done {
+  flex-wrap: wrap;
+}
+.mr-all-next {
+  color: var(--ink-muted);
+}

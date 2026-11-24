@@ -1,0 +1,42 @@
+/* The summary card at the top of a settings page (SummaryCard.tsx). */
+.summary-card {
+  display: flex;
+  gap: 14px;
+  padding: 18px 20px;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+.summary-card-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-full);
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+.summary-card-text {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.summary-card-text p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 24px;
+  color: var(--ink-muted);
+  text-wrap: pretty;
+}
+.summary-card-text b {
+  font-weight: 600;
+  color: var(--ink);
+}
+.summary-card-text .summary-card-warn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 20px;
+}

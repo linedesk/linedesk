@@ -1,0 +1,16 @@
+# Your own machine: generous limits instead of the small server defaults in docker-compose.yml
+# (Postgres at 0.1 CPU makes saving hang under load, docs/local.md, Resource limits). Add it last
+# in COMPOSE_FILE, after docker-compose.dev.yml when dev mode is on:
+#   COMPOSE_FILE=docker-compose.yml${LINEDESK_MODE:+:docker-compose.$LINEDESK_MODE.yml}:docker-compose.local.yml
+# The voice services share cores 1-4 (LiveKit, SIP, the agent and egress).
+services:
+  postgres: { mem_limit: 1g, cpus: 2 }
+  electric: { mem_limit: 1g, cpus: 1 }
+  api: { mem_limit: 768m, cpus: 2 }
+  web: { mem_limit: 1g, cpus: 2 }
+  redis: { mem_limit: 256m, cpus: 0.5 }
+  proxy: { mem_limit: 256m, cpus: 1 }
+  livekit: { mem_limit: 512m, cpuset: "1-4" }
+  livekit-sip: { mem_limit: 256m, cpuset: "1-4" }
+  livekit-egress: { mem_limit: 1g, cpuset: "1-4" }
+  agent: { mem_limit: 1536m, cpuset: "1-4" }

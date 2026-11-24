@@ -1,0 +1,19 @@
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": [
+    {
+      "id": "0d89c70d-ad9f-4843-b99f-6cc0252067e9",
+      "hostname": "app.cascade-it.example",
+      "ssl": {
+        "id": "0d89c70d-ad9f-4843-b99f-6cc0252067e9",
+        "method": "http",
+        "status": "pending_validation",
+        "type": "dv"
+      },
+      "status": "pending"
+    }
+  ],
+  "result_info": { "page": 1, "per_page": 20, "count": 1, "total_count": 1 }
+}

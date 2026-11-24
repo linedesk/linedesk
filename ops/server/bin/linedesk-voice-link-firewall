@@ -1,0 +1,103 @@
+#!/bin/sh
+# On a server with a voice link (the app server with docker-compose.voice-link.yml: 3100, the API's internal listener;
+# voice server 1 with docker-compose.voice-media.yml: 7880, LiveKit): lets the link's port be reached only from the
+# servers in /etc/linedesk/voice-nodes.txt (one IPv4 address or range per line, their WireGuard addresses), only
+# through WireGuard (an interface named wg*, e.g. wg0), and only at the link's own address
+# (LINEDESK_VOICE_LINK_IP in the app's .env), never straight at a container. Everything else a voice server sends
+# through this server (a route to Docker's networks, other container ports) is dropped, whatever the Docker version.
+# Docker publishes ports past ufw, so the rules sit in DOCKER-USER (via the chain LINEDESK-VOICE-LINK). Traffic from
+# Docker's own bridges passes: the main server's own agent reaches the API and LiveKit there, container to container.
+#
+# The list takes private IPv4 only: 10/8, 172.16/12, 192.168/16 and 100.64/10, each entry a single address or a range
+# of at most /16 (a voice server is one address; a wide range lets the whole network in). IPv4 only: the voice link is
+# published on an IPv4 address (scripts/deploy.sh refuses anything else), so there is nothing to filter for IPv6.
+# With Docker's nftables firewall backend (opt-in since Docker 29) there is no DOCKER-USER and this has no effect:
+# keep Docker on its default iptables backend (docs/hosting.md).
+#
+# Fails closed, also at boot (before Docker, on an empty netfilter):
+# 1. When the chain does not exist yet, it is first created shut (Docker's bridges only, the link's ports dropped) and
+#    the jump to it is added, so nothing that follows can leave the ports open.
+# 2. The real chain is checked (iptables-restore --test) and then replaced in one step, so it never exists without its
+#    final DROP. A missing, empty or invalid list, a missing or wrong LINEDESK_VOICE_LINK_IP, or rules iptables
+#    refuses: the shut chain instead, no voice server gets in, and the unit fails (which sends an alert).
+# Idempotent; runs before Docker at boot.
+set -eu
+list=/etc/linedesk/voice-nodes.txt
+chain=LINEDESK-VOICE-LINK
+rules=$(mktemp) entries=$(mktemp) shut=$(mktemp); trap 'rm -f "$rules" "$entries" "$shut"' EXIT
+say() { echo "linedesk-voice-link-firewall: $*" >&2; }
+
+# private_ipv4 <address or range> <shortest prefix>: a private IPv4 address (10/8, 172.16/12, 192.168/16, 100.64/10),
+# or a range of at least that prefix length. Each octet 0-255 without leading zeros, so iptables reads what we read.
+private_ipv4() {
+  printf '%s\n' "$1" | grep -Eqx '((0|[1-9][0-9]{0,2})\.){3}(0|[1-9][0-9]{0,2})(/(0|[1-9][0-9]?))?' &&
+    printf '%s\n' "$1" | awk -F'[./]' -v min="$2" '{
+      for (i = 1; i <= 4; i++) if ($i + 0 > 255) exit 1
+      bits = NF == 5 ? $5 + 0 : 32
+      if (bits > 32 || bits < min) exit 1
+      if ($1 == 10 || ($1 == 172 && $2 >= 16 && $2 <= 31) || ($1 == 192 && $2 == 168) || ($1 == 100 && $2 >= 64 && $2 <= 127)) exit 0
+      exit 1
+    }'
+}
+
+# The chain that lets no voice server in: Docker's bridges pass, the link's ports are dropped for everyone else.
+{
+  echo '*filter'
+  echo ":$chain - [0:0]"
+  echo "-A $chain -i docker0 -j RETURN"
+  echo "-A $chain -i br-+ -j RETURN"
+  echo "-A $chain -p tcp -m conntrack --ctorigdstport 3100 -j DROP"
+  echo "-A $chain -p tcp -m conntrack --ctorigdstport 7880 -j DROP"
+  echo 'COMMIT'
+} > "$shut"
+
+iptables -w -N DOCKER-USER 2>/dev/null || true
+# 1. A new chain starts shut, and the jump goes in before anything else can fail.
+iptables -w -n -L "$chain" >/dev/null 2>&1 || iptables-restore -w --noflush < "$shut"
+jump="-m conntrack --ctdir ORIGINAL -j $chain"
+# shellcheck disable=SC2086
+iptables -w -C DOCKER-USER $jump 2>/dev/null || iptables -w -I DOCKER-USER $jump
+
+# 2. The real chain.
+status=0
+app_dir=$(sed -n 's/^LINEDESK_APP_DIR=//p' /etc/linedesk/ops.env 2>/dev/null | tail -1)
+link_ip=$(sed -n 's/^LINEDESK_VOICE_LINK_IP=//p' "${app_dir:-/opt/linedesk/app}/.env" 2>/dev/null | tail -1 | sed "s/^[\"']//; s/[\"']\$//")
+if ! private_ipv4 "$link_ip" 32; then
+  say "LINEDESK_VOICE_LINK_IP in ${app_dir:-/opt/linedesk/app}/.env is '$link_ip', not a private IPv4 address: no voice server can reach the voice link"
+  status=1
+elif [ ! -f "$list" ]; then
+  say "no $list: no voice server can reach the voice link"
+  status=1
+else
+  # Per voice server: the link's two ports at the link's address, nothing else. Any invalid entry empties the list.
+  sed 's/#.*//; s/[[:space:]]//g; /^$/d' "$list" > "$rules"
+  while read -r addr; do
+    if ! private_ipv4 "$addr" 16; then
+      say "not a private IPv4 address or range of /16 or narrower in $list: $addr"
+      status=1
+    fi
+    for port in 3100 7880; do
+      echo "-A $chain -i wg+ -s $addr -p tcp -m conntrack --ctorigdst $link_ip --ctorigdstport $port -j RETURN"
+    done
+    echo "-A $chain -s $addr -j DROP"
+  done < "$rules" > "$entries"
+  [ -s "$entries" ] || { say "no address in $list: no voice server can reach the voice link"; status=1; }
+fi
+[ "$status" = 0 ] || : > "$entries"
+{
+  echo '*filter'
+  echo ":$chain - [0:0]"
+  echo "-A $chain -i docker0 -j RETURN"
+  echo "-A $chain -i br-+ -j RETURN"
+  cat "$entries"
+  echo "-A $chain -p tcp -m conntrack --ctorigdstport 3100 -j DROP"
+  echo "-A $chain -p tcp -m conntrack --ctorigdstport 7880 -j DROP"
+  echo 'COMMIT'
+} > "$rules"
+if ! iptables-restore -w --noflush --test < "$rules"; then
+  say "iptables refuses the rules for $list: no voice server can reach the voice link"
+  cp "$shut" "$rules"
+  status=1
+fi
+iptables-restore -w --noflush < "$rules"
+exit "$status"

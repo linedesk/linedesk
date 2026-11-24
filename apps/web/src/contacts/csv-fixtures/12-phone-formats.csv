@@ -1,0 +1,16 @@
+Name,Phone
+US dashes,503-555-0291
+US dots with +1,+1 503.555.0292
+US leading 1,1-503-555-0293
+Germany +49,+49 30 12345678
+Germany 0049,0049 30 12345679
+UK with (0),+44 (0)20 7946 0958
+France,+33 1 99 00 53 00
+German national no country,030 12345670
+Too short,555-0142
+Letters,call me
+Excel scientific,5.03555E+09
+Plus zero,+0 503 555 0294
+Too long,+1 503 555 0295 1234 5678
+Vanity,1-800-FLOWERS
+Two numbers,503-555-0296 / 503-555-0297

@@ -1,0 +1,7 @@
+[Unit]
+Description=Linedesk capacity sample every minute
+[Timer]
+OnCalendar=*:*:00
+AccuracySec=5s
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,52 @@
+/* StatusMark: a 14px circle whose shape says the state; colour only adds to it. Works in ink (design-principles.md:
+   black is the primary colour, a working state is ink), partly in amber, failing in red, not set up as an empty ring.
+   Every class is k-mark-*, never a bare state word: a global rule (.empty in styles.css) once stretched the ring into
+   a large oval. The size is fixed so no flex or grid parent can stretch it. */
+.k-mark {
+  box-sizing: border-box;
+  display: inline-grid;
+  flex: none;
+  align-self: center;
+  place-items: center;
+  width: 14px;
+  min-width: 14px;
+  max-width: 14px;
+  height: 14px;
+  min-height: 14px;
+  max-height: 14px;
+  margin: 0;
+  padding: 0;
+  border-radius: var(--radius-full);
+  vertical-align: middle;
+  line-height: 1;
+}
+/* The glyph inside any circled mark (MarkGlyph): an icon whose ink is centred on its viewBox, laid out by the
+   circle's grid, so nothing depends on a font's metrics or the line-height around it. One stroke weight for every
+   size: 1.25px on screen (3 units at 10px, as before). */
+.k-mark-glyph {
+  display: block;
+  flex: none;
+  stroke-width: 1.25px;
+}
+.k-mark-glyph > * {
+  vector-effect: non-scaling-stroke;
+}
+.k-mark-works {
+  background: var(--ink);
+  color: var(--on-action);
+}
+.k-mark-partly {
+  background: var(--warning);
+  color: var(--on-danger);
+}
+.k-mark-failing {
+  background: var(--danger);
+  color: var(--on-danger);
+}
+.k-mark-empty {
+  border: 1.5px solid var(--line-control);
+}
+.k-mark-busy .k-spin {
+  width: 12px;
+  height: 12px;
+}

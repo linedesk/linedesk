@@ -1,0 +1,1308 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1794315794989,
+      "tag": "0000_windy_tana_nile",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794315795488,
+      "tag": "0001_row_version_triggers",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794317009208,
+      "tag": "0002_calendar_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794317700191,
+      "tag": "0003_calendar_checks",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794318963566,
+      "tag": "0004_tidy_ultimo",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794322166222,
+      "tag": "0005_salty_magneto",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794323432384,
+      "tag": "0006_admin_area",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794326856747,
+      "tag": "0007_onboarding_step",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794327942391,
+      "tag": "0008_fast_black_knight",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794332200513,
+      "tag": "0009_recording_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794332993000,
+      "tag": "0010_contact_blocked",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794333272728,
+      "tag": "0011_contact_deleted",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794335620809,
+      "tag": "0012_call_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794344672251,
+      "tag": "0013_assistant_call_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1794345679287,
+      "tag": "0014_phone_number_purchased",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1794353127450,
+      "tag": "0015_impersonation",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1794354413094,
+      "tag": "0016_recording_store",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794359522791,
+      "tag": "0017_calendar_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794360340888,
+      "tag": "0018_multiple_assistants",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1794362099058,
+      "tag": "0019_passkeys",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1794362393839,
+      "tag": "0020_booking_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1794363034228,
+      "tag": "0021_business_hours_opt_in",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1794363688372,
+      "tag": "0022_admin_second_factor",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794365067074,
+      "tag": "0023_member_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794365674969,
+      "tag": "0024_recording_notice",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794365957195,
+      "tag": "0025_api_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794366720972,
+      "tag": "0026_audit_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1794366819729,
+      "tag": "0027_webhooks",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1794368854932,
+      "tag": "0028_contact_merged_into",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1794380305358,
+      "tag": "0029_call_evaluations",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1794384572899,
+      "tag": "0030_voice_clones",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1794385943310,
+      "tag": "0031_push_subscriptions",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794386235516,
+      "tag": "0032_workspace_carrier",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1794386522614,
+      "tag": "0033_warm_transfer",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794387065791,
+      "tag": "0034_voice_clone_deleted",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794387472270,
+      "tag": "0035_phone_number_carrier_account",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794391155458,
+      "tag": "0036_passkey_enrolment",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1794401248047,
+      "tag": "0037_number_purchases",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1794403548797,
+      "tag": "0038_star_prompts",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1794404620722,
+      "tag": "0039_booking_address",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1794405339066,
+      "tag": "0040_assistant_greet_by_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794405450831,
+      "tag": "0041_silence_reminders",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1794405556494,
+      "tag": "0042_spending_cap",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1794405677259,
+      "tag": "0043_keypad_menu",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1794405856858,
+      "tag": "0044_workspace_members",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1794405991465,
+      "tag": "0045_command_log_pruned",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1794406683532,
+      "tag": "0046_transfer_contacts",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1794406810353,
+      "tag": "0047_knowledge",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1794407134814,
+      "tag": "0048_assistant_greeting_known_caller",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1794407257665,
+      "tag": "0049_appointment_type_conditions",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1794407422744,
+      "tag": "0050_appointment_type_booking_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1794407858466,
+      "tag": "0051_call_booking_misses",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1794407975334,
+      "tag": "0052_call_lead_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1794408124927,
+      "tag": "0053_outside_instructions_into_about",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1794408239334,
+      "tag": "0054_workspace_job_value",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1794408414932,
+      "tag": "0055_assistant_languages",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1794408922654,
+      "tag": "0056_settings_sections",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1794409294950,
+      "tag": "0057_assistant_versions",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1794411659841,
+      "tag": "0058_drop_emergency_note",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1794414044160,
+      "tag": "0059_drop_call_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1794424132831,
+      "tag": "0060_drop_keypad_menu",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1794485589114,
+      "tag": "0061_remove_greet_saved_contacts",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1794486817030,
+      "tag": "0062_assistant_talking_speed",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1794486882328,
+      "tag": "0063_assistant_silence_reminder",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1794487279616,
+      "tag": "0064_assistant_silence_hang_up",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1794487540652,
+      "tag": "0065_assistant_max_call_minutes",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1794489460497,
+      "tag": "0066_fold_services_faqs_into_about",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1794489950696,
+      "tag": "0067_assistant_webhooks",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1794490268497,
+      "tag": "0068_assistant_talking_speed_pct",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1794492707261,
+      "tag": "0069_webhook_lookups",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1794502443906,
+      "tag": "0070_transfers_no_urgent_fallback",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1794508364489,
+      "tag": "0071_reply_timings",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1794522094970,
+      "tag": "0072_setup_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1794522590769,
+      "tag": "0073_calls_from_own_number",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1794526967248,
+      "tag": "0074_assistant_voice_pipeline",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1794528007447,
+      "tag": "0075_contacts_name_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1794538847182,
+      "tag": "0076_pickup_mode",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1794549804282,
+      "tag": "0077_polite_maggott",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1794552298886,
+      "tag": "0078_abandoned_magma",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1794565423284,
+      "tag": "0079_onboarding_batch",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1794594749154,
+      "tag": "0080_agent_setup_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1794609717854,
+      "tag": "0081_provider_tests",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1794613312636,
+      "tag": "0082_job_value_currency",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1794614844364,
+      "tag": "0083_holiday_calendar",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1794621216006,
+      "tag": "0084_workspace_icons",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1794622356570,
+      "tag": "0085_call_evaluation_review",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1794652597769,
+      "tag": "0086_agent_setup_passkey",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1794655671681,
+      "tag": "0087_user_avatars",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1794661745569,
+      "tag": "0088_team_member_edit",
+      "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1794661745570,
+      "tag": "0089_agent_setup_key_end_reason",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1794694992462,
+      "tag": "0090_agent_setup_allow",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1794703803924,
+      "tag": "0091_one_owner",
+      "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1794708403087,
+      "tag": "0092_invitation_join_on_sign_in",
+      "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1794711741298,
+      "tag": "0093_workspace_locale",
+      "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1794713473827,
+      "tag": "0094_commands_audit_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1794726901172,
+      "tag": "0095_user_locale",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1794730652078,
+      "tag": "0096_admin_devices",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1794731960044,
+      "tag": "0097_auth_events_subject",
+      "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1794748260690,
+      "tag": "0098_call_transfer_seconds",
+      "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1794750703098,
+      "tag": "0099_tool_calendar_duration",
+      "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1794751560982,
+      "tag": "0100_api_keys_impersonator",
+      "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1794754872185,
+      "tag": "0101_admin_authenticators",
+      "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1794762526383,
+      "tag": "0102_agent_setup_keys_workspace",
+      "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1794765080042,
+      "tag": "0103_assistant_realtime_voice",
+      "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1794771237962,
+      "tag": "0104_caller_attestation",
+      "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1794772683197,
+      "tag": "0105_agent_setup_keys_role_session",
+      "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1794777041203,
+      "tag": "0106_country_hint",
+      "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1794786025585,
+      "tag": "0107_billing_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1794786482051,
+      "tag": "0108_recording_notice_default_on",
+      "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "7",
+      "when": 1794793011558,
+      "tag": "0109_premium_level",
+      "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1794799951254,
+      "tag": "0110_billing_levels",
+      "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1794800254315,
+      "tag": "0111_ultra_level",
+      "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "7",
+      "when": 1794831528912,
+      "tag": "0112_drop_workspace_language",
+      "breakpoints": true
+    },
+    {
+      "idx": 113,
+      "version": "7",
+      "when": 1794833578146,
+      "tag": "0113_integration_subscriptions",
+      "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1794846070887,
+      "tag": "0114_personal_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1794850918280,
+      "tag": "0115_personal_keys_admin_reset",
+      "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1794851630833,
+      "tag": "0116_prompt_overrides",
+      "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1794853886251,
+      "tag": "0117_drop_unused_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1794854583564,
+      "tag": "0118_awaiting_transcript",
+      "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1794857863973,
+      "tag": "0120_billing_admin",
+      "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1794859750414,
+      "tag": "0121_goodbye_line",
+      "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1794860250015,
+      "tag": "0122_app_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1794860806944,
+      "tag": "0123_signup",
+      "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1794863311359,
+      "tag": "0124_app_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1794864481783,
+      "tag": "0125_mcp_oauth",
+      "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1794864985692,
+      "tag": "0126_billing_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1794867162471,
+      "tag": "0127_app_slack",
+      "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1794870880357,
+      "tag": "0128_sign_in_counters",
+      "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1794871658208,
+      "tag": "0129_email_routing",
+      "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1794872990781,
+      "tag": "0130_email_assign",
+      "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1794899748665,
+      "tag": "0131_billing_manual_topup",
+      "breakpoints": true
+    },
+    {
+      "idx": 131,
+      "version": "7",
+      "when": 1794903278646,
+      "tag": "0132_partners",
+      "breakpoints": true
+    },
+    {
+      "idx": 132,
+      "version": "7",
+      "when": 1794904285243,
+      "tag": "0133_extra_calls",
+      "breakpoints": true
+    },
+    {
+      "idx": 133,
+      "version": "7",
+      "when": 1794905471466,
+      "tag": "0134_billing_recharge_tax",
+      "breakpoints": true
+    },
+    {
+      "idx": 134,
+      "version": "7",
+      "when": 1794907936283,
+      "tag": "0135_partner_client_usage_limit",
+      "breakpoints": true
+    },
+    {
+      "idx": 135,
+      "version": "7",
+      "when": 1794911083344,
+      "tag": "0136_partner_branding",
+      "breakpoints": true
+    },
+    {
+      "idx": 136,
+      "version": "7",
+      "when": 1794912049111,
+      "tag": "0137_command_input_hash",
+      "breakpoints": true
+    },
+    {
+      "idx": 137,
+      "version": "7",
+      "when": 1794923183714,
+      "tag": "0138_terms_acceptances",
+      "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1794926579296,
+      "tag": "0139_deleted_purge",
+      "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1794926960535,
+      "tag": "0140_ai_disclosure_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1794932536501,
+      "tag": "0141_activation_terms",
+      "breakpoints": true
+    },
+    {
+      "idx": 141,
+      "version": "7",
+      "when": 1794942020614,
+      "tag": "0142_trial_recharge",
+      "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1794947095523,
+      "tag": "0143_busy_line_alert",
+      "breakpoints": true
+    },
+    {
+      "idx": 143,
+      "version": "7",
+      "when": 1794955767390,
+      "tag": "0144_manager_change",
+      "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "7",
+      "when": 1794957187780,
+      "tag": "0145_silence_default_8s",
+      "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "7",
+      "when": 1794957280834,
+      "tag": "0146_webhook_url_host",
+      "breakpoints": true
+    },
+    {
+      "idx": 146,
+      "version": "7",
+      "when": 1794958507206,
+      "tag": "0147_email_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 147,
+      "version": "7",
+      "when": 1794959327761,
+      "tag": "0148_partner_domains",
+      "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1794960230559,
+      "tag": "0149_auto_recharge_off",
+      "breakpoints": true
+    },
+    {
+      "idx": 149,
+      "version": "7",
+      "when": 1794961583758,
+      "tag": "0150_auto_recharge_consent",
+      "breakpoints": true
+    },
+    {
+      "idx": 150,
+      "version": "7",
+      "when": 1794962553199,
+      "tag": "0151_account_trial",
+      "breakpoints": true
+    },
+    {
+      "idx": 151,
+      "version": "7",
+      "when": 1794963015718,
+      "tag": "0152_logged_url_hosts",
+      "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1794963414458,
+      "tag": "0153_call_quality",
+      "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1794963894438,
+      "tag": "0154_call_missing_info",
+      "breakpoints": true
+    },
+    {
+      "idx": 154,
+      "version": "7",
+      "when": 1794967693623,
+      "tag": "0155_provider_key_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 155,
+      "version": "7",
+      "when": 1794969706460,
+      "tag": "0156_drop_allow_switches",
+      "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1794971750811,
+      "tag": "0157_partner_agent_setup",
+      "breakpoints": true
+    },
+    {
+      "idx": 157,
+      "version": "7",
+      "when": 1794974074473,
+      "tag": "0158_call_quality_standard",
+      "breakpoints": true
+    },
+    {
+      "idx": 158,
+      "version": "7",
+      "when": 1794980179414,
+      "tag": "0159_partner_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 159,
+      "version": "7",
+      "when": 1794983289907,
+      "tag": "0160_partner_sender",
+      "breakpoints": true
+    },
+    {
+      "idx": 160,
+      "version": "7",
+      "when": 1794985666222,
+      "tag": "0161_session_host",
+      "breakpoints": true
+    },
+    {
+      "idx": 161,
+      "version": "7",
+      "when": 1794990320311,
+      "tag": "0162_terms_update",
+      "breakpoints": true
+    },
+    {
+      "idx": 162,
+      "version": "7",
+      "when": 1794994790099,
+      "tag": "0163_session_host_domain",
+      "breakpoints": true
+    },
+    {
+      "idx": 163,
+      "version": "7",
+      "when": 1795018378122,
+      "tag": "0164_country_follows",
+      "breakpoints": true
+    },
+    {
+      "idx": 164,
+      "version": "7",
+      "when": 1795020092239,
+      "tag": "0165_client_call_quality",
+      "breakpoints": true
+    },
+    {
+      "idx": 165,
+      "version": "7",
+      "when": 1795037708641,
+      "tag": "0166_number_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 166,
+      "version": "7",
+      "when": 1795042748421,
+      "tag": "0167_regulatory_register_court",
+      "breakpoints": true
+    },
+    {
+      "idx": 167,
+      "version": "7",
+      "when": 1795071057935,
+      "tag": "0168_drop_number_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 168,
+      "version": "7",
+      "when": 1795137724661,
+      "tag": "0169_mail_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 169,
+      "version": "7",
+      "when": 1795149004639,
+      "tag": "0170_feedback",
+      "breakpoints": true
+    },
+    {
+      "idx": 170,
+      "version": "7",
+      "when": 1795151124520,
+      "tag": "0171_mail_analyses",
+      "breakpoints": true
+    },
+    {
+      "idx": 171,
+      "version": "7",
+      "when": 1795193174655,
+      "tag": "0172_setup_feedback",
+      "breakpoints": true
+    },
+    {
+      "idx": 172,
+      "version": "7",
+      "when": 1795202916510,
+      "tag": "0173_agent_setup_counts",
+      "breakpoints": true
+    },
+    {
+      "idx": 173,
+      "version": "7",
+      "when": 1795206319958,
+      "tag": "0174_setup_preview_token",
+      "breakpoints": true
+    },
+    {
+      "idx": 174,
+      "version": "7",
+      "when": 1795241971129,
+      "tag": "0175_business_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 175,
+      "version": "7",
+      "when": 1795293068440,
+      "tag": "0176_impersonation_edits",
+      "breakpoints": true
+    },
+    {
+      "idx": 176,
+      "version": "7",
+      "when": 1795299793732,
+      "tag": "0177_recording_notice_per_assistant",
+      "breakpoints": true
+    },
+    {
+      "idx": 177,
+      "version": "7",
+      "when": 1795307473685,
+      "tag": "0178_mail_analysis_progress",
+      "breakpoints": true
+    },
+    {
+      "idx": 178,
+      "version": "7",
+      "when": 1795309350543,
+      "tag": "0179_mail_analysis_covered",
+      "breakpoints": true
+    },
+    {
+      "idx": 179,
+      "version": "7",
+      "when": 1795313120070,
+      "tag": "0180_app_setup_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 180,
+      "version": "7",
+      "when": 1795316856167,
+      "tag": "0181_shopify_installs",
+      "breakpoints": true
+    },
+    {
+      "idx": 181,
+      "version": "7",
+      "when": 1795396702269,
+      "tag": "0182_email_rules_drop_always",
+      "breakpoints": true
+    },
+    {
+      "idx": 182,
+      "version": "7",
+      "when": 1795399127779,
+      "tag": "0183_drop_email_routing_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 183,
+      "version": "7",
+      "when": 1795459774375,
+      "tag": "0184_drop_email_recipients",
+      "breakpoints": true
+    },
+    {
+      "idx": 184,
+      "version": "7",
+      "when": 1795500111406,
+      "tag": "0185_billing_rules_drop_fee_waiver",
+      "breakpoints": true
+    },
+    {
+      "idx": 185,
+      "version": "7",
+      "when": 1795500342652,
+      "tag": "0186_after_call_transcript_feature",
+      "breakpoints": true
+    }
+  ]
+}

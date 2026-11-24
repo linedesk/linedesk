@@ -1,0 +1,107 @@
+/* The test call panel: floats over the right edge of the page, like a call in the inbox but narrow. */
+.tcp {
+  position: fixed;
+  z-index: 40; /* under dialogs (50) and toasts (60) */
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  width: min(400px, calc(100vw - 16px));
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-popover);
+  overflow: hidden;
+}
+.tcp-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 8px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.tcp-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.tcp-title b {
+  flex: none;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tcp-sub {
+  min-width: 0;
+  font-size: 12px;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tcp-sub-problem {
+  color: var(--danger);
+}
+.tcp-ctl {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tcp-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 12px 14px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+/* Waiting (connecting, the assistant answering, the summary): a muted line with its spinner, never red. */
+.tcp-wait {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.tcp-f {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 8px;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+/* Cards from the call view, a size smaller for the narrow panel. */
+.tcp .sumcard {
+  gap: 10px;
+  padding: 12px 14px;
+}
+.tcp .bkc {
+  padding: 8px 12px;
+}
+.tcp .k-bubble {
+  max-width: 85%;
+}
+/* A line still being spoken: lighter, with a typing cue in place of its time. */
+.k-msg-pending .k-bubble {
+  opacity: 0.7;
+}
+.k-msg-pending .k-typing {
+  padding: 0;
+  gap: 2px;
+}
+.k-msg-pending .k-typing i {
+  width: 4px;
+  height: 4px;
+}
+/* Wide windows: the page moves over so the whole form stays visible (and editable) next to the panel. */
+@media (min-width: 1180px) {
+  body:has(> .tcp) .main {
+    padding-right: 408px;
+  }
+}

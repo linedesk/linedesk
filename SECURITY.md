@@ -1,18 +1,36 @@
 # Security policy
 
-## Reporting a vulnerability
-
-Please do not open a public issue. Use GitHub's private reporting instead: on the repository's **Security** tab choose **Report a vulnerability**. The report is visible to the maintainers only. If you cannot use GitHub, email [security@linedesk.ai](mailto:security@linedesk.ai).
-
-Include what you found, how to reproduce it and what an attacker could do with it. We aim to answer within three working days and will keep you informed until the fix is released. We are happy to credit you in the release notes if you wish.
-
-## Scope
-
-- The code in this repository, once it is published.
-- The website linedesk.ai, and Linedesk Cloud once it launches.
-
-Problems in third-party services (telephony, speech and model providers) belong with those providers, unless Linedesk uses them in an unsafe way.
+Linedesk handles phone calls, recordings, transcripts and calendar access for businesses, so we take reports seriously.
 
 ## Supported versions
 
-Linedesk is pre-release and the code is not public yet. Once it is, fixes land on `main`; there will be no maintained release branches at first.
+Only the latest release gets security fixes. Before you report, check that the issue is still there in the latest release (or on `main`). Self-hosters: update to the latest release to get a fix.
+
+## Reporting a vulnerability
+
+Please report privately. Do not open a public issue, pull request or discussion.
+
+- Use GitHub private vulnerability reporting: "Report a vulnerability" on the repository's [Security tab](https://github.com/linedesk/linedesk/security/advisories/new). The report is visible to the maintainers only.
+- Or email **support@linedesk.ai** with "Security" in the subject. It reaches the maintainers directly.
+
+Include what you found, how to reproduce it, the version or commit you tested, and what an attacker could do with it. Please don't access or change other people's data, and don't test against installs you don't run yourself; your own self-hosted install is the place to try things.
+
+## What to expect
+
+- We confirm receipt within 3 working days.
+- Within 10 working days we tell you whether we can reproduce it and how serious we think it is.
+- We keep you updated while we fix it, ship the fix in a release, and credit you in the release notes unless you prefer otherwise.
+- Please give us a reasonable time to ship a fix before you disclose anything publicly; we agree on a date with you.
+
+There is no bug bounty: we can't pay for reports.
+
+## Scope
+
+In scope: this repository (API, web app, voice agent, packages) and the self-host stack it ships (`docker-compose.yml`, Caddy configuration, images).
+
+Out of scope: vulnerabilities in third-party providers (carriers, speech, language model, calendar), denial of service by volume, and findings that need an already compromised server or a malicious instance admin.
+
+## For self-hosters
+
+- Set every secret in `.env` yourself (`BETTER_AUTH_SECRET`, `SECRETS_KEY`, `POSTGRES_PASSWORD`, `AGENT_API_TOKEN`, the LiveKit keys); the API refuses the placeholders where it can.
+- Keep `SECRETS_KEY` safe and backed up: it encrypts provider keys stored in the admin area.

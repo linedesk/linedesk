@@ -1,0 +1,1 @@
+ALTER TABLE "assistants" ADD COLUMN "voice_pipeline" text;

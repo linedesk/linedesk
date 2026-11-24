@@ -1,0 +1,188 @@
+/* Settings › Assistant › Call emails (CallEmails.tsx) and the call view's "Emailed after the call" (EmailedAfterCall.tsx). */
+
+/* Who hears about calls: the row for new teammates starts with a plus where the others have an avatar. */
+.ce-lead-new {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background: var(--surface-hover);
+  color: var(--ink-muted);
+}
+/* The rules sit under the people, apart from them. */
+.ce-people + .ce-rules {
+  margin-top: 16px;
+}
+
+/* Member chips with a remove button, and the picker to add one. */
+.ce-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.ce-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 24px;
+  padding: 0 8px 0 2px;
+  border-radius: var(--radius-full);
+  background: var(--surface-hover);
+  font-size: 12.5px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ce-chip:has(.ce-chip-x) {
+  padding-right: 2px;
+}
+.ce-chip-email {
+  color: var(--ink-muted);
+  font-size: 11.5px;
+}
+.ce-chip-x {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.ce-chip-x:hover {
+  color: var(--ink);
+  background: var(--line);
+}
+.ce-chip-x:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.ce-add {
+  min-width: 160px;
+}
+/* The picker's list shows each member's name and email address on one line (listWidth). */
+.ce-add .k-select-opt-l {
+  overflow-wrap: normal;
+}
+
+/* The rules: a bordered list, one block per rule. */
+.ce-rules {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.ce-rule {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+.ce-rule + .ce-rule {
+  border-top: 1px solid var(--line);
+}
+.ce-rule-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ce-rule-n {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  background: var(--surface-hover);
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 20px;
+  text-align: center;
+}
+.ce-rule-head > .ce-rule-label {
+  flex: none;
+}
+.ce-rule-when {
+  flex: 1;
+  min-width: 0;
+}
+.ce-rule-error {
+  margin: 0 0 0 30px;
+  font-size: 12px;
+  color: var(--danger);
+}
+/* Label column and value column, lined up after the number. */
+.ce-rule-body {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 12px;
+  margin-left: 30px;
+}
+.ce-rule-label {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.ce-rule-assign {
+  justify-self: start;
+  min-width: 180px;
+}
+/* A rule is never wider than its list: the field's own width must not set the grid column. */
+.ce-rules,
+.ce-rule {
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (max-width: 560px) {
+  /* Phone: number, label and remove on the first line, the topic field at full width under them. */
+  .ce-rule-head {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .ce-rule-head > .ce-rule-label {
+    flex: 1;
+  }
+  .ce-rule-when {
+    order: 1;
+    flex-basis: 100%;
+  }
+  .ce-rule-body {
+    grid-template-columns: minmax(0, 1fr);
+    margin-left: 0;
+  }
+}
+
+/* Call view, side panel. */
+.ce-sent {
+  gap: 6px;
+}
+.ce-sent-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ce-sent-head .mono {
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+.ce-sent-line {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink);
+}
+.ce-sent .help {
+  line-height: 17px;
+}
+/* The "?" with the model's reason follows the last word, not on a line of its own. */
+.ce-sent-line .k-help {
+  margin-left: 4px;
+  vertical-align: -3px;
+}

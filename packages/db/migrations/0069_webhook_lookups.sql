@@ -1,0 +1,1 @@
+ALTER TABLE "webhook_endpoints" ADD COLUMN "lookups" jsonb DEFAULT '[]'::jsonb NOT NULL;

@@ -1,0 +1,356 @@
+/* Kit form controls (controls.tsx): checkbox, switch, radio card, select (with option groups). */
+.k-check {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink);
+}
+.k-check-input,
+.k-radio-input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+.k-check-box {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid var(--line-control);
+  border-radius: 5px;
+  background: var(--surface);
+  color: transparent;
+  transition:
+    background 0.1s,
+    border-color 0.1s;
+}
+.k-check:hover .k-check-box {
+  border-color: var(--ink-muted);
+}
+.k-check-input:checked + .k-check-box {
+  background: var(--action);
+  border-color: var(--action);
+  color: var(--on-action);
+}
+.k-check-input:indeterminate + .k-check-box {
+  background: var(--action);
+  border-color: var(--action);
+}
+.k-check-input:indeterminate + .k-check-box > svg {
+  display: none;
+}
+.k-check-input:indeterminate + .k-check-box::after {
+  content: "";
+  width: 8px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: var(--on-action);
+}
+.k-check-input:focus-visible + .k-check-box {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.k-check-off {
+  cursor: not-allowed;
+  color: var(--ink-disabled);
+}
+.k-check-off .k-check-box {
+  background: var(--surface-hover);
+}
+.sw:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.k-radio {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  cursor: pointer;
+}
+.k-radio:hover {
+  background: var(--surface-hover);
+}
+.k-radio.on {
+  background: var(--highlight);
+  box-shadow: var(--ring-action), var(--shadow-1);
+}
+.k-radio:has(.k-radio-input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.k-radio-off {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.k-radio-dot {
+  flex: none;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+}
+.k-radio.on .k-radio-dot {
+  border: 5px solid var(--action);
+}
+.k-radio-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.k-radio-text b {
+  font-size: 13px;
+  font-weight: 600;
+}
+.k-radio-text span {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.k-radios {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.k-select {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+.k-select-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  height: var(--control-h);
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.k-select-sm .k-select-btn {
+  height: var(--control-h-sm);
+  font-size: 12.5px;
+}
+.k-select-btn .k-icon {
+  color: var(--ink-muted);
+}
+/* A label longer than the room ends in an ellipsis instead of widening the control (a language picker on a phone). */
+.k-select-btn > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.k-select-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+/* Nothing chosen yet ("Choose…"): a white field with the muted words of a text field's placeholder. */
+.k-select-btn.is-placeholder > span:first-child {
+  color: var(--ink-muted);
+}
+.k-select-btn:focus-visible {
+  outline: none;
+  border-color: var(--focus);
+  box-shadow: 0 0 0 1px var(--focus);
+}
+.k-select-btn:disabled {
+  color: var(--ink-disabled);
+  background: var(--surface-hover);
+  cursor: not-allowed;
+}
+.k-select-list {
+  /* Options line up at the start also inside centered text (the sign-in page's language select). */
+  text-align: start;
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: max(100%, 240px);
+  max-height: 280px;
+  overflow-y: auto;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-popover);
+  outline: none;
+}
+.k-select-end .k-select-list {
+  left: auto;
+  right: 0;
+}
+.k-select-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  border-radius: var(--radius-xs);
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.k-select-opt.active {
+  background: var(--surface-hover);
+}
+.k-select-opt.is-off {
+  color: var(--ink-muted);
+  cursor: default;
+}
+.k-select-group-h {
+  padding: 8px 8px 4px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  cursor: default;
+  user-select: none;
+}
+/* A group after other options: a line above its heading separates them. */
+.k-select-group:not(:first-child) {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+.k-select-opt-t {
+  display: grid;
+  gap: 1px;
+}
+/* A label without .k-select-opt-l: at its natural width, and on a narrow screen the end of a long one gives way to an
+   ellipsis. Select's and the searchable pickers' labels wrap instead (.k-select-opt-l). */
+.k-select-opt-t > span {
+  max-width: calc(100vw - 80px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.k-select-opt-t small {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  white-space: normal;
+}
+/* A label shows in full. Select: the list is as wide as its longest label (useAnchoredList, natural), and where the
+   window stops it ("Your number forwards calls you miss" at 375 px) the label wraps onto a second line. The searchable
+   pickers (SearchSelect, time zone) keep their width while the search narrows the list; a long label wraps in it. */
+.k-select-opt-t > .k-select-opt-l {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+/* While the list measures its width: each label on one line, descriptions left out (they wrap at that width). */
+.k-select-list[data-measuring] .k-select-opt-l {
+  white-space: nowrap;
+}
+.k-select-list[data-measuring] .k-select-opt-t small {
+  display: none;
+}
+/* The check mark's column, on every option (empty when not picked), so no label is narrower or shifts. */
+.k-select-opt-check {
+  flex: none;
+  display: inline-flex;
+  justify-content: center;
+  width: 14px;
+}
+
+/* An open list or menu in the top layer (useAnchoredList in floating.ts): placed with position: fixed against its
+   control, above dialogs and outside every scrolling body. Undoes the browser's own popover look. */
+.k-float {
+  box-sizing: border-box;
+  inset: auto;
+  margin: 0;
+  border: 0;
+  color: var(--ink);
+}
+.k-float.k-select-list,
+.k-float.cn-list {
+  min-width: 0;
+}
+
+/* The number field of "Use a number you have" with the carrier account's numbers under it (CarrierNumberInput). */
+.cn-pick {
+  display: block;
+  width: 100%;
+}
+.cn-pick .k-input {
+  width: 100%;
+}
+.cn-list {
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+.cn-empty {
+  padding: 6px 8px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+
+/* The nearby area codes with a free number, under "No number is free in that area code" (NearbyAreaCodes). */
+.ac-nearby {
+  display: grid;
+  gap: 6px;
+}
+.ac-nearby-t {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.ac-nearby-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ac-nearby-opt {
+  font-variant-numeric: tabular-nums;
+}
+.ac-nearby-tag {
+  margin-left: 6px;
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+
+/* A short list of checkboxes under a question (partner/InvitedPicker.tsx). */
+.k-check-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  border: 0;
+}
+.k-check-list > legend {
+  margin-bottom: 8px;
+  padding: 0;
+}
+/* An option's mark after its label (a settings section's count, to-do or unsaved dot), in the list and on the button. */
+.k-select-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  vertical-align: middle;
+}

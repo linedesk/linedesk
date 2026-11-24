@@ -1,0 +1,16 @@
+# Extra Caddy sites for this server: every *.caddy file in LINEDESK_CADDY_SITES_DIR is imported by the proxy
+# (docker/Caddyfile), e.g. an old address that redirects to the new one:
+#   old.example.com {
+#   	redir https://new.example.com{uri} permanent
+#   }
+# Switch it on in .env: COMPOSE_FILE=docker-compose.yml:docker-compose.https.yml:docker-compose.sites.yml and
+# LINEDESK_CADDY_SITES_DIR=/absolute/path (outside the checkout, so updates keep it).
+# Use it with docker-compose.https.yml (a site with a host name gets its own certificate). The directory is as trusted
+# as this file: owned by root, not writable by others. A file there is read when the proxy starts or reloads, not when
+# it changes: check it, then load it (a broken file makes the next reload fail, and a restart take the site down):
+#   docker compose exec proxy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+#   docker compose exec proxy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+services:
+  proxy:
+    volumes:
+      - ${LINEDESK_CADDY_SITES_DIR:?set LINEDESK_CADDY_SITES_DIR to a directory with *.caddy files}:/etc/caddy/sites:ro

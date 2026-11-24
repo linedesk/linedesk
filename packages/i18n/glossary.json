@@ -1,0 +1,190 @@
+{
+  "neverTranslate": [
+    "Linedesk",
+    "White-label Cloud",
+    "MCP",
+    "API",
+    "Webhook",
+    "OAuth",
+    "SIP",
+    "Telnyx",
+    "Twilio",
+    "Plivo",
+    "LiveKit",
+    "Google",
+    "Google Maps",
+    "Microsoft",
+    "Outlook",
+    "Excel",
+    "GitHub",
+    "Deepgram",
+    "Cloudflare for SaaS",
+    "ElevenLabs",
+    "OpenRouter",
+    "OpenAI",
+    "Cal.com",
+    "Calendly",
+    "Jobber",
+    "Zoho",
+    "iCloud",
+    "CalDAV",
+    "Maya",
+    "Brightwater",
+    "Mike Brennan"
+  ],
+  "terms": {
+    "Assistant": {
+      "note": "The AI that answers calls. Never 'receptionist'.",
+      "es": "asistente",
+      "pt-BR": "assistente",
+      "fr": "assistant",
+      "de": "Assistent (always the masculine form with er/sein, also for a female-named assistant such as Maya; never Assistentin. What the assistant says on calls is spoken-lines.ts, not this)",
+      "ja": "アシスタント"
+    },
+    "Workspace": {
+      "note": "One business in Linedesk.",
+      "es": "espacio de trabajo",
+      "pt-BR": "espaço de trabalho",
+      "fr": "espace de travail",
+      "de": "Workspace",
+      "ja": "ワークスペース"
+    },
+    "Server admin": {
+      "note": "The install-wide admin area and the people who may use it.",
+      "es": "Administración del servidor",
+      "pt-BR": "Administração do servidor",
+      "fr": "Administration du serveur",
+      "de": "Server-Admin",
+      "ja": "サーバー管理"
+    },
+    "Inbox": {
+      "es": "Bandeja de entrada",
+      "pt-BR": "Caixa de entrada",
+      "fr": "Boîte de réception",
+      "de": "Posteingang",
+      "ja": "受信トレイ"
+    },
+    "Needs you": {
+      "note": "The inbox view of calls that need a person.",
+      "es": "Pendientes",
+      "pt-BR": "Pendentes",
+      "fr": "À traiter",
+      "de": "Offen",
+      "ja": "要対応"
+    },
+    "Handled": {
+      "note": "A call that needs nothing more.",
+      "es": "Resuelto",
+      "pt-BR": "Resolvido",
+      "fr": "Traité",
+      "de": "Erledigt",
+      "ja": "対応済み"
+    },
+    "Done": {
+      "note": "A person marked the call done (the E key, the Done view). Must differ from Handled.",
+      "es": "Listo",
+      "pt-BR": "Concluído",
+      "fr": "Terminé",
+      "de": "Archiviert (the action: Archivieren; back: \"Archivierung aufheben\" on buttons, commands, shortcut hints and help rows, explained as \"Verschiebt den Anruf zurück in den Posteingang.\" where there is room; its toast: \"Zurück im Posteingang.\"), like archiving in email apps",
+      "ja": "完了"
+    },
+    "Remind / Reminder": {
+      "note": "Bring a call back later. Never 'snooze'.",
+      "es": "Recordar / Recordatorio",
+      "pt-BR": "Lembrar / Lembrete",
+      "fr": "Me le rappeler / Rappel",
+      "de": "Erinnern / Erinnerung",
+      "ja": "リマインド / リマインダー"
+    },
+    "Spam": { "es": "Spam", "pt-BR": "Spam", "fr": "Spam", "de": "Spam", "ja": "迷惑電話" },
+    "Contact": { "es": "contacto", "pt-BR": "contato", "fr": "contact", "de": "Kontakt", "ja": "連絡先" },
+    "Call": { "es": "llamada", "pt-BR": "chamada", "fr": "appel", "de": "Anruf", "ja": "通話" },
+    "Caller": { "es": "quien llama", "pt-BR": "quem ligou", "fr": "appelant", "de": "Anrufer", "ja": "発信者" },
+    "Call summary": {
+      "es": "Resumen de la llamada",
+      "pt-BR": "Resumo da chamada",
+      "fr": "Résumé de l'appel",
+      "de": "Anrufzusammenfassung",
+      "ja": "通話の要約"
+    },
+    "Business hours": {
+      "es": "Horario de atención",
+      "pt-BR": "Horário de atendimento",
+      "fr": "Horaires d'ouverture",
+      "de": "Öffnungszeiten",
+      "ja": "営業時間"
+    },
+    "Forwarding": {
+      "es": "Desvío de llamadas",
+      "pt-BR": "Encaminhamento",
+      "fr": "Renvoi d'appels",
+      "de": "Rufumleitung",
+      "ja": "転送"
+    },
+    "Number": { "es": "número", "pt-BR": "número", "fr": "numéro", "de": "Nummer", "ja": "番号" },
+    "Team": { "es": "Equipo", "pt-BR": "Equipe", "fr": "Équipe", "de": "Team", "ja": "チーム" },
+    "Owner": { "es": "Propietario", "pt-BR": "Proprietário", "fr": "Propriétaire", "de": "Inhaber", "ja": "オーナー" },
+    "Member": { "es": "Miembro", "pt-BR": "Membro", "fr": "Membre", "de": "Mitglied", "ja": "メンバー" },
+    "Test call": {
+      "es": "Llamada de prueba",
+      "pt-BR": "Chamada de teste",
+      "fr": "Appel de test",
+      "de": "Testanruf",
+      "ja": "テスト通話"
+    },
+    "Knowledge": {
+      "es": "Conocimientos",
+      "pt-BR": "Conhecimento",
+      "fr": "Connaissances",
+      "de": "Wissen",
+      "ja": "ナレッジ"
+    },
+    "Appointment type": {
+      "es": "Tipo de cita",
+      "pt-BR": "Tipo de agendamento",
+      "fr": "Type de rendez-vous",
+      "de": "Terminart",
+      "ja": "予約の種類"
+    },
+    "passkey": {
+      "note": "The platform's own word per language.",
+      "es": "llave de acceso",
+      "pt-BR": "chave de acesso",
+      "fr": "clé d'accès",
+      "de": "Passkey",
+      "ja": "パスキー"
+    },
+    "Invitation": {
+      "note": "An invitation to join a workspace.",
+      "es": "invitación",
+      "pt-BR": "convite",
+      "fr": "invitation",
+      "de": "Einladung",
+      "ja": "招待"
+    },
+    "Sign in / Sign out": {
+      "note": "Starting and ending a session in Linedesk.",
+      "es": "iniciar sesión / cerrar sesión",
+      "pt-BR": "entrar / sair",
+      "fr": "se connecter / se déconnecter",
+      "de": "anmelden / abmelden",
+      "ja": "サインイン / サインアウト"
+    },
+    "User": {
+      "note": "An account on the install (Server admin › Users).",
+      "es": "usuario",
+      "pt-BR": "usuário",
+      "fr": "utilisateur",
+      "de": "Nutzer",
+      "ja": "ユーザー"
+    }
+  },
+  "identical": {
+    "note": "Keys whose translation may equal the English text (names, codes, words that are the same in that language).",
+    "es": [],
+    "pt-BR": [],
+    "fr": [],
+    "de": [],
+    "ja": []
+  }
+}

@@ -1,0 +1,834 @@
+// The audit log for instance admins (docs/architecture.md §12, Audit log): who did what. Two sources:
+// the command log (`commands`: admin actions, team and role changes, provider keys, impersonation),
+// and `auth_events` for what happens in Better Auth's own endpoints (sign-ins with their method,
+// sign-in methods added or removed, invitations accepted). Nothing here is ever deleted.
+import { isBriefed, REDACTED } from '@linedesk/actions'
+import { auth_events, type Db, type Tx, user } from '@linedesk/db'
+import type { EmailRules, TransferContact } from '@linedesk/db/types'
+import { type createAuthMiddleware, isAPIError } from 'better-auth/api'
+import { eq, inArray, sql } from 'drizzle-orm'
+import { db } from './db.ts'
+import { LEVEL_CHANGE_REFUSED, LEVEL_RAISE_REFUSED } from './handler-context.ts'
+import type { SignupRuleChange } from './self-serve.ts'
+
+export type AuthEventName = (typeof auth_events.$inferInsert)['event']
+type AuthEvent = {
+  event: AuthEventName
+  userId: string | null
+  /** The address to keep with the event; by default the account's current one (email_changed keeps the old one). */
+  email?: string | null
+  method?: string | null
+  workspaceId?: string | null
+  /** Another account the event is about (auth_events.subject_id): listed as the entry's subject. */
+  subjectId?: string | null
+  ipAddress?: string | null
+  userAgent?: string | null
+}
+
+const newId = () => `ae_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
+
+/**
+ * Writes one event. A failed write is logged and never stops the sign-in it describes: the person
+ * would otherwise be locked out by a broken log.
+ */
+export async function recordAuthEvent(e: AuthEvent, tx: Db = db) {
+  try {
+    await insertAuthEvent(tx, e)
+  } catch (err) {
+    console.error(`audit: could not record ${e.event}`, err)
+  }
+}
+
+/**
+ * Writes one event and throws when it cannot: inside the transaction of the change it describes, so the two are saved
+ * together or not at all (a join and its `invitation_accepted`).
+ */
+export async function insertAuthEvent(tx: Db | Tx, e: AuthEvent) {
+  const [who] =
+    e.email !== undefined
+      ? [{ email: e.email }]
+      : e.userId
+        ? await tx.select({ email: user.email }).from(user).where(eq(user.id, e.userId))
+        : []
+  await tx.insert(auth_events).values({
+    id: newId(),
+    user_id: e.userId,
+    email: who?.email ?? null,
+    event: e.event,
+    method: e.method ?? null,
+    workspace_id: e.workspaceId ?? null,
+    subject_id: e.subjectId ?? null,
+    // Better Auth writes the unspecified address (::) when it has none.
+    ip_address: e.ipAddress && !/^[0:.]+$/.test(e.ipAddress) ? e.ipAddress : null,
+    user_agent: e.userAgent ?? null,
+  })
+}
+
+type HookCtx = { path?: string; params?: Record<string, string | undefined> } | null | undefined
+
+/** How a session was started, from the Better Auth endpoint that made it; null when not a sign-in (impersonation). */
+export function signInMethod(ctx: HookCtx): string | null {
+  const path = ctx?.path
+  if (!path) return null
+  if (path === '/sign-in/email' || path === '/sign-up/email') return 'password'
+  if (path === '/sign-in/email-otp') return 'email_code'
+  if (path === '/passkey/verify-authentication') return 'passkey'
+  if (path.startsWith('/callback/') || path.startsWith('/oauth2/callback/'))
+    return ctx?.params?.id ?? ctx?.params?.providerId ?? 'provider'
+  if (path === '/verify-email') return 'email_link'
+  return null
+}
+
+/** Better Auth `session.create.after`: a sign-in (or the sign-in that ends a sign-up). Impersonation is in the command log. */
+export async function recordSignIn(
+  created: { userId: string; impersonatedBy?: string | null; ipAddress?: string | null; userAgent?: string | null },
+  ctx: unknown,
+) {
+  if (created.impersonatedBy) return
+  const hook = ctx as HookCtx
+  const method = signInMethod(hook)
+  if (!method) return
+  await recordAuthEvent({
+    event: hook?.path === '/sign-up/email' ? 'sign_up' : 'sign_in',
+    userId: created.userId,
+    method,
+    ipAddress: created.ipAddress,
+    userAgent: created.userAgent,
+  })
+}
+
+/** Better Auth database hooks of the audit log (merged with the others in auth.ts). */
+export const auditHooks = {
+  session: { create: { after: recordSignIn } },
+  account: { create: { after: recordLinkedAccount } },
+}
+
+/** Better Auth `account.create.after`: a sign-in method joined the account (a provider, or a password). */
+export async function recordLinkedAccount(created: { userId: string; providerId: string }) {
+  await recordAuthEvent({
+    event: 'provider_linked',
+    userId: created.userId,
+    method: created.providerId === 'credential' ? 'password' : created.providerId,
+  })
+}
+
+/** Endpoints whose success is an audit event; the user is the session's. */
+const afterEvents: Record<string, AuthEventName> = {
+  '/passkey/verify-registration': 'passkey_added',
+  '/passkey/delete-passkey': 'passkey_removed',
+  '/change-password': 'password_changed',
+  '/organization/accept-invitation': 'invitation_accepted',
+}
+
+type AfterCtx = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0]
+
+/** Runs after Better Auth's endpoints (auth.ts): records the ones in `afterEvents` that succeeded. */
+export async function recordAuthEndpoint(ctx: AfterCtx) {
+  const event = afterEvents[ctx.path]
+  if (!event || isAPIError(ctx.context.returned)) return
+  const session = (ctx.context.session ?? ctx.context.newSession) as {
+    user?: { id: string }
+    session?: { impersonatedBy?: string | null; ipAddress?: string | null; userAgent?: string | null }
+  } | null
+  if (!session?.user) return
+  const returned = ctx.context.returned as { member?: { organizationId?: string } } | undefined
+  await recordAuthEvent({
+    event,
+    userId: session.user.id,
+    workspaceId: returned?.member?.organizationId ?? null,
+    ipAddress: session.session?.ipAddress,
+    userAgent: session.session?.userAgent,
+  })
+}
+
+/**
+ * A webhook URL's host only: its path or query can carry the receiver's bearer token. A bare host (what the command
+ * log keeps since LIN-403) stays as it is.
+ */
+export function urlHost(url: unknown): string {
+  const text = String(url)
+  if (/^([a-z0-9.-]+|\[[0-9a-f:.]+\])(:\d+)?$/i.test(text)) return text.toLowerCase()
+  try {
+    return new URL(text).host || 'a URL'
+  } catch {
+    return 'a URL'
+  }
+}
+
+/**
+ * What the audit log shows of an action's input. The command log keeps it as sent (secrets already
+ * redacted; a webhook URL as its host since LIN-403, older commands as sent); here a webhook URL becomes its host and an invitation id, which opens the invitation's
+ * page, keeps only its first characters.
+ */
+export function maskAuditInput(input: unknown): unknown {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return input
+  const masked: Record<string, unknown> = { ...(input as Record<string, unknown>) }
+  if (typeof masked.url === 'string') masked.url = urlHost(masked.url)
+  // Transfer contacts (assistant.update): their names and the numbers' last four digits only.
+  if (Array.isArray(masked.transfers))
+    masked.transfers = masked.transfers.map(c => {
+      const contact = (c ?? {}) as Partial<TransferContact>
+      return { id: contact.id, name: contact.name, number: maskedNumber(contact.number) }
+    })
+  // The call email instruction of older entries and the call email rules (assistant.update): never their text (they
+  // say who gets which call); data.emailRoutingChanges names who was added and removed.
+  if (typeof masked.email_routing === 'string') masked.email_routing = REDACTED
+  if (masked.email_rules && typeof masked.email_rules === 'object') masked.email_rules = REDACTED
+  // Stored redacted since 2026-11-11 (the action lists it as sensitive); older entries hold it in clear.
+  if (typeof masked.invitationId === 'string' && masked.invitationId !== REDACTED)
+    masked.invitationId = `${masked.invitationId.slice(0, 6)}…`
+  return masked
+}
+
+/** Which part of the log a row belongs to, for the filter. */
+export const AUDIT_KINDS = [
+  'sign_in',
+  'account',
+  'admin',
+  'team',
+  'impersonation',
+  'keys',
+  'integrations',
+  'partners',
+] as const
+export type AuditKind = (typeof AUDIT_KINDS)[number]
+
+/** Command-log actions that belong in the audit log, by kind. Everyday actions (calls, contacts) do not. */
+export const AUDITED_ACTIONS: Record<string, AuditKind> = {
+  'provider.setKeys': 'keys',
+  'provider.clearKeys': 'keys',
+  'provider.setActive': 'keys',
+  'provider.connectOneKey': 'keys',
+  'carrier.set': 'keys',
+  'carrier.provisionTransferTrunk': 'keys',
+  // A store's own Shopify app stored for a workspace (LIN-719), or its setup marked failed.
+  'shopifySetup.ready': 'keys',
+  'shopifySetup.failed': 'admin',
+  // Install-wide switches a server admin sets for every workspace.
+  'voiceCloning.set': 'admin',
+  'germanNumbers.set': 'admin',
+  'callQuality.set': 'admin',
+  // The wording of the assistant's system prompt for every workspace (LIN-346).
+  'systemPrompt.setPart': 'admin',
+  'systemPrompt.resetPart': 'admin',
+  'afterCallTranscript.set': 'admin',
+  'setupEmails.set': 'admin',
+  'founderEmail.set': 'admin',
+  // Who may sign up in which country: open to everyone, only invited addresses, or off (signup-access.ts).
+  'signupAccess.set': 'admin',
+  // The link to the Linedesk app on Zapier that workspaces open (integrations.ts).
+  'zapierApp.set': 'admin',
+  // Billing through Stripe on or off for the whole install.
+  'billingEnabled.set': 'admin',
+  // A stored Stripe event processed again by an instance admin.
+  'billing.reprocessEvent': 'admin',
+  // Server admin › Billing: every change to a bill, its money or the install's billing
+  // rules, each with the admin's reason in its input; reads are not listed.
+  'billing.credit': 'admin',
+  'billing.refund': 'admin',
+  'billing.adminSetStatus': 'admin',
+  'billing.setCap': 'admin',
+  'billing.setConcurrency': 'admin',
+  'billing.moveWorkspace': 'admin',
+  'billing.transferOwner': 'admin',
+  'billing.reviewHold': 'admin',
+  'billingRules.set': 'admin',
+  'signup.setSelfServe': 'admin',
+  'signup.setRules': 'admin',
+  // Self-serve sign-up: every sign-up.
+  'account.signUp': 'account',
+  // A new terms version accepted by a bill's owner (LIN-420).
+  'account.acceptTerms': 'account',
+  // The bill's Checkout, top-ups and its plan cancelled or resumed: the owner's decisions.
+  'billing.startCheckout': 'account',
+  'billing.confirmCheckout': 'account',
+  'billing.startTopUp': 'account',
+  'billing.cancel': 'account',
+  'billing.resume': 'account',
+  'billing.startAgain': 'account',
+  // Settings › Billing: auto-recharge, the cap, the portal and Retry; the overview is a read.
+  'billing.setAutoRecharge': 'account',
+  'billing.setRechargeCap': 'account',
+  'billing.setExtraCalls': 'account',
+  'billing.setInterval': 'account',
+  'billing.openPortal': 'account',
+  'billing.retryRecharge': 'account',
+  // Bill ownership and port-outs. Reads that reveal a secret are audited too.
+  'billing.recordPortOut': 'admin',
+  'billing.handOver': 'team',
+  'billing.portOutInfo': 'account',
+  'user.invite': 'admin',
+  'user.disable': 'admin',
+  'user.enable': 'admin',
+  'workspace.disable': 'admin',
+  'workspace.enable': 'admin',
+  'workspace.delete': 'admin',
+  // The daily data purges (data-purge.ts), written by the jobs themselves (`retention:system`): calls and contacts
+  // erased 30 days after they were deleted, and a workspace deleted 90 days after its bill was canceled.
+  'data.purgeDeleted': 'admin',
+  'workspace.purge': 'admin',
+  // A call erased at once by an owner or admin (call.delete with `permanent`, data-purge.ts eraseCallNow).
+  'call.erase': 'team',
+  'workspace.setSpendingCap': 'admin',
+  // Where every workspace's transfers may call through the install's carrier account (before: `data.previous`).
+  'outboundCountries.set': 'admin',
+  'instanceAdmin.grant': 'admin',
+  'instanceAdmin.revoke': 'admin',
+  'user.resetPasskeys': 'admin',
+  'user.issuePasskeyEnrolment': 'admin',
+  'account.authenticatorStart': 'admin',
+  'account.authenticatorConfirm': 'admin',
+  'account.authenticatorCheck': 'admin',
+  'account.authenticatorRemove': 'admin',
+  // The install's name, logo and color, and whether "Powered by Linedesk" shows.
+  'branding.set': 'admin',
+  // Which calendar tools members may connect, and how.
+  'calendarTools.set': 'admin',
+  'user.impersonate': 'impersonation',
+  'impersonation.stop': 'impersonation',
+  // Edits on or off during an impersonation (impersonation-guard.ts: with edits on it works as the user).
+  'impersonation.setEdits': 'impersonation',
+  'team.invite': 'team',
+  'team.resendInvite': 'team',
+  'team.revokeInvite': 'team',
+  'team.setRole': 'team',
+  'team.transferOwnership': 'team',
+  'team.removeMember': 'team',
+  'team.leave': 'team',
+  // An owner or admin changing a teammate's name, picture or notifications (team-member-edit.ts).
+  'team.updateMemberProfile': 'team',
+  'team.setMemberAvatar': 'team',
+  'team.removeMemberAvatar': 'team',
+  'team.updateMemberNotifications': 'team',
+  'workspace.deleteOwn': 'team',
+  'invitation.accept': 'team',
+  'invitation.decline': 'team',
+  // An instance admin changing who is in which workspace, also their own membership.
+  'membership.add': 'admin',
+  // A server admin making a workspace for a business and giving it its owner.
+  'workspace.create': 'admin',
+  'membership.setRole': 'admin',
+  'membership.remove': 'admin',
+  'invitation.revoke': 'admin',
+  'invitation.resend': 'admin',
+  // Ways in from outside that outlast a session: API keys and where call data is sent.
+  'apiKey.create': 'integrations',
+  'apiKey.revoke': 'integrations',
+  'webhook.create': 'integrations',
+  'webhook.update': 'integrations',
+  'webhook.delete': 'integrations',
+  'webhook.test': 'integrations',
+  // Where bookings with callers' details go, and phone numbers (buying one spends money).
+  'calendar.connectFinish': 'integrations',
+  'calendar.disconnect': 'integrations',
+  // Where every finished call goes with the caller's details: a connected app such as HubSpot.
+  'app.connectFinish': 'integrations',
+  'app.disconnect': 'integrations',
+  // Whether calls go to it, and whether it may add or change contacts there.
+  'app.updateSettings': 'integrations',
+  // A store installed from Shopify's App Store, linked to the workspace: a Shopify connection like app.connectFinish.
+  'shopify.linkInstall': 'integrations',
+  // A support mailbox (LIN-615): every customer email in it becomes readable.
+  'mail.connectFinish': 'integrations',
+  'mail.disconnect': 'integrations',
+  'phoneNumber.setup': 'integrations',
+  'phoneNumber.release': 'integrations',
+  // An AI agent acting as an instance admin: its setup link. confirmPasskey and withdrawPasskey (the Allow step, gone
+  // since the one-level setup link) stay listed, so their past entries still show.
+  'agentSetup.createKey': 'integrations',
+  // Data that leaves the install (LIN-210): feedback to the Linedesk team, a setup report from an agent's setup link
+  // among it, and an admin sending a kept setup report again. Only ids are logged, never the text.
+  'feedback.send': 'integrations',
+  'feedback.resend': 'integrations',
+  'agentSetup.confirmPasskey': 'integrations',
+  'agentSetup.withdrawPasskey': 'integrations',
+  'agentSetup.revoke': 'integrations',
+  // The agent ending its own setup link at the end of the setup (marked with the key, viaSetupKey).
+  'agentSetup.endOwnAccess': 'integrations',
+  // A workspace owner's setup link for their one workspace, and ending it.
+  'agentSetup.createWorkspaceKey': 'integrations',
+  'agentSetup.revokeWorkspace': 'integrations',
+  // A white-label partner owner's setup link for the partner and its client workspaces, and ending it.
+  'agentSetup.createPartnerKey': 'integrations',
+  'agentSetup.revokePartner': 'integrations',
+  'partner.setSetupStep': 'partners',
+  // White-label partners (docs/white-label.md): made, approved and suspended by an instance admin; their team, and the
+  // client workspaces they create (filed under that workspace).
+  'partner.create': 'partners',
+  'partner.approve': 'partners',
+  'partner.suspend': 'partners',
+  'partner.setClientLimit': 'partners',
+  'partner.adminMoveClient': 'partners',
+  'partner.update': 'partners',
+  'partnerMember.invite': 'partners',
+  'partnerMember.revokeInvite': 'partners',
+  'partnerMember.remove': 'partners',
+  'partnerInvitation.accept': 'partners',
+  'partnerInvitation.acceptMine': 'partners',
+  'workspace.createForClient': 'partners',
+  'workspace.inviteClientOwner': 'partners',
+  'partner.releaseClient': 'partners',
+  'partner.deleteClient': 'partners',
+  'partner.setClientUsageLimit': 'partners',
+  'partner.setClientCallQuality': 'partners',
+  'workspace.removePartner': 'partners',
+  'partnerBrand.set': 'partners',
+  'partnerBrand.setProtectedNames': 'partners',
+  'partnerBrand.approve': 'partners',
+  'partnerBrand.reset': 'partners',
+  // A partner's own provider keys (S7): never the key itself (the command log redacts `apiKey`).
+  'partnerKeys.set': 'partners',
+  'partnerKeys.clear': 'partners',
+  'partnerKeys.test': 'partners',
+  'partner.setClientOwnKeys': 'partners',
+  'partnerKeys.adminDisable': 'partners',
+  'partnerKeys.adminEnable': 'partners',
+  // A partner's own sender address and the proof of its support email (S6): never the code (redacted).
+  'partnerSender.add': 'partners',
+  'partnerSender.check': 'partners',
+  'partnerSender.sendTest': 'partners',
+  'partnerSender.remove': 'partners',
+  'partnerSender.adminRemove': 'partners',
+  'partnerBrand.verifySupportEmail': 'partners',
+  'partnerBrand.confirmSupportEmail': 'partners',
+  // A partner's own address (S5): added, checked and removed by its owner, removed by a server admin; and the job's own
+  // entries (actor `partner-domains:system`, partner-domain.ts recordSystemAudit): live, failed, removed after 30 days.
+  'partnerDomain.add': 'partners',
+  'partnerDomain.check': 'partners',
+  'partnerDomain.remove': 'partners',
+  'partnerDomain.adminRemove': 'partners',
+  'partnerDomain.live': 'partners',
+  'partnerDomain.failed': 'partners',
+  'partnerDomain.expired': 'partners',
+}
+
+/**
+ * Actions that are audited only when they changed the assistant's transfer contacts, the numbers calls are put
+ * through to: their handlers put `data.transferChanges` in the result then (kind `integrations`). Refused ones are
+ * listed when their input had `transfers`. Like every command, the input is cut down to ids after 90 days; the
+ * 90-day prune keeps `data.transferChanges` (ids, names, last four digits), deleting the workspace does not
+ * (command-log.ts).
+ */
+export const TRANSFER_CHANGE_ACTIONS = ['assistant.update', 'assistant.restoreVersion'] as const
+export const TRANSFER_CHANGE_KIND: AuditKind = 'integrations'
+
+/**
+ * The same actions are audited when they changed what decides the assistant's usage level on Linedesk Cloud (its call
+ * quality, and the models it picks within it): their handlers put `data.usageLevelChange` (before and
+ * after, model ids only) in the result then. Kind `team`.
+ */
+export const USAGE_LEVEL_CHANGE_KIND: AuditKind = 'team'
+type AuditedLevelFields = {
+  /** The assistant's call quality. */
+  call_quality?: string
+  voice_model: string | null
+  llm_model: string | null
+  /** Missing in entries from before Ultra. */
+  realtime_model?: string | null
+}
+/** What decides the level, before and after a change (handlers.ts, UsageLevelChange). */
+export type AuditedLevelChange = {
+  before: AuditedLevelFields
+  after: AuditedLevelFields
+}
+
+/** A number as the audit log keeps it: its last four digits ("…0199"); null: none. */
+export const maskedNumber = (number: string | null | undefined) =>
+  number ? `…${number.replace(/\D/g, '').slice(-4)}` : null
+
+/** A transfer contact as the audit log keeps it: never its whole number. */
+export type AuditedContact = { id: string; name: string; number: string | null }
+
+/**
+ * Which transfer contacts a change added, changed (with the fields that changed, and the number before when it was
+ * one of them) and removed, and whether the order changed. Only the contacts that changed, never the whole list.
+ */
+export type TransferChanges = {
+  added: AuditedContact[]
+  changed: (AuditedContact & { fields: string[]; numberBefore?: string | null })[]
+  removed: AuditedContact[]
+  reordered: boolean
+}
+
+const audited = (c: TransferContact): AuditedContact => ({ id: c.id, name: c.name, number: maskedNumber(c.number) })
+
+/** The fields of a contact that differ between two versions of it (jsonb keeps keys in its own order). */
+function changedFields(was: TransferContact, now: TransferContact): string[] {
+  const keys = [...new Set([...Object.keys(was), ...Object.keys(now)])].sort()
+  // A missing `briefing` is on (isBriefed): the settings page saves it as `true`, which is no change.
+  const get = (c: TransferContact, k: string) =>
+    JSON.stringify(k === 'briefing' ? isBriefed(c) : ((c as Record<string, unknown>)[k] ?? null))
+  return keys.filter(k => get(was, k) !== get(now, k))
+}
+
+/** What changed between two lists of transfer contacts (matched by id; a new order alone is a change too), or null. */
+export function transferChanges(before: TransferContact[], after: TransferContact[]): TransferChanges | null {
+  const was = new Map(before.map(c => [c.id, c]))
+  const now = new Set(after.map(c => c.id))
+  const added = after.filter(c => !was.has(c.id)).map(audited)
+  const changed = after.flatMap(c => {
+    const old = was.get(c.id)
+    const fields = old ? changedFields(old, c) : []
+    if (!fields.length) return []
+    return [
+      { ...audited(c), fields, ...(fields.includes('number') ? { numberBefore: maskedNumber(old!.number) } : {}) },
+    ]
+  })
+  const removed = before.filter(c => !now.has(c.id)).map(audited)
+  const order = (list: TransferContact[], keep: (id: string) => boolean) =>
+    list
+      .filter(c => keep(c.id))
+      .map(c => c.id)
+      .join()
+  const reordered = order(before, id => now.has(id)) !== order(after, id => was.has(id))
+  if (!added.length && !changed.length && !removed.length && !reordered) return null
+  return { added, changed, removed, reordered }
+}
+
+/**
+ * A change of an assistant's call email rules (assistant.update, `email_rules`): which members now get emails by them
+ * and which no longer do, never the rules' text. Audited like transfer contacts (kind
+ * `integrations`): it decides where call summaries and transcripts are emailed. Null when the rules did not change.
+ */
+export type AuditedMention = { kind: 'member'; id: string; name: string | null }
+export type EmailRoutingChanges = { added: AuditedMention[]; removed: AuditedMention[] }
+
+/** The members the rules email: each rule's, each once. */
+const rulesMembers = (r: EmailRules | null | undefined) => [...new Set((r?.rules ?? []).flatMap(rule => rule.to))]
+/** The rules in one key order (jsonb stores its keys in its own order). */
+const rulesKey = (r: EmailRules | null | undefined) =>
+  JSON.stringify((r?.rules ?? []).map(({ id, when, to, assign }) => [id, when, to, assign ?? null]))
+const sameRules = (before: EmailRules | null | undefined, after: EmailRules | null | undefined) =>
+  rulesKey(before) === rulesKey(after)
+
+/** Who a rules change added and removed (`names`: member names by user id), or null when it did not change. */
+export function emailRoutingChanges(
+  before: EmailRules | null | undefined,
+  after: EmailRules | null | undefined,
+  names: ReadonlyMap<string, string>,
+): EmailRoutingChanges | null {
+  if (sameRules(before, after)) return null
+  const was = rulesMembers(before)
+  const now = rulesMembers(after)
+  const audited = (id: string): AuditedMention => ({ kind: 'member', id, name: names.get(id) ?? null })
+  return {
+    added: now.filter(id => !was.includes(id)).map(audited),
+    removed: was.filter(id => !now.includes(id)).map(audited),
+  }
+}
+
+/** emailRoutingChanges with the names of the members, read from the database. */
+export async function emailRoutingChangesIn(
+  tx: Tx,
+  before: EmailRules | null | undefined,
+  after: EmailRules | null | undefined,
+): Promise<EmailRoutingChanges | null> {
+  if (sameRules(before, after)) return null
+  const ids = [...new Set([...rulesMembers(before), ...rulesMembers(after)])]
+  const rows = ids.length
+    ? await tx.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, ids))
+    : []
+  return emailRoutingChanges(before, after, new Map(rows.map(r => [r.id, r.name])))
+}
+
+/** What the admin page gets of a rules change: member names. */
+export type EmailRoutingChangeNames = { added: string[]; removed: string[] }
+const mentionNames = (changes: EmailRoutingChanges): EmailRoutingChangeNames => {
+  const name = (m: AuditedMention) => m.name ?? m.id
+  return { added: changes.added.map(name), removed: changes.removed.map(name) }
+}
+
+/** What the admin page gets of a change: the names it shows. */
+export type TransferChangeNames = { added: string[]; changed: string[]; removed: string[] }
+const namesOf = (changes: TransferChanges): TransferChangeNames => ({
+  added: changes.added.map(c => c.name),
+  changed: changes.changed.map(c => c.name),
+  removed: changes.removed.map(c => c.name),
+})
+
+const transferChangeActions = sql.join(
+  TRANSFER_CHANGE_ACTIONS.map(a => sql`${a}`),
+  sql`, `,
+)
+/**
+ * SQL: a command of `c` that changed transfer contacts (`data.transferChanges` an object: a workspace's deletion cuts
+ * it down to "[omitted]"), or one refused whose input had transfers.
+ */
+const transferChangeSql = sql`(c.action in (${transferChangeActions}) and (jsonb_typeof(c.result->'data'->'transferChanges') = 'object' or (c.rejected and c.input ? 'transfers')))`
+/** SQL: an assistant.update of `c` that changed the call email rules (or, before LIN-470, the instruction), or one refused whose input had them. */
+const emailRoutingChangeSql = sql`(c.action = 'assistant.update' and (jsonb_typeof(c.result->'data'->'emailRoutingChanges') = 'object' or (c.rejected and (c.input ? 'email_rules' or c.input ? 'email_routing'))))`
+/**
+ * The English of a refused raise, as the command log kept a rejection before it kept its `reason` (`result.error`,
+ * run-action.ts): how an older refused assistant.restoreVersion raise is told apart, whose input names only the
+ * version (review L-3). Only a fallback for those entries; newer ones carry LEVEL_RAISE_REFUSED.
+ */
+// i18n-ignore: the English older command-log rows kept (before 2026-11-18 reworded it), matched, never shown
+export const LEVEL_RAISE_REFUSED_TEXT =
+  'Premium and Ultra cost more a minute: only the person who pays for this workspace can pick them.'
+/**
+ * SQL: a command of `c` that changed what decides the assistant's usage level (`data.usageLevelChange` an object), or
+ * one refused whose input named a call quality, or one refused as a raise or another call quality change (`result.reason`, refuseLevelChange: an edit
+ * or a version restore, also a refusal that is no 403, a disabled workspace), or an older version restore refused
+ * with the raise's English.
+ */
+const usageLevelChangeSql = sql`(c.action in (${transferChangeActions}) and (jsonb_typeof(c.result->'data'->'usageLevelChange') = 'object' or (c.rejected and (c.input ? 'call_quality' or c.result->>'reason' in (${LEVEL_RAISE_REFUSED}, ${LEVEL_CHANGE_REFUSED}) or (c.action = 'assistant.restoreVersion' and starts_with(c.result->>'error', ${LEVEL_RAISE_REFUSED_TEXT}))))))`
+
+/**
+ * A change of the recording notice (assistant.update with `recording_notice_on` or `recording_notice`; before LIN-710
+ * workspace.updateSettings with `recordingNoticeOn` or `recordingNotice`): turned off or on, or its text changed (legal review 2026-11-17, A4: callers in all-party-consent states must be told).
+ * Read from the input, whose keys and booleans the 90-day prune keeps (command-log.ts), so the entry stays listed.
+ * Kind `team`, like the owner's other decisions about the workspace.
+ */
+export const RECORDING_NOTICE_CHANGE_KIND: AuditKind = 'team'
+const recordingNoticeChangeSql = sql`((c.action = 'assistant.update' and (c.input ? 'recording_notice_on' or c.input ? 'recording_notice')) or (c.action = 'workspace.updateSettings' and (c.input ? 'recordingNoticeOn' or c.input ? 'recordingNotice')))`
+
+/**
+ * Whom a team or membership change was about, put in the action's result (`data.subject`) by its
+ * handler, since a removed member's row is gone afterwards. The audit log shows the address and
+ * lists the entry under the workspace changed, which for an instance admin is not their own;
+ * `workspaceId: null` lists it under none (a new instance admin without a workspace).
+ */
+export type AuditSubject = { email: string | null; workspaceId: string | null }
+
+/** The subject of a change to `userId`'s membership of `workspaceId`. */
+export async function memberSubject(tx: Tx, userId: string, workspaceId: string): Promise<AuditSubject> {
+  const [who] = await tx.select({ email: user.email }).from(user).where(eq(user.id, userId))
+  return { email: who?.email ?? null, workspaceId }
+}
+
+/** The subject of a change to an invitation: the invited address. */
+export const invitationSubject = (invite: { email: string; organizationId: string }): AuditSubject => ({
+  email: invite.email,
+  workspaceId: invite.organizationId,
+})
+
+const AUTH_EVENT_KIND: Record<AuthEventName, AuditKind> = {
+  sign_in: 'sign_in',
+  sign_up: 'sign_in',
+  provider_linked: 'account',
+  passkey_added: 'account',
+  passkey_removed: 'account',
+  password_changed: 'account',
+  email_changed: 'account',
+  invitation_accepted: 'team',
+  sign_up_undone: 'sign_in',
+  call_routing_reset: 'integrations',
+  invitation_reassigned: 'team',
+  invitation_withdrawn: 'team',
+  api_key_dropped: 'integrations',
+  personal_key_dropped: 'account',
+  zapier_subscription_dropped: 'integrations',
+  setup_link_dropped: 'integrations',
+  webhook_dropped: 'integrations',
+  calendar_dropped: 'integrations',
+  app_dropped: 'integrations',
+  mail_dropped: 'integrations',
+}
+
+export type AuditEntry = {
+  id: string
+  at: string
+  kind: AuditKind
+  /** An action name (`team.setRole`) or an auth event (`sign_in`). */
+  what: string
+  /** sign-in method or provider, for auth events. */
+  method: string | null
+  actor: { id: string | null; email: string | null; name: string | null }
+  /** The instance admin acting as `actor` (impersonation). */
+  impersonatedBy: { id: string; email: string | null } | null
+  /** Done by an AI agent with the actor's setup key (agent_setup_keys.id): "via agent setup link". */
+  viaSetupKey: string | null
+  workspace: { id: string; name: string | null } | null
+  /** Whom a team or membership change was about (`AuditSubject`). */
+  subject: { email: string | null } | null
+  /** The action's input as the command log keeps it (secrets already redacted). */
+  input: unknown
+  /** The transfer contacts a change added, changed and removed, by name (TRANSFER_CHANGE_ACTIONS only). */
+  transferChanges?: TransferChangeNames
+  /** Who a change of the call email instruction added and removed (assistant.update); never the text. */
+  emailRoutingChanges?: EmailRoutingChangeNames
+  /** The voice model, language model or pipeline a change set, before and after (assistant.update, restoreVersion). */
+  usageLevelChange?: AuditedLevelChange
+  /** signup.setRules: each sign-up rule it changed, with the value before and after (security review of #1097, L-1). */
+  ruleChanges?: SignupRuleChange[]
+  /** apiKey.revoke: the revoked key's name (its input has only the id). */
+  apiKeyName?: string
+  /**
+   * partner.releaseClient, workspace.removePartner: the addresses of the people the partner's team invited who left
+   * with it (security review of #1113, M-1).
+   */
+  removedPeople?: string[]
+  refused: boolean
+  ipAddress: string | null
+}
+
+export type AuditFilter = {
+  kind?: AuditKind
+  /** Part of the actor's email or name. */
+  who?: string
+  workspaceId?: string
+  from?: string
+  to?: string
+  /** Paging: the `next` cursor of the previous page (`<at>|<id>` of its last entry). */
+  before?: string
+  limit?: number
+}
+
+/** A real calendar day, YYYY-MM-DD: 2026-02-30 and 2026-13-01 are not. */
+export function isCalendarDay(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const at = new Date(`${value}T00:00:00Z`)
+  return !Number.isNaN(at.getTime()) && at.toISOString().slice(0, 10) === value
+}
+
+/** A paging cursor as `listAudit` hands it out: `<ISO time>|<entry id>`, with a real time. */
+export function isAuditCursor(value: string): boolean {
+  const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z)\|([\w-]{1,64})$/.exec(value)
+  if (!match) return false
+  const at = Date.parse(match[1]!)
+  return !Number.isNaN(at) && new Date(at).toISOString().slice(0, 10) === match[1]!.slice(0, 10)
+}
+
+// biome-ignore lint/suspicious/noExplicitAny: rows of a hand-written union query
+type Row = Record<string, any>
+
+/** Newest first, both sources merged. */
+export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: AuditEntry[]; next: string | null }> {
+  const limit = Math.min(200, Math.max(1, f.limit ?? 50))
+  const actions = Object.keys(AUDITED_ACTIONS)
+  const kindActions = f.kind ? actions.filter(a => AUDITED_ACTIONS[a] === f.kind) : actions
+  const kindEvents = (Object.keys(AUTH_EVENT_KIND) as AuthEventName[]).filter(
+    e => !f.kind || AUTH_EVENT_KIND[e] === f.kind,
+  )
+  // Everything done while an admin was signed in as someone else counts as impersonation, whatever the action.
+  const withImpersonated = !f.kind || f.kind === 'impersonation'
+  // Everything an AI agent did with a setup link counts as an integration, whatever the action (docs/api.md, Setup MCP).
+  const withSetupKey = !f.kind || f.kind === 'integrations'
+  const withTransferChanges = !f.kind || f.kind === TRANSFER_CHANGE_KIND
+  const withLevelChanges = !f.kind || f.kind === USAGE_LEVEL_CHANGE_KIND
+  const withNoticeChanges = !f.kind || f.kind === RECORDING_NOTICE_CHANGE_KIND
+  const listed = kindActions.length
+    ? sql`c.action in (${sql.join(
+        kindActions.map(a => sql`${a}`),
+        sql`, `,
+      )})`
+    : sql`false`
+  const commandRows =
+    kindActions.length ||
+    withImpersonated ||
+    withSetupKey ||
+    withTransferChanges ||
+    withLevelChanges ||
+    withNoticeChanges
+      ? sql`select c.id, c.created_at as at, c.action as what, null::text as method, c.actor_id, null::text as email_then,
+        c.impersonated_by, c.setup_key_id,
+        case when c.result->'data'->'subject' ? 'workspaceId' then c.result->'data'->'subject'->>'workspaceId'
+          else coalesce(c.input->>'workspaceId', c.workspace_id) end as workspace_id,
+        c.input, c.result->'data'->'subject'->>'email' as subject_email, c.result->'data'->'transferChanges' as transfer_changes, ${transferChangeSql} as transfer_change,
+        c.result->'data'->'emailRoutingChanges' as email_routing_changes, ${emailRoutingChangeSql} as routing_change,
+        c.result->'data'->'usageLevelChange' as usage_level_change, ${usageLevelChangeSql} as level_change,
+        case when c.action = 'signup.setRules' then c.result->'data'->'ruleChanges' end as rule_changes,
+        case when c.action in ('partner.releaseClient', 'workspace.removePartner')
+          then c.result->'data'->'removedPeople' end as removed_people,
+        ${recordingNoticeChangeSql} as notice_change,
+        case when c.action = 'apiKey.revoke' then (select k.name from api_keys k
+          where k.id = c.input->>'apiKeyId' and k.workspace_id = c.workspace_id) end as api_key_name,
+        c.rejected as refused, null::text as ip_address, 'command' as source
+        from commands c where ${listed}${withImpersonated ? sql` or c.impersonated_by is not null` : sql``}${
+          withSetupKey ? sql` or c.setup_key_id is not null` : sql``
+        }${withTransferChanges ? sql` or ${transferChangeSql} or ${emailRoutingChangeSql}` : sql``}${withLevelChanges ? sql` or ${usageLevelChangeSql}` : sql``}${withNoticeChanges ? sql` or ${recordingNoticeChangeSql}` : sql``}`
+      : null
+  const eventRows = kindEvents.length
+    ? sql`select e.id, e.created_at as at, e.event as what, e.method, e.user_id as actor_id, e.email as email_then,
+        null::text as impersonated_by, null::text as setup_key_id, e.workspace_id, null::jsonb as input,
+        (select s.email from "user" s where s.id = e.subject_id) as subject_email, null::jsonb as transfer_changes, false as transfer_change,
+        null::jsonb as email_routing_changes, false as routing_change,
+        null::jsonb as usage_level_change, false as level_change, null::jsonb as rule_changes,
+        null::jsonb as removed_people, false as notice_change,
+        null::text as api_key_name, false as refused, e.ip_address, 'auth' as source
+        from auth_events e where e.event in (${sql.join(
+          kindEvents.map(e => sql`${e}`),
+          sql`, `,
+        )})`
+    : null
+  const parts = [commandRows, eventRows].filter(Boolean) as ReturnType<typeof sql>[]
+  if (!parts.length) return { entries: [], next: null }
+  const union = sql.join(parts, sql` union all `)
+  const conditions = [sql`true`]
+  if (f.workspaceId) conditions.push(sql`a.workspace_id = ${f.workspaceId}`)
+  if (f.from) conditions.push(sql`a.at >= ${f.from}::timestamptz`)
+  if (f.to) conditions.push(sql`a.at < ${f.to}::timestamptz`)
+  const [beforeAt, beforeId] = f.before?.split('|') ?? []
+  if (beforeAt && beforeId) conditions.push(sql`(a.at, a.id) < (${beforeAt}::timestamptz, ${beforeId})`)
+  if (f.who?.trim()) {
+    const like = `%${f.who
+      .trim()
+      .toLowerCase()
+      .replace(/[%_\\]/g, m => `\\${m}`)}%`
+    conditions.push(
+      sql`(lower(coalesce(u.email, a.email_then, '')) like ${like} or lower(coalesce(u.name, '')) like ${like})`,
+    )
+  }
+  const rows = (
+    await tx.execute(sql`
+      select a.*, to_char(a.at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as at_iso,
+        u.email as actor_email, u.name as actor_name, ib.email as impersonator_email, o.name as workspace_name
+      from (${union}) a
+      left join "user" u on u.id = a.actor_id
+      left join "user" ib on ib.id = a.impersonated_by
+      left join organization o on o.id = a.workspace_id
+      where ${sql.join(conditions, sql` and `)}
+      order by a.at desc, a.id desc
+      limit ${limit + 1}`)
+  ).rows as Row[]
+  const page = rows.slice(0, limit)
+  const entries = page.map(
+    (r): AuditEntry => ({
+      id: r.id,
+      at: r.at_iso,
+      kind:
+        r.source === 'command'
+          ? (AUDITED_ACTIONS[r.what] ??
+            (r.transfer_change || r.routing_change
+              ? TRANSFER_CHANGE_KIND
+              : r.level_change
+                ? USAGE_LEVEL_CHANGE_KIND
+                : r.notice_change
+                  ? RECORDING_NOTICE_CHANGE_KIND
+                  : r.setup_key_id
+                    ? 'integrations'
+                    : 'impersonation'))
+          : AUTH_EVENT_KIND[r.what as AuthEventName],
+      what: r.what,
+      method: r.method,
+      actor: {
+        id: r.actor_id === 'cli' ? null : r.actor_id,
+        email: r.actor_email ?? r.email_then ?? null,
+        name: r.actor_name ?? null,
+      },
+      impersonatedBy: r.impersonated_by ? { id: r.impersonated_by, email: r.impersonator_email ?? null } : null,
+      viaSetupKey: r.setup_key_id ?? null,
+      workspace: r.workspace_id ? { id: r.workspace_id, name: r.workspace_name ?? null } : null,
+      subject: r.subject_email ? { email: r.subject_email } : null,
+      input: maskAuditInput(r.input),
+      ...(r.transfer_changes && typeof r.transfer_changes === 'object'
+        ? { transferChanges: namesOf(r.transfer_changes as TransferChanges) }
+        : {}),
+      ...(r.email_routing_changes && typeof r.email_routing_changes === 'object'
+        ? { emailRoutingChanges: mentionNames(r.email_routing_changes as EmailRoutingChanges) }
+        : {}),
+      ...(r.usage_level_change && typeof r.usage_level_change === 'object'
+        ? { usageLevelChange: r.usage_level_change as AuditedLevelChange }
+        : {}),
+      ...(Array.isArray(r.rule_changes) ? { ruleChanges: r.rule_changes as SignupRuleChange[] } : {}),
+      ...(r.api_key_name ? { apiKeyName: String(r.api_key_name) } : {}),
+      ...(Array.isArray(r.removed_people) && r.removed_people.length
+        ? { removedPeople: (r.removed_people as unknown[]).map(String) }
+        : {}),
+      refused: Boolean(r.refused),
+      ipAddress: r.ip_address,
+    }),
+  )
+  const last = page.at(-1)
+  return { entries, next: rows.length > limit && last ? `${last.at_iso}|${last.id}` : null }
+}

@@ -1,0 +1,42 @@
+/* Open questions (Assistant area) and Server admin › Call reviews: compact rows like Knowledge. */
+.rv-list .rv-row {
+  padding: 10px 0;
+}
+.rv-list .rv-row:first-child {
+  padding-top: 0;
+}
+.rv-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.rv-answer {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+}
+.rv-answer > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.rv-empty {
+  margin: 0;
+}
+.kn-sub a {
+  color: inherit;
+}
+/* On a phone the score and the buttons go under the text. */
+@media (max-width: 560px) {
+  .rv-row {
+    flex-wrap: wrap;
+  }
+  .rv-row > .kn-main {
+    flex-basis: 100%;
+  }
+}
+/* No open questions: the app's empty picture, a little smaller inside the card. */
+.rv-zero .zero {
+  padding: 8px 0 4px;
+}

@@ -1,0 +1,158 @@
+// The model behind a simulated call (LIN-391): an OpenAI-compatible chat completions API, called the way the call's
+// LLM is (LiveKit's OpenAI plugin with replyRequestFields: parallel tool calls, the reply cap, OpenRouter fallbacks).
+// Counts tokens per model for the cost line of the report. Keys never leave this module (no logging).
+import { defaultReasoningEffort } from '@livekit/agents-plugin-openai'
+import { noTrainingFields } from '@linedesk/actions'
+import { replyRequestFields } from '../pipeline.ts'
+import type { OpenAiTool } from './tools.ts'
+
+export type ChatMessage =
+  | { role: 'system'; content: string }
+  | { role: 'user'; content: string }
+  | { role: 'assistant'; content: string | null; tool_calls?: ToolCall[] }
+  | { role: 'tool'; tool_call_id: string; content: string }
+
+export type ToolCall = { id: string; type: 'function'; function: { name: string; arguments: string } }
+
+/** `zeroDataRetention` (OpenRouter, default on): as on calls, noTrainingFields. */
+export type ModelConfig = {
+  baseUrl: string
+  apiKey: string
+  model: string
+  fallbacks?: string[]
+  zeroDataRetention?: boolean
+}
+
+type Usage = {
+  prompt_tokens?: number
+  completion_tokens?: number
+  prompt_tokens_details?: { cached_tokens?: number }
+  /** What OpenRouter charged for the request, in USD. */
+  cost?: number
+}
+
+/** Per model: requests, tokens, the USD the provider reported (OpenRouter), and the assistant's reply times. */
+export type UsageTotals = Record<
+  string,
+  { calls: number; input: number; cachedInput: number; output: number; reportedUsd: number; replyMs: number[] }
+>
+
+/**
+ * Where --provider sends the assistant's requests: an OpenAI-compatible chat completions API and the env variable
+ * with its key. The judge and the simulated caller stay on the install's LLM, so the grading is the same for every
+ * model.
+ */
+export const PROVIDERS: Record<string, { baseUrl: string; keyEnv: string }> = {
+  openai: { baseUrl: 'https://api.openai.com/v1', keyEnv: 'OPENAI_API_KEY' },
+  openrouter: { baseUrl: 'https://openrouter.ai/api/v1', keyEnv: 'OPENROUTER_API_KEY' },
+  anthropic: { baseUrl: 'https://api.anthropic.com/v1', keyEnv: 'ANTHROPIC_API_KEY' },
+  deepseek: { baseUrl: 'https://api.deepseek.com/v1', keyEnv: 'DEEPSEEK_API_KEY' },
+}
+
+/** USD per million tokens (input, cached input, output); a model not listed is reported without a price. */
+export const PRICES: Record<string, { input: number; cached: number; output: number }> = {
+  'gpt-4.1': { input: 2, cached: 0.5, output: 8 },
+  'gpt-4.1-mini': { input: 0.4, cached: 0.1, output: 1.6 },
+  'gpt-4.1-nano': { input: 0.1, cached: 0.025, output: 0.4 },
+  'gpt-4o': { input: 2.5, cached: 1.25, output: 10 },
+  'gpt-4o-mini': { input: 0.15, cached: 0.075, output: 0.6 },
+  'gpt-5': { input: 1.25, cached: 0.125, output: 10 },
+  'gpt-5-mini': { input: 0.25, cached: 0.025, output: 2 },
+  'gpt-5-nano': { input: 0.05, cached: 0.005, output: 0.4 },
+  'gpt-5.4-mini': { input: 0.75, cached: 0.075, output: 4.5 },
+  'gpt-5.4-nano': { input: 0.2, cached: 0.02, output: 1.25 },
+}
+
+export function costOf(totals: UsageTotals): number | null {
+  let sum = 0
+  for (const [model, t] of Object.entries(totals)) {
+    if (t.reportedUsd > 0) {
+      sum += t.reportedUsd
+      continue
+    }
+    const price = PRICES[model.replace(/^openai\//, '')]
+    if (!price) return null
+    sum += ((t.input - t.cachedInput) * price.input + t.cachedInput * price.cached + t.output * price.output) / 1e6
+  }
+  return sum
+}
+
+export class ModelError extends Error {}
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+export function createModel(config: ModelConfig, usage: UsageTotals) {
+  const totals = (model: string) =>
+    (usage[model] ??= { calls: 0, input: 0, cachedInput: 0, output: 0, reportedUsd: 0, replyMs: [] })
+  const count = (model: string, u: Usage | undefined) => {
+    const t = totals(model)
+    t.calls++
+    t.input += u?.prompt_tokens ?? 0
+    t.cachedInput += u?.prompt_tokens_details?.cached_tokens ?? 0
+    t.output += u?.completion_tokens ?? 0
+    t.reportedUsd += u?.cost ?? 0
+  }
+
+  async function post(
+    body: Record<string, unknown>,
+  ): Promise<{ message: { content: string | null; tool_calls?: ToolCall[] } }> {
+    for (let attempt = 0; ; attempt++) {
+      const res = await fetch(`${config.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${config.apiKey}` },
+        body: JSON.stringify(body),
+      }).catch(e => ({ ok: false, status: 0, text: async () => String(e) }) as const)
+      if (res.ok) {
+        const json = (await (res as Response).json()) as {
+          choices?: { message: { content: string | null; tool_calls?: ToolCall[] } }[]
+          usage?: Usage
+        }
+        count(String(body.model), json.usage)
+        const message = json.choices?.[0]?.message
+        if (!message) throw new ModelError('the model returned no choice')
+        return { message }
+      }
+      const retry = res.status === 0 || res.status === 429 || res.status >= 500
+      if (!retry || attempt >= 5) {
+        const text = (await res.text()).slice(0, 300)
+        throw new ModelError(`chat completions failed (${res.status}): ${text}`)
+      }
+      await sleep(1000 * 2 ** attempt + Math.random() * 500)
+    }
+  }
+
+  return {
+    model: config.model,
+    /** One reply of the assistant, as the call's LLM is asked for it. `toolsOff`: the last round of a turn (MAX_TOOL_STEPS). */
+    async reply(messages: ChatMessage[], tools: OpenAiTool[], { toolsOff = false } = {}) {
+      const effort = defaultReasoningEffort(config.model)
+      const started = performance.now()
+      const out = await post({
+        model: config.model,
+        messages,
+        ...(tools.length ? { tools, parallel_tool_calls: true, ...(toolsOff ? { tool_choice: 'none' } : {}) } : {}),
+        ...(effort ? { reasoning_effort: effort } : {}),
+        ...replyRequestFields(config.model, config.fallbacks ?? [], config.baseUrl, config.zeroDataRetention),
+      })
+      // The whole reply, not the first token: the suite does not stream (a call does).
+      totals(config.model).replyMs.push(Math.round(performance.now() - started))
+      return out
+    },
+    /** A plain completion (the simulated caller, the judge); `json`: ask for a JSON object. */
+    async complete(
+      messages: ChatMessage[],
+      { json = false, temperature }: { json?: boolean; temperature?: number } = {},
+    ) {
+      const { message } = await post({
+        model: config.model,
+        messages,
+        ...(json ? { response_format: { type: 'json_object' } } : {}),
+        ...(temperature !== undefined ? { temperature } : {}),
+        ...noTrainingFields(config.baseUrl, config.zeroDataRetention),
+      })
+      return message.content ?? ''
+    },
+  }
+}
+
+export type Model = ReturnType<typeof createModel>

@@ -1,0 +1,7 @@
+[Unit]
+Description=Linedesk: uptime checks of another install (linedesk-monitor)
+OnFailure=linedesk-alert@%n.service
+[Service]
+Type=oneshot
+StateDirectory=linedesk-monitor
+ExecStart=/usr/local/sbin/linedesk-monitor

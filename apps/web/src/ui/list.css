@@ -1,0 +1,188 @@
+/* Lists (list.tsx): short lists inside a settings card, one compact row per item, separated by
+   hairlines; a one-line empty state; a small menu for a row's or a section's actions. */
+.k-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+.k-row {
+  display: grid;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+.k-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.k-row:last-child {
+  padding-bottom: 0;
+}
+.k-row-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  min-width: 0;
+}
+.k-row-lead {
+  display: inline-flex;
+  flex: none;
+}
+.k-row-main {
+  display: grid;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+.k-row-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13.5px;
+  line-height: 20px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Text next to a badge in the title: the text is cut with "…", the badge stays. */
+.k-row-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.k-row-sub {
+  font-size: 12.5px;
+  line-height: 17px;
+  color: var(--ink-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.k-row-aside {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.k-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+/* Phone: a quiet status beside the title would leave the name and its line a few letters wide, so it goes on
+   its own line under them; lead and actions stay at the sides of the first line. */
+@media (max-width: 560px) {
+  .k-row-line:has(> .k-row-aside) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 10px;
+    row-gap: 4px;
+  }
+  .k-row-line:has(> .k-row-lead):has(> .k-row-aside) {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .k-row-line:has(> .k-row-aside) > .k-row-lead,
+  .k-row-line:has(> .k-row-aside) > .k-row-main {
+    grid-row: 1;
+  }
+  .k-row-line:has(> .k-row-aside) > .k-row-aside {
+    grid-row: 2;
+    grid-column: 1;
+    justify-self: start;
+  }
+  .k-row-line:has(> .k-row-lead) > .k-row-aside {
+    grid-column: 2;
+  }
+  .k-row-line:has(> .k-row-aside) > .k-row-actions {
+    grid-row: 1 / span 2;
+    grid-column: -2;
+  }
+}
+.k-row.is-off .k-row-main,
+.k-row.is-off .k-row-lead {
+  opacity: 0.55;
+}
+.k-list-empty {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+/* Menu: a small popover under its button. */
+/* The ▾ after a labelled menu button's text ("Set up ▾"): quiet, close to the words. */
+.k-menu-chevron {
+  margin-left: 2px;
+  margin-right: -2px;
+  color: var(--ink-muted);
+}
+.k-menu-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.k-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  z-index: 30;
+  display: grid;
+  gap: 1px;
+  min-width: 180px;
+  padding: 4px;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+}
+.k-menu-end {
+  right: 0;
+}
+.k-menu-start {
+  left: 0;
+}
+.k-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.k-menu-item:hover,
+.k-menu-item:focus-visible {
+  background: var(--surface-hover);
+  outline: none;
+}
+.k-menu-item:disabled {
+  color: var(--ink-disabled);
+  cursor: default;
+}
+.k-menu-item.is-danger {
+  color: var(--danger);
+}
+
+@media (max-width: 559px) {
+  .k-row-line {
+    flex-wrap: wrap;
+  }
+  /* The title keeps a readable width; status and actions move to the next line instead of squeezing it. */
+  .k-row-main {
+    flex-basis: 150px;
+  }
+}
