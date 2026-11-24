@@ -55,6 +55,7 @@ export const BROWSER_ONLY_ROUTES: ReadonlyMap<string, string> = new Map([
   ['/v1/impersonation/stop', SESSION],
   ['/v1/workspace/agent-setup', SETUP_LINKS],
   ['/v1/partner/agent-setup', SETUP_LINKS],
+  ['/v1/agent-setup/active', SETUP_LINKS],
   ['/v1/calendar/callback/:provider', OAUTH_RETURN],
   ['/v1/mail/callback/:provider', OAUTH_RETURN],
   ['/v1/apps/callback/:app', OAUTH_RETURN],
