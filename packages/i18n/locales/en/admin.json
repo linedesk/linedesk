@@ -105,6 +105,8 @@
   "afterCallTranscript.upload": "After each call, its recording file is uploaded to the service you pick, which transcribes it again to correct the caller's words in the transcript. Off until you pick one. It uses the key connected for that service under Providers and is billed per call minute there.",
   "afterCallTranscript.use": "Use",
   "afterCallTranscript.useTip": "Transcribe recordings with {service} after each call.",
+  "afterCallTranscript.voiceKey": "Key from Voice: needs Speech to Text permission",
+  "afterCallTranscript.voiceKeyTip": "ElevenLabs uses the key connected for the voice. Give that key Speech to Text access in ElevenLabs (Developers › API Keys), or connect ElevenLabs under Speech to text, else recordings are not transcribed again.",
   "api.confirmPasskey": "Confirm with your passkey.",
   "api.needsPasskey": "Server admin needs your passkey.",
   "api.serverAnswered": "The server answered {status}",

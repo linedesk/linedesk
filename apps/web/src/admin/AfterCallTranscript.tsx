@@ -5,6 +5,7 @@
 // connected links to its provider. Off until an admin picks one. Workspace members just see the better transcript.
 import {
   type AfterCallTranscriptData,
+  type AfterCallTranscriptOption,
   type ProviderName,
   providerCategoryLabel,
   providerSpec,
@@ -23,6 +24,9 @@ import { type AdminData, runAdmin } from './api.ts'
 import { Logo, providerMeta } from './ProviderLogo.tsx'
 
 const AFTER_CALL = 'admin.afterCallTranscript'
+/** ElevenLabs with only the voice's key: that key may not have Speech to Text permission. */
+const voiceOnlyElevenLabs = (option: AfterCallTranscriptOption) =>
+  option.service === 'elevenlabs' && option.keyFrom === 'elevenlabs'
 const load = async () => (await runAdmin('afterCallTranscript.get', {})) as AfterCallTranscriptData
 
 type Props = {
@@ -86,13 +90,20 @@ export function AfterCallTranscript({ data: admin }: Props) {
                       {t('admin.afterCallTranscript.inUse')}
                     </span>
                   )}
-                  {option.keyFrom && (
-                    <span className="adm-tile-status">
-                      {t('admin.afterCallTranscript.keyFrom', {
-                        category: providerCategoryLabel(providerSpec(option.keyFrom).category, i18n()),
-                      })}
-                    </span>
-                  )}
+                  {option.keyFrom &&
+                    (voiceOnlyElevenLabs(option) ? (
+                      // A key made for the voice may lack Speech to Text: ElevenLabs then refuses (401) and the live
+                      // transcript stays. Said before it is picked, not found out from calls.
+                      <span className="adm-tile-status" title={t('admin.afterCallTranscript.voiceKeyTip')}>
+                        {t('admin.afterCallTranscript.voiceKey')}
+                      </span>
+                    ) : (
+                      <span className="adm-tile-status">
+                        {t('admin.afterCallTranscript.keyFrom', {
+                          category: providerCategoryLabel(providerSpec(option.keyFrom).category, i18n()),
+                        })}
+                      </span>
+                    ))}
                 </span>
                 <span className="adm-prov-actions">
                   {option.state === 'in_use' && (
