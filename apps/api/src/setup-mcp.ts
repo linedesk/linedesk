@@ -1163,8 +1163,8 @@ export const past = (current: string | null | undefined, step: (typeof onboardin
 
 /**
  * How far onboarding got, for `past`: the stored step, and after "Finish later" (`skipped`) the furthest step it was
- * moved to before (onboarding.setStep, in the command log), so a step passed with its defaults kept (Who hears about
- * calls saves nothing then) stays done after Finish later. The log keeps a command's input for 90 days (command-log.ts);
+ * moved to before (onboarding.setStep, in the command log), so a step passed with its defaults kept (Urgent calls
+ * saves nothing then) stays done after Finish later. The log keeps a command's input for 90 days (command-log.ts);
  * a workspace set aside longer counts by its data alone.
  */
 export async function stepReached(workspaceId: string, step: string | null | undefined) {
@@ -1372,7 +1372,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   const forwarding = numbers.find(n => n.mode === 'forward_conditional' || n.mode === 'forward_all')
   // What is done follows the data, so an agent that saves a step without moving onboarding on still sees it done; a
   // step onboarding went past is done too, also when the owner chose "Finish later" after it (`went`). The assistant
-  // and who hears about calls are choices with defaults: done once changed, or passed.
+  // and urgent calls are choices with defaults: done once changed, or passed.
   const step = settings?.onboarding_step
   const went = await stepReached(workspaceId, step)
   // A workspace on a Linedesk Cloud bill is served only in the sign-up countries (served-countries.ts): one whose
@@ -1396,7 +1396,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
     .from(member_notification_settings)
     .where(eq(member_notification_settings.workspace_id, workspaceId))
     .limit(1)
-  // The "Who hears about calls?" step saves a member's notifications and its own transfer contact (id "urgent",
+  // The "Urgent calls" step saves a member's notifications and its own transfer contact (id "urgent",
   // URGENT_CONTACT_ID in apps/web/src/onboarding/flow.ts); kept as it was, it saves nothing: then passing it counts.
   const notifyDone = !!notifyRow || !!assistant?.transfers.some(t => t.id === URGENT_CONTACT_ID) || past(went, 'notify')
   // A Linedesk Cloud sign-up waiting for its trial: the free steps first, then the owner's card

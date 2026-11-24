@@ -103,7 +103,7 @@
   "agentSetup.optional.showTitle": "Show the providers calls do not need",
   "agentSetup.optional.title": "More providers (optional)",
   "agentSetup.owner.business": "Business",
-  "agentSetup.owner.lede": "Your agent does the setup with you: your business, your assistant, when to pick up, who hears about calls and a phone number. <b>About 10 minutes.</b> It asks before anything that costs money.",
+  "agentSetup.owner.lede": "Your agent does the setup with you: your business, your assistant, when to pick up, urgent calls and a phone number. <b>About 10 minutes.</b> It asks before anything that costs money.",
   "agentSetup.owner.ledePrepared": "{partner} set up your business and assistant. Next: your phone number and a test call.",
   "agentSetup.owner.linkHelp": "It lets your agent set up your business for you, using setup tools only: never the server or another business. For security, the link stops working after {hours, plural, one {# hour} other {# hours}}. You can end it here at any time.",
   "agentSetup.owner.signInFirst.text": "A setup link lets your agent change your business for {hours, plural, one {# hour} other {# hours}}, so making one needs a sign-in from the last 10 minutes. Sign in again, then create the link.",

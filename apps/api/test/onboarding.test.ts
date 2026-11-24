@@ -53,7 +53,7 @@ describe('onboarding progress', () => {
     expect((await settingsOf(ws.id))?.pickup_mode).toBe('after_hours')
   })
 
-  test("who hears about calls: the owner's mobile is an urgent transfer contact, checked like any other", async () => {
+  test("urgent calls: the owner's mobile is an urgent transfer contact, checked like any other", async () => {
     const ws = await createWorkspace('Who Hears Plumbing')
     const { transfers } = ws.assistant
     const urgent = (number: string) => ({
