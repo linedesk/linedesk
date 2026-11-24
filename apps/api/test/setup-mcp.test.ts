@@ -1730,13 +1730,13 @@ describe('what is done follows the data (B6)', () => {
     expect(settings!.step).toBe('skipped')
   })
 
-  test('"Finish later" after passing Who hears about calls with its defaults: the steps passed stay done (LIN-646)', async () => {
+  test('"Finish later" after passing Urgent calls with its defaults: the steps passed stay done (LIN-646)', async () => {
     const admin = await signUp()
     await db.update(user).set({ emailVerified: true, instanceAdmin: true }).where(eq(user.id, admin.userId))
     const { key } = await makeKey(admin)
     const made = data(await call(key, 'workspace_create', { name: 'Brightwater Passed', timeZone: 'America/Denver' }))
     const workspaceId = (made as { workspace: { id: string } }).workspace.id
-    // As the app moves it: on to the number (nothing saved on Who hears about calls), then Finish later.
+    // As the app moves it: on to the number (nothing saved on Urgent calls), then Finish later.
     for (const step of ['assistant', 'pickup', 'notify', 'phone', 'skipped'])
       expect(data(await call(key, 'onboarding_setStep', { workspaceId, step }))).toMatchObject({ ok: true })
     type Status = { next_step: string; workspaces: { steps: { id: string; state: string }[] }[] }

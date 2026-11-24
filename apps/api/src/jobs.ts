@@ -188,9 +188,34 @@ export const SETUP_FEEDBACK_RETRY = 'setupFeedback.retry'
 const SETUP_FEEDBACK_RETRY_CRON = '41 * * * *'
 
 let boss: PgBoss | null = null
+/** This process is meant to have a queue: `startJobs` was called (the API server). Tests and scripts never call it. */
+let expected = false
+/** The start that is under way, so a job queued in the first seconds waits for it instead of failing. */
+let starting: Promise<unknown> | null = null
 
 /** The running queue, or null when jobs are not started (tests). */
 export const jobQueue = () => boss
+
+/** Thrown where a job must be queued and this server's queue is not running: the action fails (500) and is tried again. */
+export class JobQueueDown extends Error {
+  constructor() {
+    super('the job queue is not running: nothing was saved, try again')
+    this.name = 'JobQueueDown'
+  }
+}
+
+/**
+ * The queue to send a job to. Null only where no queue is meant to run (tests, scripts): nothing is queued there.
+ * On a server it waits for a start under way and throws JobQueueDown when the queue did not start or has stopped, so
+ * the caller's transaction rolls back and no job (a confirmation, a notification, a recharge) is lost without a trace.
+ */
+export async function queueForSend(): Promise<PgBoss | null> {
+  if (boss) return boss
+  if (!expected) return null
+  if (starting) await starting.catch(() => {})
+  if (boss) return boss
+  throw new JobQueueDown()
+}
 
 async function runJobs(instance: PgBoss, env: Env) {
   await instance.work<{ provider: string; voiceId: string }>(VOICE_DELETE, async ([job]) => {
@@ -491,14 +516,35 @@ export async function runStuckRechargeCheck({
   return { stuck: stuck.length }
 }
 
-export async function startJobs(env: Env = process.env): Promise<PgBoss> {
-  const workHere = env.JOBS_ENABLED !== 'false'
+/** Starts the queue; from the call on, this process must have one (queueForSend). */
+export function startJobs(env: Env = process.env): Promise<PgBoss> {
+  expected = true
+  const instance = newQueue(env)
+  // A start that failed halfway leaves nothing running: the next try makes its own instance.
+  const start = startQueue(instance, env).catch(async error => {
+    await instance.stop({ graceful: false }).catch(() => {})
+    throw error
+  })
+  starting = start
+  return start.finally(() => {
+    if (starting === start) starting = null
+  })
+}
+
+const worksHere = (env: Env) => env.JOBS_ENABLED !== 'false'
+
+function newQueue(env: Env): PgBoss {
   const instance = new PgBoss({
     connectionString: env.DATABASE_URL!,
     schema: 'pgboss',
-    ...(workHere ? {} : { supervise: false, schedule: false }),
+    ...(worksHere(env) ? {} : { supervise: false, schedule: false }),
   })
   instance.on('error', error => console.error('jobs:', error))
+  return instance
+}
+
+async function startQueue(instance: PgBoss, env: Env): Promise<PgBoss> {
+  const workHere = worksHere(env)
   await instance.start()
   await instance.createQueue(RECORDING_CLEANUP)
   await instance.createQueue(RECORDING_DELETE, { retryLimit: 12, retryDelay: 60, retryBackoff: true })
@@ -562,14 +608,24 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   return instance
 }
 
+/** Stops the queue. A job queued after this fails its action (JobQueueDown): the client sends it again to the next server. */
 export async function stopJobs() {
-  await boss?.stop({ graceful: true, timeout: 2000 })
+  const running = boss
   boss = null
+  await running?.stop({ graceful: true, timeout: 2000 })
 }
 
-/** For tests: a queue to send to without starting workers. */
+/** For tests: a queue to send to without starting workers; null: no queue is meant to run again. */
 export const setJobQueue = (queue: PgBoss | null) => {
   boss = queue
+  expected = false
+  starting = null
+}
+
+/** For tests: this process is meant to have a queue, as after `startJobs` (`starting`: a start still under way). */
+export const expectJobQueue = (start: Promise<unknown> | null = null) => {
+  expected = true
+  starting = start
 }
 
 /**
@@ -577,7 +633,7 @@ export const setJobQueue = (queue: PgBoss | null) => {
  * if the call was saved, and is sent after it is visible. Without a queue (tests) nothing is sent.
  */
 export async function queueCallNotification(tx: Tx, callId: string) {
-  await boss?.send(CALL_NOTIFY, { callId }, { db: fromDrizzle(tx, sql) })
+  await (await queueForSend())?.send(CALL_NOTIFY, { callId }, { db: fromDrizzle(tx, sql) })
 }
 
 /** A recording file in its store (calls.recording_store, calls.recording_key). */
@@ -586,7 +642,7 @@ export type RecordingFile = { store: RecordingStoreName | null; key: string }
 /** Queues the deletion of recording files in the caller's transaction: they go once it commits, retried until the store takes it. */
 export async function queueRecordingFileDeletions(tx: Tx, files: RecordingFile[]) {
   if (files.length)
-    await boss?.insert(
+    await (await queueForSend())?.insert(
       RECORDING_FILE_DELETE,
       files.map(data => ({ data })),
       { db: fromDrizzle(tx, sql) },
@@ -595,28 +651,32 @@ export async function queueRecordingFileDeletions(tx: Tx, files: RecordingFile[]
 
 /** Queues the deletion of a call's recording in the caller's transaction (a workspace that keeps none). */
 export async function queueRecordingDeletion(tx: Tx, callId: string) {
-  await boss?.send(RECORDING_DELETE, { callId }, { db: fromDrizzle(tx, sql), singletonKey: callId })
+  await (await queueForSend())?.send(RECORDING_DELETE, { callId }, { db: fromDrizzle(tx, sql), singletonKey: callId })
 }
 
 /** Queues the pushes about a call in the caller's transaction. Without a queue (tests) nothing is sent. */
 export async function queueCallPush(tx: Tx, callId: string, kind: PushKind) {
-  await boss?.send(CALL_PUSH, { callId, kind }, { db: fromDrizzle(tx, sql) })
+  await (await queueForSend())?.send(CALL_PUSH, { callId, kind }, { db: fromDrizzle(tx, sql) })
 }
 
 /** Queues the assignee's notification in call.assign's transaction; sent after ASSIGNED_DELAY_SECONDS if it still stands. */
 export async function queueAssignNotification(tx: Tx, eventId: string) {
-  await boss?.send(CALL_ASSIGNED, { eventId }, { db: fromDrizzle(tx, sql), startAfter: ASSIGNED_DELAY_SECONDS })
+  await (await queueForSend())?.send(
+    CALL_ASSIGNED,
+    { eventId },
+    { db: fromDrizzle(tx, sql), startAfter: ASSIGNED_DELAY_SECONDS },
+  )
 }
 
 /** Queues the charge of a recharge attempt in the transaction that decided it: it runs only if that commits. */
 export async function queueRecharge(tx: Tx, rechargeId: string) {
   // Queued once per attempt; a second run of the same attempt only meets Stripe's idempotency keys.
-  await boss?.send(BILLING_RECHARGE, { rechargeId }, { db: fromDrizzle(tx, sql) })
+  await (await queueForSend())?.send(BILLING_RECHARGE, { rechargeId }, { db: fromDrizzle(tx, sql) })
 }
 
 /** Queues a billing email in the transaction that made its occasion (a `billing_alerts` row, a posted entry). */
 export async function queueBillingAlert(tx: Tx, alert: BillingAlertJob, options: { startAfterSeconds?: number } = {}) {
-  await boss?.send(BILLING_ALERT, alert, {
+  await (await queueForSend())?.send(BILLING_ALERT, alert, {
     db: fromDrizzle(tx, sql),
     ...(options.startAfterSeconds ? { startAfter: options.startAfterSeconds } : {}),
   })
@@ -624,7 +684,7 @@ export async function queueBillingAlert(tx: Tx, alert: BillingAlertJob, options:
 
 /** Queues a spending-cap email in the caller's transaction. Without a queue (tests) nothing is sent. */
 export async function queueSpendingCapAlert(tx: Tx, alert: SpendingAlert) {
-  await boss?.send(SPENDING_CAP_ALERT, alert, { db: fromDrizzle(tx, sql) })
+  await (await queueForSend())?.send(SPENDING_CAP_ALERT, alert, { db: fromDrizzle(tx, sql) })
 }
 
 /**
@@ -650,8 +710,9 @@ export async function createSeatSyncQueues(instance: PgBoss, retries = PARTNER_S
  * queue (tests, scripts): the caller runs it after the commit then.
  */
 export async function queueSeatSync(tx: Tx, job: SeatSyncJob): Promise<boolean> {
-  if (!boss) return false
-  await boss.send(PARTNER_SEAT_SYNC, job, { db: fromDrizzle(tx, sql) })
+  const queue = await queueForSend()
+  if (!queue) return false
+  await queue.send(PARTNER_SEAT_SYNC, job, { db: fromDrizzle(tx, sql) })
   return true
 }
 
@@ -660,32 +721,44 @@ export async function queueSeatSync(tx: Tx, job: SeatSyncJob): Promise<boolean> 
  * Without a queue (tests) nothing runs; the scheduled check finds it.
  */
 export async function queueDomainCheck(tx: Tx, domainId: string) {
-  await boss?.send(PARTNER_DOMAIN_CHECK, { domainId }, { db: fromDrizzle(tx, sql), singletonKey: domainId })
+  await (await queueForSend())?.send(
+    PARTNER_DOMAIN_CHECK,
+    { domainId },
+    { db: fromDrizzle(tx, sql), singletonKey: domainId },
+  )
 }
 
 /** Queues a usage-limit email in the caller's transaction. Without a queue (tests) nothing is sent. */
 export async function queueUsageLimitAlert(tx: Tx, alert: UsageLimitAlert) {
-  await boss?.send(USAGE_LIMIT_ALERT, alert, { db: fromDrizzle(tx, sql) })
+  await (await queueForSend())?.send(USAGE_LIMIT_ALERT, alert, { db: fromDrizzle(tx, sql) })
 }
 
 /** Queues the caller's confirmation email in the booking's transaction. Without a queue (tests) nothing is sent. */
 export async function queueBookingConfirmation(tx: Tx, bookingId: string) {
-  await boss?.send(BOOKING_CONFIRM, { bookingId }, { db: fromDrizzle(tx, sql) })
+  await (await queueForSend())?.send(BOOKING_CONFIRM, { bookingId }, { db: fromDrizzle(tx, sql) })
 }
 
 /** Queues the evaluation of a finished call, in the caller's transaction (like the notification). */
 export async function queueCallEvaluation(tx: Tx, callId: string) {
-  await boss?.send(CALL_EVALUATE, { callId }, { db: fromDrizzle(tx, sql), singletonKey: callId, singletonSeconds: 60 })
+  await (await queueForSend())?.send(
+    CALL_EVALUATE,
+    { callId },
+    { db: fromDrizzle(tx, sql), singletonKey: callId, singletonSeconds: 60 },
+  )
 }
 
 /** Queues a support mail analysis in mail.analyze's transaction. Without a queue (tests) nothing runs. */
 export async function queueMailAnalysis(tx: Tx, analysisId: string) {
-  await boss?.send(MAIL_ANALYZE, { analysisId }, { db: fromDrizzle(tx, sql), singletonKey: analysisId })
+  await (await queueForSend())?.send(
+    MAIL_ANALYZE,
+    { analysisId },
+    { db: fromDrizzle(tx, sql), singletonKey: analysisId },
+  )
 }
 
 /** Queues the after-call transcription of a call in call.setRecording's transaction: it runs once the recording is reported. */
 export async function queueCallTranscript(tx: Tx, callId: string) {
-  await boss?.send(
+  await (await queueForSend())?.send(
     CALL_TRANSCRIBE,
     { callId },
     { db: fromDrizzle(tx, sql), singletonKey: callId, singletonSeconds: 60 },
@@ -694,12 +767,16 @@ export async function queueCallTranscript(tx: Tx, callId: string) {
 
 /** Queues the release of a held call's news `afterSec` later, in call.finish's transaction (call-news.ts). */
 export async function queueCallRelease(tx: Tx, callId: string, afterSec: number) {
-  await boss?.send(CALL_RELEASE, { callId }, { db: fromDrizzle(tx, sql), singletonKey: callId, startAfter: afterSec })
+  await (await queueForSend())?.send(
+    CALL_RELEASE,
+    { callId },
+    { db: fromDrizzle(tx, sql), singletonKey: callId, startAfter: afterSec },
+  )
 }
 
 /** Queues one webhook delivery in the transaction that caused it, `afterSec` later. Without a queue (tests) it stays pending. */
 export async function queueWebhookDelivery(tx: Tx, deliveryId: string, afterSec = 0) {
-  await boss?.send(
+  await (await queueForSend())?.send(
     WEBHOOK_DELIVER,
     { deliveryId },
     { db: fromDrizzle(tx, sql), ...(afterSec ? { startAfter: afterSec } : {}) },
@@ -708,17 +785,21 @@ export async function queueWebhookDelivery(tx: Tx, deliveryId: string, afterSec 
 
 /** Queues one push of a finished call to a connected app, in the transaction that finished the call. */
 export async function queueAppPush(tx: Tx, pushId: string, afterSec = 0) {
-  await boss?.send(APP_PUSH, { pushId }, { db: fromDrizzle(tx, sql), ...(afterSec ? { startAfter: afterSec } : {}) })
+  await (await queueForSend())?.send(
+    APP_PUSH,
+    { pushId },
+    { db: fromDrizzle(tx, sql), ...(afterSec ? { startAfter: afterSec } : {}) },
+  )
 }
 
 /** Queues the deletion of a cloned voice at its provider, in the transaction that stopped using it. */
 export async function queueVoiceDeletion(tx: Tx, provider: string, voiceId: string) {
-  await boss?.send(VOICE_DELETE, { provider, voiceId }, { db: fromDrizzle(tx, sql) })
+  await (await queueForSend())?.send(VOICE_DELETE, { provider, voiceId }, { db: fromDrizzle(tx, sql) })
 }
 
 /** Queues a forwarding check in the transaction that started it: it dials only once the check is committed. */
 export async function queueForwardingCheck(tx: Tx, checkId: string) {
-  await boss?.send(FORWARDING_CHECK, { checkId }, { db: fromDrizzle(tx, sql) })
+  await (await queueForSend())?.send(FORWARDING_CHECK, { checkId }, { db: fromDrizzle(tx, sql) })
 }
 
 /**
@@ -738,7 +819,7 @@ export async function queueWorkspaceDeletedEmails(
   brand: EmailBrand | null = null,
 ) {
   if (emails.length)
-    await boss?.insert(
+    await (await queueForSend())?.insert(
       WORKSPACE_DELETED_EMAIL,
       emails.map(data => ({ data: { ...data, brand } })),
       { db: fromDrizzle(tx, sql) },

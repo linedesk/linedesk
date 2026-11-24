@@ -152,7 +152,7 @@
   "notify.card.setup": "setup emails",
   "notify.card.withSummary": "Push notifications say what the call was about.",
   "notify.iosInstall": "On iPhone and iPad, add {brand} to your Home Screen first (Share, Add to Home Screen), then open it from there.",
-  "notify.oneplace": "Call emails for the team are set in one place: <link>Assistant › Who hears about calls</link>.",
+  "notify.oneplace": "Call emails for the team are set in one place: <link>Assistant › Email notifications</link>.",
   "notify.perWorkspace": "Each workspace has its own. Switch workspace to change another's.",
   "notify.permission.default": "Your browser asks once when you turn notifications on.",
   "notify.permission.denied": "Blocked by the browser. Allow notifications for this site in the browser’s site settings, then reload the page.",

@@ -158,6 +158,7 @@ describe('metadata', () => {
       const body = await res.json()
       expect(body.resource).toBe(`${new URL(issuer()).origin}/mcp`)
       expect(body.authorization_servers).toEqual([issuer()])
+      expect(body.scopes_supported).toEqual(['workspace'])
     }
   })
 
@@ -173,6 +174,7 @@ describe('metadata', () => {
         token_endpoint_auth_methods_supported: ['none', 'client_secret_post', 'client_secret_basic'],
         grant_types_supported: ['authorization_code'],
         client_id_metadata_document_supported: true,
+        scopes_supported: ['workspace'],
       })
     }
   })
@@ -181,7 +183,7 @@ describe('metadata', () => {
     const res = await mcp(null)
     expect(res.status).toBe(401)
     expect(res.headers.get('www-authenticate')).toBe(
-      `Bearer resource_metadata="${issuer()}/.well-known/oauth-protected-resource/mcp"`,
+      `Bearer resource_metadata="${issuer()}/.well-known/oauth-protected-resource/mcp", scope="workspace"`,
     )
     const bad = await mcp('ldp_unknown')
     expect(bad.headers.get('www-authenticate')).toContain('resource_metadata=')
@@ -351,6 +353,20 @@ describe('the flow', () => {
     expect((await get(as, 'GET', '/v1/assistant/status')).status).toBe(403)
   })
 
+  test('a request for other scopes is not refused: the token is the same workspace key with the same limits', async () => {
+    const flow = await newFlow()
+    const res = await act(ws.owner, 'oauth.approve', request(flow, { scope: 'read admin' }))
+    expect(res.status).toBe(200)
+    const code = new URL(res.body.data.redirectTo).searchParams.get('code')!
+    const issued = await exchange(flow, code)
+    expect(issued.status).toBe(200)
+    expect(issued.body.scope).toBe('workspace')
+    const as = { headers: { authorization: `Bearer ${issued.body.access_token}` } }
+    const scoped = { status: 403, body: { ok: false, error: OAUTH_KEY_SCOPE, code: 'forbidden' } }
+    expect(await act(as, 'team.invite', { email: 'x@example.com', role: 'admin' })).toMatchObject(scoped)
+    expect(await act(as, 'carrier.get', {})).toMatchObject(scoped)
+  })
+
   test('an OAuth key reads bookings with records_list, never webhook URLs', async () => {
     const { key } = await connect(ws.owner)
     const call = async (table: string) =>
@@ -378,6 +394,7 @@ describe('the flow', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('cache-control')).toBe('no-store')
     expect(res.body.token_type).toBe('Bearer')
+    expect(res.body.scope).toBe('workspace')
     expect(res.body.expires_in).toBeUndefined()
   })
 

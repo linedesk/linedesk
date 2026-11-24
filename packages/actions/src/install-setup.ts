@@ -20,7 +20,22 @@ export const installParts = [
 ] as const satisfies readonly ProviderGroupId[]
 export type InstallPart = (typeof installParts)[number]
 
-export const installSteps = ['welcome', ...installParts, 'done'] as const
+/**
+ * The server's parts a first call does not need, in Server admin › Providers' order: the walkthrough offers them after
+ * the four, behind their own intro (`optional`), each one skippable; setup_status lists the same ones as `optional`.
+ * Not billing: its keys decide where money goes, set in Server admin only.
+ */
+export const installOptionalParts = [
+  'sign-in',
+  'calendar',
+  'apps',
+  'recording',
+  'business',
+  'domains',
+] as const satisfies readonly ProviderGroupId[]
+export type InstallOptionalPart = (typeof installOptionalParts)[number]
+
+export const installSteps = ['welcome', ...installParts, 'optional', ...installOptionalParts, 'done'] as const
 export type InstallStep = (typeof installSteps)[number]
 
 /** The steps that set up a group, and that group (the same ids). */
@@ -29,6 +44,12 @@ export const installStepGroups: Partial<Record<InstallStep, ProviderGroupId>> = 
   answering: 'answering',
   telephony: 'telephony',
   'call-audio': 'call-audio',
+  'sign-in': 'sign-in',
+  calendar: 'calendar',
+  apps: 'apps',
+  recording: 'recording',
+  business: 'business',
+  domains: 'domains',
 }
 
 /** Steps from before LIN-158 (one per category), as stored in older progress: the step that holds them now. */
@@ -39,7 +60,8 @@ export const legacyInstallSteps: Record<string, InstallStep> = {
   extras: 'call-audio',
 }
 
-export const installStepLabels: Record<InstallStep, string> = {
+/** The English names of the four and the screens around them; the optional steps go by their group's label (groupText). */
+export const installStepLabels: Partial<Record<InstallStep, string>> = {
   welcome: 'Welcome',
   email: 'Email',
   answering: 'Answering calls',

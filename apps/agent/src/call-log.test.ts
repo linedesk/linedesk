@@ -38,6 +38,21 @@ function talkedCall(call: CallSession) {
   return log
 }
 
+test('reports how long ago the call ended: the summary and each retry are not part of the call', async () => {
+  const call = fakeCall(undefined, '+15035550142')
+  const sent: number[] = []
+  let attempts = 0
+  call.finish.mockImplementation((async (result: { endedAgoMs: number }) => {
+    sent.push(result.endedAgoMs)
+    if (++attempts === 1) throw new Error('fetch failed')
+  }) as never)
+  await finishCall(call, talkedCall(call), async () => answer, noWait, false, Date.now() - 12_000)
+  expect(sent).toHaveLength(2)
+  expect(sent[0]).toBeGreaterThanOrEqual(12_000)
+  expect(sent[0]).toBeLessThan(20_000)
+  expect(sent[1]).toBeGreaterThanOrEqual(sent[0]!)
+})
+
 test('finishes with the summary; messages taken and the urgent flag are kept', async () => {
   const call = fakeCall(undefined, '+15035550142')
   const complete = vi.fn<CompleteJson>(async () => answer)

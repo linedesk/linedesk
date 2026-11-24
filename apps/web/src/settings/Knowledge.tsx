@@ -29,6 +29,7 @@ import { hasKnowledge } from './knowledgeModel.ts'
 import { callAction } from './settings-api.ts'
 import { WriteWithHelp } from './WriteWithHelp.tsx'
 import { OpenQuestionRow, useOpenQuestions } from './OpenQuestions.tsx'
+import { SuggestedRow, useSuggestions } from './SuggestedQuestions.tsx'
 import './knowledge.css'
 
 type Props = {
@@ -49,6 +50,9 @@ const matchesSearch = (text: string, search: string) =>
   !search.trim() || text.toLowerCase().includes(search.trim().toLowerCase())
 /** The open-row key of an open question group, apart from the rows' own keys. */
 const openKey = (g: QuestionGroup) => `open:${g.questionId}`
+/** Long lists show this many suggestions and answers until Show more (LIN-809). */
+const SUGGESTIONS_FIRST = 4
+const ANSWERS_FIRST = 10
 /** Search shows only from this many questions on; fewer fit on the screen. */
 const SEARCH_FROM = 6
 const issuesOf = (issues: AboutIssue[], key: string) => issues.filter(i => i.key === key)
@@ -129,12 +133,19 @@ type QuestionsProps = Props & {
   addDraft: (q: AboutQuestion) => void
 }
 
+/** What the list shows: everything, or only one kind (the chips; one at a time). */
+type Filter = 'open' | 'suggested' | 'check' | null
+
 function Questions(props: QuestionsProps) {
   const { parts, name, canEdit } = props
   const t = useT()
   const [search, setSearch] = useState('')
-  const [onlyCheck, setOnlyCheck] = useState(false)
+  const [filter, setFilter] = useState<Filter>(null)
   const [open, setOpen] = useState<string | null>(null)
+  const [trying, setTrying] = useState(false)
+  // Long lists: the first rows of each kind, the rest behind Show more (LIN-809).
+  const [allSuggestions, setAllSuggestions] = useState(false)
+  const [allAnswers, setAllAnswers] = useState(false)
   // The open row stays open when the text is written and read back (keyAfter).
   const update = (next: AboutParts) => {
     props.update(next)
@@ -145,10 +156,17 @@ function Questions(props: QuestionsProps) {
   const issues = useMemo(() => checkAbout(parts), [parts])
   const flagged = new Set(issues.map(i => i.key))
   const filled = parts.questions.filter(q => q.line || q.question.trim())
-  const shown = parts.questions.filter(q => {
-    if (onlyCheck && !flagged.has(q.key)) return false
-    return matchesSearch(`${q.question} ${q.answer}`, search)
-  })
+  const groups = useOpenQuestions(props.assistant, canEdit).filter(g => matchesSearch(g.question, search))
+  const sugg = useSuggestions(props.toast, canEdit)
+  const suggestions = sugg.items.filter(x => matchesSearch(`${x.topic.example} ${x.topic.answer}`, search))
+  const answers = parts.questions.filter(
+    q => (filter !== 'check' || flagged.has(q.key)) && matchesSearch(`${q.question} ${q.answer}`, search),
+  )
+  // Searching or filtering shows every match; otherwise the lists are cut (rows added or open on the page stay).
+  const whole = !!search.trim() || filter !== null
+  const shownSuggestions = whole || allSuggestions ? suggestions : suggestions.slice(0, SUGGESTIONS_FIRST)
+  const shownAnswers =
+    whole || allAnswers ? answers : answers.filter((q, i) => i < ANSWERS_FIRST || !q.line || q.key === open)
 
   // "/" searches the questions (not while typing somewhere).
   useEffect(() => {
@@ -173,26 +191,31 @@ function Questions(props: QuestionsProps) {
     props.addDraft(q)
     setOpen(q.key)
   }
-
-  const [trying, setTrying] = useState(false)
-  const groups = useOpenQuestions(props.assistant, canEdit).filter(g => matchesSearch(g.question, search))
-  const [onlyOpen, setOnlyOpen] = useState(false)
   // The server added the answer to the saved text; the draft gets the same line, so unsaved edits keep it.
   const onAnswered = (question: string, answer: string) => {
     props.update(withAnswered(parts, question, answer))
     setOpen(null)
   }
-  const openRows = groups.map(g => (
-    <OpenQuestionRow
-      key={g.questionId}
-      group={g}
-      toast={props.toast}
-      onAnswered={onAnswered}
-      canEdit={canEdit}
-      open={open === openKey(g)}
-      onOpen={o => setOpen(o ? openKey(g) : null)}
-    />
-  ))
+
+  const chip = (f: Exclude<Filter, null>, label: string, n: number, tone: 'warn' | 'info') =>
+    n > 0 && (
+      <button
+        type="button"
+        aria-pressed={filter === f}
+        className={cx('kn-chip', `is-${tone}`, filter === f && 'is-on')}
+        onClick={() => setFilter(filter === f ? null : f)}
+      >
+        {label} <span>{count(n)}</span>
+      </button>
+    )
+  const more = (n: number, label: string, onClick: () => void) =>
+    !whole &&
+    n > 0 && (
+      <button type="button" className="kn-more" onClick={onClick}>
+        {label}
+      </button>
+    )
+  const nothing = parts.questions.length === 0 && groups.length === 0 && suggestions.length === 0
 
   return (
     <div className="kn-block kn-qa">
@@ -222,7 +245,7 @@ function Questions(props: QuestionsProps) {
         </Button>
       </div>
       {trying && <TryQuestion {...props} onOpen={setOpen} onAdd={add} onClose={() => setTrying(false)} />}
-      {(filled.length > SEARCH_FROM || flagged.size > 0 || groups.length > 0) && (
+      {(filled.length > SEARCH_FROM || flagged.size > 0 || groups.length > 0 || suggestions.length > 0) && (
         <div className="kn-toolbar">
           {filled.length > SEARCH_FROM && (
             <Input
@@ -237,59 +260,77 @@ function Questions(props: QuestionsProps) {
               onChange={e => setSearch(e.target.value)}
             />
           )}
-          {groups.length > 0 && (
-            <button
-              type="button"
-              aria-pressed={onlyOpen}
-              className={cx('kn-chip is-warn', onlyOpen && 'is-on')}
-              onClick={() => {
-                setOnlyCheck(false)
-                setOnlyOpen(!onlyOpen)
-              }}
-            >
-              {t('settings.knowledge.open.filter')} <span>{count(groups.length)}</span>
-            </button>
-          )}
-          {flagged.size > 0 && (
-            <button
-              type="button"
-              aria-pressed={onlyCheck}
-              className={cx('kn-chip is-warn', onlyCheck && 'is-on')}
-              onClick={() => {
-                setOnlyOpen(false)
-                setOnlyCheck(!onlyCheck)
-              }}
-            >
-              {t('settings.knowledge.qa.filter.check')} <span>{count(flagged.size)}</span>
-            </button>
-          )}
+          <div className="kn-chips" role="group">
+            {chip('open', t('settings.knowledge.open.filter'), groups.length, 'warn')}
+            {chip('suggested', t('settings.knowledge.sugg.filter'), suggestions.length, 'info')}
+            {chip('check', t('settings.knowledge.qa.filter.check'), flagged.size, 'warn')}
+          </div>
         </div>
       )}
-      {parts.questions.length === 0 && groups.length === 0 ? (
+      {nothing ? (
         <p className="kn-sub kn-empty">{t('settings.knowledge.qa.empty')}</p>
-      ) : shown.length === 0 ? (
-        <p className="kn-sub kn-empty">{t('settings.knowledge.qa.noMatch')}</p>
       ) : (
-        <div className="kn-qlist">
-          {!onlyCheck && openRows}
-          {!onlyOpen &&
-            shown.map(q =>
-              q.key === open ? (
-                <QuestionEditor
-                  key={q.key}
-                  {...props}
-                  update={update}
-                  q={q}
-                  issues={issuesOf(issues, q.key)}
-                  onChange={change => setQuestion(q.key, change)}
-                  onRemove={() => remove(q.key)}
-                  onClose={() => setOpen(null)}
+        <>
+          <div className="kn-qlist">
+            {(filter === null || filter === 'open') &&
+              groups.map(g => (
+                <OpenQuestionRow
+                  key={g.questionId}
+                  group={g}
+                  toast={props.toast}
+                  onAnswered={onAnswered}
+                  canEdit={canEdit}
+                  open={open === openKey(g)}
+                  onOpen={o => setOpen(o ? openKey(g) : null)}
                 />
-              ) : (
-                <QuestionRow key={q.key} q={q} issues={issuesOf(issues, q.key)} onClick={() => setOpen(q.key)} />
-              ),
+              ))}
+            {(filter === null || filter === 'suggested') &&
+              shownSuggestions.map(x => (
+                <SuggestedRow
+                  key={`sugg:${x.index}`}
+                  s={x}
+                  assistantId={props.assistant.id}
+                  canEdit={canEdit}
+                  review={sugg.review}
+                  open={open === `sugg:${x.index}`}
+                  onOpen={o => setOpen(o ? `sugg:${x.index}` : null)}
+                  onAccepted={onAnswered}
+                />
+              ))}
+            {(filter === null || filter === 'check') &&
+              shownAnswers.map(q =>
+                q.key === open ? (
+                  <QuestionEditor
+                    key={q.key}
+                    {...props}
+                    update={update}
+                    q={q}
+                    issues={issuesOf(issues, q.key)}
+                    onChange={change => setQuestion(q.key, change)}
+                    onRemove={() => remove(q.key)}
+                    onClose={() => setOpen(null)}
+                  />
+                ) : (
+                  <QuestionRow key={q.key} q={q} issues={issuesOf(issues, q.key)} onClick={() => setOpen(q.key)} />
+                ),
+              )}
+          </div>
+          {whole && groups.length + suggestions.length + answers.length === 0 && (
+            <p className="kn-sub kn-empty">{t('settings.knowledge.qa.noMatch')}</p>
+          )}
+          <div className="kn-mores">
+            {more(
+              suggestions.length - shownSuggestions.length,
+              t('settings.knowledge.more.suggestions', { count: suggestions.length - shownSuggestions.length }),
+              () => setAllSuggestions(true),
             )}
-        </div>
+            {more(
+              answers.length - shownAnswers.length,
+              t('settings.knowledge.more.answers', { count: answers.length }),
+              () => setAllAnswers(true),
+            )}
+          </div>
+        </>
       )}
     </div>
   )

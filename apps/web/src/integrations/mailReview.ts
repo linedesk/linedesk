@@ -87,8 +87,9 @@ export type MailReview = {
   reopen: (index: number) => Promise<boolean>
 }
 
-export function useMailReview(toast: (text: string) => void): MailReview {
-  const query = useQuery(ANALYSIS_KEY, loadAnalysis)
+/** `enabled` false: nothing is read (a member, who may not read the analysis). */
+export function useMailReview(toast: (text: string) => void, enabled = true): MailReview {
+  const query = useQuery(enabled ? ANALYSIS_KEY : null, loadAnalysis)
   const write = useWriteAction()
   const [starting, setStarting] = useState(false)
   const [busy, setBusy] = useState<number | null>(null)

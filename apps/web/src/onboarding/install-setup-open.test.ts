@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 const runAdmin = vi.hoisted(() => vi.fn())
 vi.mock('../admin/api.ts', async original => ({ ...(await original<typeof import('../admin/api.ts')>()), runAdmin }))
 
-const { INSTALL_SETUP_HASH, openingStep, openInstallSetup } = await import('./InstallSetup.tsx')
+const { INSTALL_SETUP_HASH, adminReturnHash, openingStep, openInstallSetup } = await import('./InstallSetup.tsx')
 
 type Progress = InstallSetupState['progress']
 const progress = (change: Partial<Progress> = {}): Readonly<Progress> =>
@@ -26,6 +26,18 @@ describe('Install walkthrough: where it opens', () => {
 
   test('"Step by step" on a started walkthrough also starts at the first part', () => {
     expect(openingStep(progress({ step: 'call-audio', setAsideAt: '2026-11-01T00:00:00Z' }), 'start')).toBe('email')
+  })
+})
+
+describe('Install walkthrough: where Finish leads', () => {
+  test('opened from Server admin: back to that page', () => {
+    expect(adminReturnHash('#admin/providers')).toBe('#admin/providers')
+    expect(adminReturnHash('#admin')).toBe('#admin')
+  })
+
+  test('opened anywhere else: on to the business setup (no page to go back to)', () => {
+    expect(adminReturnHash('')).toBeNull()
+    expect(adminReturnHash('#setup-agent')).toBeNull()
   })
 })
 

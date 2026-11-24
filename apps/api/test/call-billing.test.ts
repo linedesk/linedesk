@@ -593,6 +593,34 @@ describe('posting at the finish and in the stale sweep', () => {
     }
   })
 
+  test('the time after the hang-up is not part of the call (endedAgoMs)', async () => {
+    const b = await billed('active', { allowanceUsed: true, creditMicros: 10_000_000 })
+    const { callId } = await start(b.ws)
+    await startedAgo(callId, 300)
+    // The agent summarized for 20 s before it sent call.finish.
+    await act(agent(b.ws.id), 'call.finish', { callId, summary: 'Asked about a leak', endedAgoMs: 20_000 })
+    const [first] = await db.select().from(calls).where(eq(calls.id, callId))
+    expect(first!.duration_sec).toBeGreaterThanOrEqual(279)
+    expect(first!.duration_sec).toBeLessThanOrEqual(282)
+    const length = Date.parse(first!.ended_at!) - Date.parse(first!.started_at)
+    expect(Math.abs(length - first!.duration_sec! * 1000)).toBeLessThanOrEqual(500)
+    // A retry a minute of waiting later changes neither the end nor the duration.
+    await act(agent(b.ws.id), 'call.finish', { callId, summary: 'Asked about a leak' })
+    const [again] = await db.select().from(calls).where(eq(calls.id, callId))
+    expect(again!.ended_at).toBe(first!.ended_at)
+    expect(again!.duration_sec).toBe(first!.duration_sec)
+    expect(await usageOf(callId)).toHaveLength(1)
+  })
+
+  test('a call never ends before it started', async () => {
+    const b = await billed('active', { allowanceUsed: true, creditMicros: 10_000_000 })
+    const { callId } = await start(b.ws)
+    await act(agent(b.ws.id), 'call.finish', { callId, summary: 'Hung up', endedAgoMs: 3_600_000 })
+    const [call] = await db.select().from(calls).where(eq(calls.id, callId))
+    expect(call!.duration_sec).toBe(0)
+    expect(Date.parse(call!.ended_at!)).toBe(Date.parse(call!.started_at))
+  })
+
   test('parallel finishes of one call post it once', async () => {
     const b = await billed('active', { allowanceUsed: true, creditMicros: 10_000_000 })
     const { callId } = await start(b.ws)

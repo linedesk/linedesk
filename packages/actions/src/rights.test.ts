@@ -65,7 +65,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'insights.get',
     // Reading rows through a key or MCP instead of the sync shapes (records.ts, LIN-339).
     'records.list',
-    // Who hears about calls (LIN-470, LIN-768): everyone sees who gets every call and whether rules are on.
+    // Email notifications (LIN-470, LIN-768): everyone sees who gets every call and whether rules are on.
     'callEmails.get',
   ],
   admin: [

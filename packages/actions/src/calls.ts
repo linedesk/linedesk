@@ -429,6 +429,11 @@ export const callFinish = defineAction({
      * on the partner's keys sends it; the call is $0 only when every stage of its pipeline says `partner`.
      */
     keySources: keySourcesInput.optional(),
+    /**
+     * How long ago the call ended when the agent sent this (milliseconds, by the agent's own clock): the summary and
+     * the retries come after the hang-up and are not part of the call. Missing: the call ends when this arrives.
+     */
+    endedAgoMs: z.number().int().nonnegative().optional(),
   }),
   permission: 'agent',
   logged: 'ids',

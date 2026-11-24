@@ -82,7 +82,7 @@
   "contact.unknownCaller": "Unknown caller",
   "emailed.about": "about {topics}",
   "emailed.assignedTo": "assigned to {member}",
-  "emailed.change": "Change who hears about calls",
+  "emailed.change": "Change email notifications",
   "emailed.fallback.llm_failed": "The language model did not answer, so it went to everyone who gets every call and everyone in a rule.",
   "emailed.fallback.no_llm": "No language model is set up, so it went to everyone with call emails on.",
   "emailed.fallback.nothing_fit": "No rule fit this call, so it went to everyone with call emails on.",

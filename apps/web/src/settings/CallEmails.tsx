@@ -1,4 +1,4 @@
-// Settings › Assistant › Who hears about calls (LIN-369, LIN-470, LIN-768): the one place for call emails. One row per
+// Settings › Assistant › Email notifications (LIN-369, LIN-470, LIN-768): the one place for call emails. One row per
 // member with their "Email for every call" switch (their own notification setting in this workspace), a row for new
 // teammates (the team default they start with), then the rules: each rule has the calls it is about in a few words, the
 // members it sends to (also with "every call" off) and optionally one of them to assign the call to. After a call a
@@ -31,7 +31,7 @@ import './call-emails.css'
 
 const ROUTING_KEY = 'emailRouting.get'
 const loadRouting = () => readAction<EmailRoutingData>(ROUTING_KEY)
-/** Who hears about calls, for every member (callEmails.get). */
+/** Email notifications, for every member (callEmails.get). */
 export const CALL_EMAILS_KEY = 'callEmails.get'
 const loadCallEmails = () => readAction<CallEmailsData>(CALL_EMAILS_KEY)
 

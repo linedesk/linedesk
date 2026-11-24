@@ -1370,7 +1370,7 @@ function Form({
     >
       {/* Members: why nothing here can change, once on top (the webhook's card in Advanced says it for itself). */}
       {!canEdit &&
-        // Who hears about calls: every member switches their own row there.
+        // Email notifications: every member switches their own row there.
         (current === 'emails' ? <Note tone="info">{t('settings.assistant.emails.readOnly')}</Note> : <ReadOnlyNote />)}
       {current === 'hours' ? (
         <>

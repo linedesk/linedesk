@@ -166,9 +166,15 @@ function FoldedPrompt({ prompt }: { prompt: string }) {
  * the checkbox and the button on one line, so the steps fit on one screen.
  */
 export function AgentForm({ form }: { form: StartForm }) {
+  const t = useT()
+  // A drawing, not a form of this page: a dashed frame with "Example", the agent's own checkbox and button drawn grey
+  // and inert, so nobody tries to click them here. Only Copy is real.
   return (
-    <div className="as-form">
-      <div className="as-form-title">{form.title}</div>
+    <div className="as-form" title={t('onboarding.agentSetup.formExampleTitle')}>
+      <div className="as-form-head">
+        <span className="as-form-title">{form.title}</span>
+        <span className="as-form-tag">{t('onboarding.agentSetup.formExample')}</span>
+      </div>
       <div className="as-form-fields">
         {form.fields.map(field => (
           <div key={field.label} className="as-form-field">
@@ -196,7 +202,9 @@ export function AgentForm({ form }: { form: StartForm }) {
             {form.check}
           </span>
         )}
-        <span className="as-form-button">{form.submit}</span>
+        <span className="as-form-button" aria-hidden="true">
+          {form.submit}
+        </span>
       </div>
     </div>
   )

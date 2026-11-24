@@ -313,6 +313,16 @@ export function AgentSetup({
   // Everything is set up: the page offers to change it, with the agent or the install walkthrough (opens at its
   // first part, nothing saved is reset; off on Cloud, where Server admin › Providers is the way by hand).
   const allDone = state?.progress.allDone ?? false
+  // Finished on this visit: the page saw the setup open and then all done (the agent just finished). Then opening the
+  // app is the main action. A page opened already done (Edit with AI, changing settings) is there to change something:
+  // creating a link is its main action and opening the app the way out.
+  const sawOpen = useRef(false)
+  const [finishedHere, setFinishedHere] = useState(false)
+  useEffect(() => {
+    if (!state) return
+    if (!state.progress.allDone) sawOpen.current = true
+    else if (sawOpen.current) setFinishedHere(true)
+  }, [state])
   // Server admin's page once everything is set up (Edit with AI): the agent changes providers or connects more, and
   // the optional providers show open.
   const editInstall = scope === 'install' && !change && allDone
@@ -371,7 +381,7 @@ export function AgentSetup({
   const openApp =
     (allDone || (connected && !onboardingOpen)) && Boolean(state?.progress.workspace) && !trial && partnerId === null
   // A link to create while none is active: the page's main action, also with Enter (⏎ on its button).
-  const createIsMain = state !== null && !state.key && !created && !allDone
+  const createIsMain = state !== null && !state.key && !created && !finishedHere
   useSetupKeys({ onEnter: createIsMain && busy === null ? () => void createKey() : null }, { fields: 'ignore' })
   // The footer's back slot: step by step once everything is set up. Changing settings has none: the top bar's Close
   // goes back to them. By hand is its own button under the agent card (byHand).
@@ -606,7 +616,7 @@ export function AgentSetup({
                 {state?.endedByAgentAt && <AgentEndedNote at={state.endedByAgentAt} />}
                 <div>
                   <Button
-                    variant={allDone ? 'secondary' : 'primary'}
+                    variant={createIsMain ? 'primary' : 'secondary'}
                     busy={busy === 'create'}
                     shortcut={createIsMain ? ['⏎'] : undefined}
                     className="as-enter"
@@ -681,14 +691,14 @@ export function AgentSetup({
           {...foot}
           primary={
             openApp ? (
-              <Button variant={allDone && !hasLink ? 'primary' : 'secondary'} onClick={onDone}>
+              <Button variant={finishedHere && !hasLink ? 'primary' : 'secondary'} onClick={onDone}>
                 {allDone
                   ? t('onboarding.agentSetup.open', { brand: brandName() })
                   : t('onboarding.agentSetup.openNow', { brand: brandName() })}
               </Button>
             ) : partnerId && allDone ? (
               <Button
-                variant={hasLink ? 'secondary' : 'primary'}
+                variant={finishedHere && !hasLink ? 'primary' : 'secondary'}
                 onClick={onDone}
                 title={t('onboarding.agentSetup.partner.areaTitle')}
               >

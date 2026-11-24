@@ -495,6 +495,15 @@ describe('iCalendar', () => {
   })
 })
 
+/**
+ * Time limits of the tests below: on CI (GitHub's standard runners for the public repository are about half as fast
+ * as a developer machine) three times the room. Each limit still catches the bug it is for: a parser or expansion
+ * that grows with the square of the input takes minutes there, not seconds.
+ */
+// No Node types in this package (it also runs in the browser): the environment through globalThis.
+const onCi = Boolean((globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.CI)
+const slow = (ms: number) => (onCi ? ms * 3 : ms)
+
 describe('a hostile or broken server cannot hold up the API', () => {
   const day = (date: string) => ({ start: `${date}T00:00:00.000Z`, end: `${date}T23:59:59.000Z` })
   const answer =
@@ -506,11 +515,11 @@ describe('a hostile or broken server cannot hold up the API', () => {
     const attrs = `<a ${'x="'.repeat(200_000)}>`
     let t = performance.now()
     expect(() => parseXml(`<d:multistatus xmlns:d="DAV:">${attrs}</a></d:multistatus>`)).not.toThrow()
-    expect(performance.now() - t).toBeLessThan(500)
+    expect(performance.now() - t).toBeLessThan(slow(500))
     const many = `<d:multistatus xmlns:d="DAV:">${'<d:response x="1" y=\'2\' z = "3"><d:href>/a</d:href></d:response>'.repeat(20_000)}</d:multistatus>`
     t = performance.now()
     expect(findAll(parseXml(many), 'response')).toHaveLength(20_000)
-    expect(performance.now() - t).toBeLessThan(2000)
+    expect(performance.now() - t).toBeLessThan(slow(2000))
     expect(() => parseXml('<a>'.repeat(100))).toThrow(/too deeply/)
     expect(() => parseXml(`<a>${'x'.repeat(MAX_XML_CHARS)}</a>`)).toThrow(/too large/)
   })
@@ -518,7 +527,7 @@ describe('a hostile or broken server cannot hold up the API', () => {
   test('an answer with more elements than the cap is refused before the tree grows', () => {
     const t = performance.now()
     expect(() => parseXml(`<m>${'<a/>'.repeat(MAX_XML_ELEMENTS + 1)}</m>`)).toThrow(/too many elements/)
-    expect(performance.now() - t).toBeLessThan(500)
+    expect(performance.now() - t).toBeLessThan(slow(500))
   })
 
   test('an answer over the cap is refused, not read to the end', async () => {
@@ -549,7 +558,7 @@ describe('a hostile or broken server cannot hold up the API', () => {
       .busy([MAIN], { start: '2030-01-01T00:00:00Z', end: '2030-03-01T00:00:00Z' })
       .catch(e => e)
     expect(error).toMatchObject({ kind: 'unavailable', message: expect.stringContaining('repeating events') })
-    expect(performance.now() - t).toBeLessThan(3000)
+    expect(performance.now() - t).toBeLessThan(slow(3000))
     // A budget of its own per check: the next check starts afresh.
     const budget = { left: 5 }
     expect(() => busyOf(series(1), window, 'UTC', budget)).toThrow(OccurrenceBudgetExceeded)
@@ -573,10 +582,10 @@ describe('a hostile or broken server cannot hold up the API', () => {
       ].join('\r\n')
     let t = performance.now()
     expect(busyOf(event(lines(900)), day('2030-01-07'))).toHaveLength(1)
-    expect(performance.now() - t).toBeLessThan(500)
+    expect(performance.now() - t).toBeLessThan(slow(500))
     t = performance.now()
     expect(() => busyOf(event(lines(300_000)), day('2030-01-07'))).toThrow(OccurrenceBudgetExceeded)
-    expect(performance.now() - t).toBeLessThan(2000)
+    expect(performance.now() - t).toBeLessThan(slow(2000))
     // An excluded date in the window still takes the occurrence out.
     expect(busyOf(event(['EXDATE:20300107T100000Z']), day('2030-01-07'))).toEqual([])
   })
@@ -593,12 +602,12 @@ describe('a hostile or broken server cannot hold up the API', () => {
       ].join('\r\n')
     let t = performance.now()
     expect(busyOf(Array.from({ length: 3000 }, (_, i) => broken(i)).join('\r\n'), day('2030-01-07'))).toEqual([])
-    expect(performance.now() - t).toBeLessThan(1500)
+    expect(performance.now() - t).toBeLessThan(slow(1500))
     t = performance.now()
     expect(() => busyOf(Array.from({ length: 6000 }, (_, i) => broken(i)).join('\r\n'), day('2030-01-07'))).toThrow(
       OccurrenceBudgetExceeded,
     )
-    expect(performance.now() - t).toBeLessThan(1500)
+    expect(performance.now() - t).toBeLessThan(slow(1500))
   })
 
   test('monthly on the 31st since 1700: skipped by arithmetic, the right months, within the budget', () => {

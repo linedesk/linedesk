@@ -77,7 +77,7 @@ describe('team model', () => {
     expect(parseHash(PROFILE_HASH)).toMatchObject({ route: 'account', known: true })
   })
 
-  it('call emails link to the one place for them, Assistant › Who hears about calls', () => {
+  it('call emails link to the one place for them, Assistant › Email notifications', () => {
     expect(WHO_HEARS_HASH).toBe('#assistant/emails')
     expect(parseHash(WHO_HEARS_HASH)).toMatchObject({ route: 'assistant', known: true })
   })

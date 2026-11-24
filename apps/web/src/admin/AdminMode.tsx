@@ -40,7 +40,8 @@ import {
   tabSwitchesSection,
   useAdminPlace,
 } from './route.ts'
-import { CallQualityPage, Features } from './Settings.tsx'
+import { Features } from './Features.tsx'
+import { CallQualityPage } from './Settings.tsx'
 import { SystemPrompt } from './SystemPrompt.tsx'
 import { BrandingSettings } from './Branding.tsx'
 import { Usage } from './Usage.tsx'

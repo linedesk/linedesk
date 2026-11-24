@@ -7,7 +7,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import { emailRecipients, notifyCallFinished } from '../src/call-notifications.ts'
 import { db } from '../src/db.ts'
 import type { Email, EmailSender } from '../src/email.ts'
-import { CALL_NOTIFY, setJobQueue } from '../src/jobs.ts'
+import { CALL_NOTIFY, expectJobQueue, setJobQueue } from '../src/jobs.ts'
 import { act, addMember, agent, createWorkspace, getCall, randomNumber, type User, type Workspace } from './helpers.ts'
 
 const emailOf = async (who: User) => (await db.select().from(user).where(eq(user.id, who.userId)))[0]!.email
@@ -202,5 +202,36 @@ describe('call emails', () => {
     expect(notifications()[0]![2]).toHaveProperty('db')
     await act(agent(ws.id), 'call.finish', { callId: body.data.callId })
     expect(notifications()).toHaveLength(1)
+  })
+
+  test("on a server whose queue is not running, call.finish fails and saves nothing; the agent's retry finishes it", async () => {
+    const ws = await createWorkspace('Queue Down Plumbing')
+    const { body } = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
+    const callId = body.data.callId as string
+    const statusOf = async () => (await db.select().from(calls).where(eq(calls.id, callId)))[0]!.status
+    // As after startJobs failed, or after stopJobs at shutdown.
+    expectJobQueue()
+    expect((await act(agent(ws.id), 'call.finish', { callId })).status).toBe(500)
+    expect(await statusOf()).not.toBe('completed')
+    // The queue is back: the same finish goes through and queues the emails once.
+    const send = vi.fn(async (_name: string, _data: object, _options: object) => 'job-id')
+    setJobQueue({ send } as unknown as PgBoss)
+    expect((await act(agent(ws.id), 'call.finish', { callId })).status).toBe(200)
+    expect(await statusOf()).toBe('completed')
+    expect(send.mock.calls.filter(([name]) => name === CALL_NOTIFY)).toHaveLength(1)
+  })
+
+  test('a job queued while the queue starts waits for the start', async () => {
+    const ws = await createWorkspace('Queue Starting Plumbing')
+    const { body } = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
+    const send = vi.fn(async (_name: string, _data: object, _options: object) => 'job-id')
+    let started!: () => void
+    expectJobQueue(new Promise<void>(resolve => (started = resolve)))
+    const finishing = act(agent(ws.id), 'call.finish', { callId: body.data.callId })
+    await new Promise(resolve => setTimeout(resolve, 200))
+    setJobQueue({ send } as unknown as PgBoss)
+    started()
+    expect((await finishing).status).toBe(200)
+    expect(send.mock.calls.filter(([name]) => name === CALL_NOTIFY)).toHaveLength(1)
   })
 })

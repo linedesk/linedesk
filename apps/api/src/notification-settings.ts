@@ -1,7 +1,7 @@
 // notifications.* handlers: a member reads and changes only their own row in their workspace;
 // owners and admins set the workspace defaults (settings:write, checked by the registry). Owners and admins
 // change a teammate's row through team.updateMemberNotifications (team-member-edit.ts), with the same helpers.
-// callEmails.get: Who hears about calls (Assistant settings, LIN-768), each member's "Email for every call" for everyone.
+// callEmails.get: Email notifications (Assistant settings, LIN-768), each member's "Email for every call" for everyone.
 import {
   type CallEmailsData,
   type ChangedBy,
@@ -115,7 +115,7 @@ async function emailDefault(tx: Tx, workspaceId: string): Promise<boolean> {
 /**
  * Before the email default changes: every member who still follows it (no row, or no own email setting) keeps what
  * they get now, as their own setting. So the default is only what a new teammate starts with ("New teammates"), and
- * a member's row in Who hears about calls never flips by itself. Not a change by someone else (`updated_by` stays):
+ * a member's row in Email notifications never flips by itself. Not a change by someone else (`updated_by` stays):
  * the member's own page says nothing about it.
  */
 async function pinEmailFollowers(tx: Tx, workspaceId: string, current: boolean, now: string) {
@@ -145,7 +145,7 @@ async function pinEmailFollowers(tx: Tx, workspaceId: string, current: boolean, 
     })
 }
 
-/** Who hears about calls: every member who is not disabled, with their "Email for every call", and the default. */
+/** Email notifications: every member who is not disabled, with their "Email for every call", and the default. */
 async function loadCallEmails(
   tx: Tx,
   { workspaceId, userId }: { workspaceId: string; userId: string },

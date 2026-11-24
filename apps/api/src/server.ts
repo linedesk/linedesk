@@ -77,8 +77,22 @@ const server = serve({ fetch: app.fetch, port }, () => console.log(`api on http:
 // (keep-alive.ts).
 const { stopKeepingAlive } = configureKeepAlive(server)
 
-// Jobs failing to start must not take the API down: requests keep working, the jobs wait for a restart.
-startJobs().catch(error => console.error('jobs could not start:', error))
+// Jobs failing to start must not take the API down: reads keep working and the start is tried again (after 5 s, then
+// up to a minute apart). Until it runs, an action that must queue a job fails and is tried again (jobs.ts queueForSend).
+let stopping = false
+async function startJobsUntilRunning() {
+  for (let attempt = 0; !stopping; attempt++) {
+    try {
+      await startJobs()
+      if (attempt) console.log(`jobs started on try ${attempt + 1}`)
+      return
+    } catch (error) {
+      console.error('ALERT jobs could not start, trying again:', error)
+      await new Promise(resolve => setTimeout(resolve, Math.min(60_000, 5000 * 2 ** attempt)).unref())
+    }
+  }
+}
+void startJobsUntilRunning()
 // Linedesk's Telnyx voice profiles get the allowed countries and the spend limits again (outbound-policy.ts), so an
 // update brings older profiles to them. In the background, never blocking the start: it retries with backoff, logs
 // ALERT lines and records unconfirmed profiles for Server admin › Features; it never throws.
@@ -91,6 +105,7 @@ void (await import('./inbound-trunk.ts')).startInboundTrunkSync()
 // but don't wait for long-lived sync streams. Their connections close after their response, so the proxy sends the
 // next request to the new container.
 function shutdown() {
+  stopping = true
   void stopJobs().catch(() => {})
   server.close(() => process.exit(0))
   stopKeepingAlive()

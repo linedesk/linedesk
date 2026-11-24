@@ -1682,7 +1682,13 @@ const handlers: Record<string, Handler> = {
 
   'call.finish': async ({ tx, actor, now }, input) => {
     const call = await loadCall(tx, actor, input.callId)
-    const duration_sec = Math.max(0, Math.round((Date.parse(now) - Date.parse(call.started_at)) / 1000))
+    // The call ended at the hang-up, not when this arrives: the agent summarizes first and may retry (endedAgoMs),
+    // and neither is billed. Never before the start, never after now.
+    const endedMs = Math.max(Date.parse(call.started_at), Date.parse(now) - (input.endedAgoMs ?? 0))
+    // A repeated finish (agent retry after a lost answer) keeps the end and the duration the first one set.
+    const repeated = call.status === 'completed' && !!call.ended_at
+    const ended_at = repeated ? call.ended_at : new Date(endedMs).toISOString()
+    const duration_sec = repeated ? call.duration_sec : Math.round((endedMs - Date.parse(call.started_at)) / 1000)
     const { outcome, urgency } = keptUrgent(call.urgency, input.outcome ?? 'answered', input.urgency ?? call.urgency)
     // A recorded call's news waits for the corrected transcript when after-call transcription is on (call-news.ts).
     // A repeated finish (agent retry after a lost answer) gets the hold the first one set.
@@ -1698,7 +1704,7 @@ const handlers: Record<string, Handler> = {
       .update(calls)
       .set({
         status: 'completed',
-        ended_at: now,
+        ended_at,
         duration_sec,
         outcome,
         urgency,

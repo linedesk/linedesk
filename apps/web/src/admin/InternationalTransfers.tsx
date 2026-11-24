@@ -17,8 +17,8 @@ import { flagOf, phoneCountryOptions } from '../ui/phoneInputModel.ts'
 import { type SearchOption, SearchSelect } from '../ui/SearchSelect.tsx'
 import { runAdmin } from './api.ts'
 
-const KEY = 'admin.outboundCountries'
-const load = async () => (await runAdmin('outboundCountries.get', {})) as OutboundCountriesData
+export const TRANSFERS_QUERY = 'admin.outboundCountries'
+export const loadTransfers = async () => (await runAdmin('outboundCountries.get', {})) as OutboundCountriesData
 
 /** The countries that can still be added: every country of the phone field but the ones already allowed. */
 export function addableCountries(allowed: readonly string[]): SearchOption[] {
@@ -75,7 +75,7 @@ export function transferStats(data: Pick<OutboundCountriesData, 'usage' | 'limit
 
 export function InternationalTransfers() {
   const t = useT()
-  const query = useQuery(KEY, load)
+  const query = useQuery(TRANSFERS_QUERY, loadTransfers)
   const data = query.data ?? null
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
@@ -90,15 +90,15 @@ export function InternationalTransfers() {
     if (!data) return
     setProblem(null)
     setBusy(true)
-    setQueryData<OutboundCountriesData | undefined>(KEY, { ...data, countries: [...next].sort() })
+    setQueryData<OutboundCountriesData | undefined>(TRANSFERS_QUERY, { ...data, countries: [...next].sort() })
     try {
       const saved = (await runAdmin('outboundCountries.set', {
         countries: next,
         ...(confirmHighRisk ? { confirmHighRisk } : {}),
       })) as OutboundCountriesData
-      setQueryData<OutboundCountriesData | undefined>(KEY, saved)
+      setQueryData<OutboundCountriesData | undefined>(TRANSFERS_QUERY, saved)
     } catch (e) {
-      setQueryData<OutboundCountriesData | undefined>(KEY, data)
+      setQueryData<OutboundCountriesData | undefined>(TRANSFERS_QUERY, data)
       setProblem(e instanceof Error ? e.message : t('admin.system.transfers.failed'))
     } finally {
       setBusy(false)

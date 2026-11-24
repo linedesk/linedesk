@@ -375,6 +375,52 @@ describe('store', () => {
     store.stop()
   })
 
+  it('gives up a command the server keeps failing on, so the changes behind it go out', async () => {
+    const sent: string[] = []
+    const fetchMock = vi.fn(async (url: string) => {
+      sent.push(url)
+      // call.markDone hits a handler bug every time; call.markRead is fine.
+      if (url.endsWith('/call.markDone')) return respond(500, 'Internal Server Error')
+      return respond(200, { ok: true, rows: { calls: [call({ unread: false, version: 5 })] } })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const { adapter, calls } = fakeAdapter()
+    const onReject = vi.fn()
+    const store = await open(adapter, { onReject, retryMs: 1, serverErrorLimit: 3 })
+    calls().upsert([call()])
+    await store.run('call.markDone', { callId: 'c1' })
+    await store.run('call.markRead', { callId: 'c1' })
+    await eventually(() => expect(store.getSnapshot().pending).toBe(0))
+    // Tried three times, then given up like a rejection: rolled back and reported; the next command went out.
+    expect(sent.filter(u => u.endsWith('/call.markDone'))).toHaveLength(3)
+    expect(sent.at(-1)).toMatch(/\/call\.markRead$/)
+    expect(onReject).toHaveBeenCalledWith(expect.objectContaining({ action: 'call.markDone', error: 'HTTP 500' }))
+    expect(store.rows('calls')[0]).toMatchObject({ inbox_state: 'open', unread: false })
+    expect(store.getSnapshot().online).toBe(true)
+    store.stop()
+  })
+
+  it('keeps a command for as long as no server is reached (502, 503, 504) and one that fails only for a while', async () => {
+    let answers = [502, 503, 504, 500, 500, 200]
+    const fetchMock = vi.fn(async () => {
+      const status = answers.shift() ?? 200
+      return status === 200
+        ? respond(200, { ok: true, rows: { calls: [call({ inbox_state: 'done', unread: false, version: 5 })] } })
+        : respond(status, 'down')
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const { adapter, calls } = fakeAdapter()
+    const onReject = vi.fn()
+    const store = await open(adapter, { onReject, retryMs: 1, serverErrorLimit: 3 })
+    calls().upsert([call()])
+    await store.run('call.markDone', { callId: 'c1' })
+    await eventually(() => expect(store.getSnapshot().pending).toBe(0))
+    expect(fetchMock).toHaveBeenCalledTimes(6)
+    expect(onReject).not.toHaveBeenCalled()
+    expect(store.rows('calls')[0]!.inbox_state).toBe('done')
+    store.stop()
+  })
+
   it('keeps commands while offline, across a reload, and replays them in order', async () => {
     const sent: string[] = []
     let offline = true

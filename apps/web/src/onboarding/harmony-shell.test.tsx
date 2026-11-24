@@ -125,10 +125,14 @@ describe('the footer of a last step', () => {
 
 describe('the install walkthrough top bar', () => {
   test('counts the four parts only; Welcome and Done have no count', () => {
-    expect(installTopBar('welcome')).toEqual({ part: null, progress: 0 })
-    expect(installTopBar('email')).toEqual({ part: { n: 1, m: 4 }, progress: 20 })
-    expect(installTopBar('call-audio')).toEqual({ part: { n: 4, m: 4 }, progress: 80 })
-    expect(installTopBar('done')).toEqual({ part: null, progress: 100 })
+    expect(installTopBar('welcome')).toEqual({ part: null, optional: null, progress: 0 })
+    expect(installTopBar('email')).toEqual({ part: { n: 1, m: 4 }, optional: null, progress: 8 })
+    expect(installTopBar('call-audio')).toEqual({ part: { n: 4, m: 4 }, optional: null, progress: 33 })
+    // After the four: the intro says the rest is optional, then the optional parts are counted on their own.
+    expect(installTopBar('optional')).toEqual({ part: null, optional: null, progress: 42 })
+    expect(installTopBar('calendar')).toEqual({ part: null, optional: { n: 2, m: 6 }, progress: 58 })
+    expect(installTopBar('domains')).toEqual({ part: null, optional: { n: 6, m: 6 }, progress: 92 })
+    expect(installTopBar('done')).toEqual({ part: null, optional: null, progress: 100 })
   })
 })
 
