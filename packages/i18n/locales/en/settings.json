@@ -104,7 +104,7 @@
   "assistant.hangUp.goodbyeSentence": "When the caller has nothing else, {name} says <goodbye></goodbye>",
   "assistant.hangUp.help": "{name} ends a call itself when the line stays silent, or when the call gets too long (what the assistant costs). Never once a call was put through to a person.",
   "assistant.hangUp.longest": "Longest call, minutes",
-  "assistant.hangUp.longestSentence": "Calls end after <minutes></minutes> minutes. A call put through to a person goes on.",
+  "assistant.hangUp.longestSentence": "Calls last at most <minutes></minutes> minutes. A call put through to a person goes on.",
   "assistant.hangUp.silenceSentence": "After <seconds></seconds> seconds of silence {name} says this and hangs up:",
   "assistant.hangUp.title": "Hanging up",
   "assistant.languages.add": "Add language",
