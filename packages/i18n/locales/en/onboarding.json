@@ -130,7 +130,6 @@
   "agentSetup.progress.failing": "failing",
   "agentSetup.progress.label": "Setup progress",
   "agentSetup.progress.waiting": "Waiting for your agent",
-  "agentSetup.progress.willSetUp": "What your agent will set up",
   "agentSetup.progressWhat": "The setup progress",
   "agentSetup.server.group": "This server",
   "agentSetup.showPrompt": "Show prompt",

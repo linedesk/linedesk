@@ -121,7 +121,6 @@
   "agentSetup.progress.failing": "en échec",
   "agentSetup.progress.label": "Avancement de la configuration",
   "agentSetup.progress.waiting": "En attente de votre agent",
-  "agentSetup.progress.willSetUp": "Ce que votre agent va configurer",
   "agentSetup.progressWhat": "l'avancement de la configuration",
   "agentSetup.server.group": "Ce serveur",
   "agentSetup.start.chatgpt.add": "Remplissez le formulaire de ChatGPT ainsi, puis cliquez sur Créer en tant que plugin :",

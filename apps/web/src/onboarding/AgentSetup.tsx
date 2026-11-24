@@ -341,12 +341,14 @@ export function AgentSetup({
     if (state.key?.prefix !== created.prefix || !unexpired(created)) setCreated(null)
   }, [state, created, setCreated])
   const hasLink = state ? Boolean(state.key) : Boolean(created)
-  // The checklist shows once there is progress to watch: the agent connected (or ended its access after working),
-  // everything is set up (the page then is the way to change it), or settings are changed (what the agent can change).
+  // Every agent flow goes the same way, setting up as much as changing settings (Server admin, a workspace, a partner):
+  // 1. create a link, 2. connect the agent, 3. the checklist. Before the agent connects there is no checklist, also not
+  // once everything is set up or when settings are changed; the link step is the only thing to do.
   // The title alone (no kicker, no lede, a size smaller) once the way is chosen: a link is made, or the agent works.
-  // Changing settings keeps its lede (it names the workspace).
+  // Changing settings keeps its title and lede (they name the workspace); only the kicker goes, as here.
   const compactHead = !change && (focus || (hasLink && !allDone))
-  const showProgress = Boolean(state && (connected || state.progress.allDone || state.endedByAgentAt || change))
+  const kicker = !allDone && !compactHead && !(change && (hasLink || focus))
+  const showProgress = Boolean(state && connected)
   const cloudBlocked = state !== null && !state.reachableFromCloud && cloudClients.includes(client)
   // Until the first read of the setup state, everything on the page that depends on it is a skeleton of its shape
   // (docs/design-principles.md rule 15): the title, the link step's button, the checklist and the way by hand. A
@@ -420,7 +422,7 @@ export function AgentSetup({
       )}
       <div className={cx('ob-body', compactHead && 'as-head-compact', view.fadeIn && 'ld-in')}>
         {/* "Recommended" is about choosing a way; once everything is set up there is nothing to choose. */}
-        {!allDone && !compactHead && (
+        {kicker && (
           <span className="as-kicker">
             <Icon name="spark" size={14} /> {t('onboarding.agentSetup.kicker')}
           </span>
@@ -638,8 +640,6 @@ export function AgentSetup({
         showProgress && (
           <Progress
             state={state}
-            connected={connected}
-            focus={focus}
             change={Boolean(change)}
             active={active ?? null}
             reload={load}
@@ -701,8 +701,6 @@ const NO_WORKSPACE = ''
 /** What the agent has set up so far, live. */
 function Progress({
   state,
-  connected,
-  focus = false,
   change = false,
   active,
   reload,
@@ -714,9 +712,6 @@ function Progress({
   onFirstWorkspace,
 }: {
   state: AgentSetupState
-  connected: boolean
-  /** The agent is connected and the card is the page: the count leads, with a bar (the connection is said above it). */
-  focus?: boolean
   /** Changing settings (AgentSetup's `change`): what the agent can change, with no "set up" words and no count. */
   change?: boolean
   active: SetupWorkspace | null
@@ -803,28 +798,8 @@ function Progress({
       aria-label={t('onboarding.agentSetup.progress.label')}
       aria-live="polite"
     >
-      {change && !connected && !state.key ? null : focus && !change ? (
-        <ProgressHead done={done} total={steps.length} allDone={allDone} />
-      ) : (
-        <div className="as-progress-head">
-          {change ? null : allDone ? (
-            <b>{t('onboarding.agentSetup.progress.allDone')}</b>
-          ) : connected ? (
-            <b>
-              <span className="as-dot" aria-hidden /> {t('onboarding.agentSetup.progress.connected')}
-            </b>
-          ) : state.key ? (
-            <b className="as-waiting">
-              <Spinner /> {t('onboarding.agentSetup.progress.waiting')}
-            </b>
-          ) : (
-            <b>{t('onboarding.agentSetup.progress.willSetUp')}</b>
-          )}
-          {!change && (
-            <span className="as-small">{t('onboarding.agentSetup.progress.count', { done, total: steps.length })}</span>
-          )}
-        </div>
-      )}
+      {/* Shown only once the agent is connected (AgentSetup's showProgress); changing settings has no count. */}
+      {!change && <ProgressHead done={done} total={steps.length} allDone={allDone} />}
       {/* By part of the setup: the admin's own, the server's (once per install), then the picked workspace's. */}
       {groupsInOrder(steps).map(group => (
         <div

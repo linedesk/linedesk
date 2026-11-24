@@ -121,7 +121,6 @@
   "agentSetup.progress.failing": "エラー",
   "agentSetup.progress.label": "セットアップの進捗",
   "agentSetup.progress.waiting": "エージェントを待っています",
-  "agentSetup.progress.willSetUp": "エージェントがセットアップする内容",
   "agentSetup.progressWhat": "セットアップの進捗",
   "agentSetup.server.group": "このサーバー",
   "agentSetup.start.chatgpt.add": "ChatGPTのフォームを次のように入力し、「プラグインとして作成」をクリックします：",
