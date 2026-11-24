@@ -412,3 +412,36 @@ a.kn-sub:hover {
 .kn-qedit.kn-open-edit {
   box-shadow: inset 2px 0 0 var(--warning);
 }
+
+/* Suggestions from the support mail review (LIN-809): a blue edge while one is open; Show more under long lists. */
+.kn-qedit.kn-sugg-open {
+  box-shadow: inset 2px 0 0 var(--info);
+}
+.kn-chip.is-info:not(.is-on) {
+  border-color: var(--info-soft);
+  background: var(--info-soft);
+  color: var(--info);
+}
+.kn-mores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+.kn-mores:empty {
+  display: none;
+}
+.kn-more {
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.kn-more:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
