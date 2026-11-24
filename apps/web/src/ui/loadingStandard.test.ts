@@ -78,6 +78,8 @@ const NO_SKELETON_NEEDED: Record<string, string> = {
   'partner/ClientSettingsDialog.tsx':
     'the AI keys switch shows only once the partner connected a key; the limit works at once',
   'settings/CarrierNumberInput.tsx': 'the input works at once; the carrier numbers only add suggestions',
+  'settings/OpenQuestions.tsx':
+    'open questions join the questions and answers list once read; the list itself shows at once (LIN-797)',
   'shell/BillingBanner.tsx': 'the billing line shows only when something about the bill needs the owner',
   'shell/WorkspaceSwitcher.tsx': 'shown only with more than one workspace or an invitation',
 }
