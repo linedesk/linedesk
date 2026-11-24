@@ -94,7 +94,7 @@ export type FinishedCall = { held: boolean; result: CallResult; named?: boolean 
 
 /**
  * Summarizes the call and finishes it. `awaitTranscript`: the call is recorded, so the API may hold the news for the
- * after-call transcript (finalizeCall).
+ * after-call transcript (finalizeCall). `endedAt`: when the caller hung up (ms, this process's clock); default now.
  */
 export async function finishCall(
   call: CallSession,
@@ -102,6 +102,7 @@ export async function finishCall(
   complete: CompleteJson,
   retry?: RetryOptions,
   awaitTranscript = false,
+  endedAt = Date.now(),
 ): Promise<FinishedCall> {
   await log.flush()
   // The reply times are for the admin overview: a failure there never holds up finishing the call.
@@ -133,6 +134,8 @@ export async function finishCall(
         ...(awaitTranscript && !silent ? { awaitTranscript: true } : {}),
         // White-label own keys (S7): whose keys served the call; the API bills it $0 only when all were the partner's.
         ...(call.keySources ? { keySources: call.keySources } : {}),
+        // The summary above and every retry come after the hang-up: the API takes them off the call's duration.
+        endedAgoMs: Math.max(0, Date.now() - endedAt),
       }),
     retry,
   )

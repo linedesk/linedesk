@@ -1069,15 +1069,18 @@ async function entry(ctx: JobContext) {
   // A transfer only goes ahead when the recording really stopped.
   const stopRecordingForTransfer = async () => stopRecordingOrThrow(recorder, await recording)
   let finished: FinishedCall | null = null
-  const finish = () =>
-    hangUp({
+  const finish = () => {
+    // The call ends here: stopping the recording and the summary are not part of its duration.
+    const endedAt = Date.now()
+    return hangUp({
       stopRecording: stopCallRecording,
       // A recorded call's news may wait for the after-call transcript (finalizeCall).
       finishCall: async () =>
-        (finished = await finishCall(call, log, summaryLlm(config), undefined, recorder !== null)),
+        (finished = await finishCall(call, log, summaryLlm(config), undefined, recorder !== null, endedAt)),
       saveRecording: async () => saveRecording(api, call, recorder, await recording, RECORDING_WAIT_MS),
       finalize: async saved => finalizeCall(call, log, summaryLlm(config), finished!, saved),
     })
+  }
   const finishOnce = once(finish, `could not finish call ${call.callId}`)
   ctx.addShutdownCallback(finishOnce)
   try {
