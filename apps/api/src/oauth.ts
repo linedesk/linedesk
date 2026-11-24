@@ -59,11 +59,19 @@ const base64url = (bytes: Buffer) => bytes.toString('base64url')
 // ---------------------------------------------------------------------------------------------------------------------
 // Metadata
 
+/**
+ * The one OAuth scope (LIN-808): it names what every token here does, and changes nothing. A token acts with the
+ * signed-in person's roles in each of their workspaces, never with Server admin (personal-key-scope.ts). A request that
+ * asks for other scopes is not refused: the token gets this one and the token answer says so (RFC 6749 3.3).
+ */
+export const OAUTH_SCOPE = 'workspace'
+
 export const protectedResourceMetadata = () => ({
   resource: mcpResource(),
   authorization_servers: [issuer()],
   bearer_methods_supported: ['header'],
   resource_name: 'Linedesk',
+  scopes_supported: [OAUTH_SCOPE],
 })
 
 export const authorizationServerMetadata = () => ({
@@ -78,7 +86,7 @@ export const authorizationServerMetadata = () => ({
   token_endpoint_auth_methods_supported: ['none', 'client_secret_post', 'client_secret_basic'],
   client_id_metadata_document_supported: true,
   authorization_response_iss_parameter_supported: true,
-  scopes_supported: [],
+  scopes_supported: [OAUTH_SCOPE],
 })
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -631,7 +639,7 @@ export async function serveToken(request: Request, ip: string | null): Promise<R
     console.error(`could not send the personal key email: ${e instanceof Error ? e.message : e}`),
   )
   return Response.json(
-    { access_token: made.key, token_type: 'Bearer' },
+    { access_token: made.key, token_type: 'Bearer', scope: OAUTH_SCOPE },
     { headers: { 'cache-control': 'no-store', pragma: 'no-cache' } },
   )
 }
@@ -759,7 +767,7 @@ export async function serveRegister(request: Request, ip: string | null): Promis
 
 /** The 401 challenge of /mcp: where a client finds how to sign in (RFC 9728 5.1). */
 export const mcpChallenge = (error?: 'invalid_token') =>
-  `Bearer resource_metadata="${resourceMetadataUrl()}"${error ? `, error="${error}"` : ''}`
+  `Bearer resource_metadata="${resourceMetadataUrl()}", scope="${OAUTH_SCOPE}"${error ? `, error="${error}"` : ''}`
 
 /** Browser-based clients read these without cookies: any origin, no credentials. */
 const openCors = cors({
