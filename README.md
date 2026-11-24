@@ -15,6 +15,10 @@
 </p>
 
 <p align="center">
+  <a href="https://linedesk.ai"><b>Talk to Maya in your browser</b></a> · Linedesk Cloud from $9 a month plus minutes · Self-hosted: free, every feature, MIT
+</p>
+
+<p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-1C1917?style=flat-square" alt="License: MIT"></a>
   <a href="https://registry.modelcontextprotocol.io/v0/servers?search=ai.linedesk"><img src="https://img.shields.io/badge/MCP-ai.linedesk%2Flinedesk-1C1917?style=flat-square" alt="MCP registry: ai.linedesk/linedesk"></a>
 </p>
@@ -56,7 +60,9 @@ Linedesk does two things, and tries to do them very well:
 
 ![The Linedesk inbox](docs/images/inbox.png)
 
-<sub>The inbox, shown in the design prototype with demo data.</sub>
+![A call in Linedesk: summary, next steps and transcript](docs/images/call.png)
+
+<sub>The inbox and one call, with demo data.</sub>
 
 ## What it does
 
@@ -182,6 +188,17 @@ Your own test data in every local stack and worktree: `pnpm db:seed -- --user <y
 | [`docs/`](docs/README.md) | Architecture, API, self-hosting, design principles and more |
 
 Demo data is fictional (Brightwater Plumbing & Heating, Portland; assistant "Maya").
+
+## How Linedesk is built
+
+Two people build Linedesk, with AI coding agents doing much of the typing. That is why the history moves fast. The rules that keep it in order are in this repository:
+
+- [CLAUDE.md](CLAUDE.md) holds the rules every change follows, for people and agents alike: one write path, providers behind interfaces, no user-visible text outside the translation files.
+- No text the assistant reads changes without a person approving the exact wording.
+- About 570 test files run on every push to the trunk; changes to sign-in, permissions, tenancy or secrets get a separate security review.
+- We run the same code as Linedesk Cloud.
+
+Found something that looks wrong? Open an issue; we read all of them.
 
 ## Get involved
 
