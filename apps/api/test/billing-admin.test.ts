@@ -212,6 +212,7 @@ function fakeStripe(invoices: Map<string, BillingInvoice>, blockers: string[] = 
     },
     invoice: async id => invoices.get(id) ?? null,
     subscription: async () => null,
+    unpaidInvoices: async () => false,
     recentEvents: async () => ({ events: [], truncated: false }),
     rechargeCard: async () => null,
     checkoutPaymentMethodConfiguration: async () => null,

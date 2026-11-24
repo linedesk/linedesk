@@ -3,14 +3,17 @@
 // it is reached, new phone calls are not answered by the assistant: the agent says one fixed line (the business will
 // call back) and the call is filed as missed with "Call back" (handlers.ts openCall); test calls are refused.
 // Owners (of a white-label client: its partner's owner) and instance admins get an email at 80 % and at 100 %, once
-// each per month.
+// each per month, each in the version for them (decision of 2026-11-24): an owner reads what happens to calls and whom
+// to ask, an admin the facts and the button to raise the cap. Someone who is both gets the admin's version only.
 import { calls, member, organization, partner_members, spending_cap_alerts, type Tx, user } from '@linedesk/db'
 import { and, eq, gte, isNull, notInArray, sql } from 'drizzle-orm'
 import { costEstimate } from './admin-overview.ts'
 import { WEB_ORIGIN } from './auth.ts'
+import { readLegalLinks } from './auth-methods.ts'
+import { billingState } from './billing-settings.ts'
 import type { Email, EmailSender } from './email.ts'
 import { localeForEmail } from './email-locale.ts'
-import { spendingCapEmail } from './emails/alerts.ts'
+import { type SpendingCapReader, spendingCapEmail } from './emails/alerts.ts'
 import { type EmailLocale, emailSafeName } from './emails/templates.ts'
 import { instanceAdminEmails } from './instance-admin.ts'
 import { queueSpendingCapAlert } from './jobs.ts'
@@ -22,6 +25,12 @@ export type SpendingAlert = { workspaceId: string; month: string; level: number 
 /** The UTC month of an ISO time, '2026-11'. */
 export const monthOf = (now: string) => new Date(now).toISOString().slice(0, 7)
 const monthStart = (now: string) => `${monthOf(now)}-01T00:00:00.000Z`
+/** When the cap starts over: the first moment of the next UTC month. */
+export const capResetsAt = (now: string) => {
+  const d = new Date(monthStart(now))
+  d.setUTCMonth(d.getUTCMonth() + 1)
+  return d.toISOString()
+}
 
 /**
  * The workspace's estimated cost this UTC month, in USD. Deleted calls count (they were paid for); sample, simulated
@@ -79,24 +88,47 @@ export async function queueSpendingAlerts(tx: Tx, workspaceId: string, now: stri
 }
 
 /**
- * The email at one level, the same for owners and instance admins, in the recipient's language. Its site is the
- * install's own (WEB_ORIGIN), also for a partner's client (S5): the readers are the partner's owner and the instance
- * admins, who work there, and the email names the install as the site they administer.
+ * The email at one level for one reader, in the recipient's language. Its site is the install's own (WEB_ORIGIN), also
+ * for a partner's client (S5): the readers are the partner's owner and the instance admins, who work there.
  */
 export function spendingAlertEmail(
   workspace: string | null,
   level: number,
   cap: SpendingCap,
   to: string,
+  reader: SpendingCapReader,
+  now: string,
   locale?: EmailLocale,
 ): Email {
   return {
     to,
-    ...spendingCapEmail({ workspace, level, capUsd: cap.capUsd, spentUsd: cap.spentUsd }, WEB_ORIGIN, locale),
+    ...spendingCapEmail(
+      { workspace, level, capUsd: cap.capUsd, spentUsd: cap.spentUsd, resetsAt: capResetsAt(now), reader },
+      WEB_ORIGIN,
+      locale,
+    ),
   }
 }
 
-/** Sends one alert to the workspace's owners and the instance admins, each address once. Run by a job. */
+/**
+ * Where an owner is sent to have the cap raised: the install's support address (SUPPORT_EMAIL) when the install bills
+ * its workspaces, as Linedesk Cloud does (its owners are customers and have no server admin of their own); else their
+ * server admin. `billing`: buying minutes exists on this install.
+ */
+async function ownerHelp(tx: Tx): Promise<{ support: string | null; billing: boolean }> {
+  const billing = (await billingState(tx)).inEffect === 'stripe'
+  const support = billing ? readLegalLinks(process.env).supportEmail : null
+  return { support, billing }
+}
+
+/** Who gets which version: every address once, an instance admin always the admin's (it has the button). */
+export function spendingCapRecipients(owners: string[], admins: string[]) {
+  const adminSet = new Set(admins.map(a => a.toLowerCase()))
+  const ownerSet = new Set(owners.map(o => o.toLowerCase()).filter(o => !adminSet.has(o)))
+  return { owners: [...ownerSet], admins: [...adminSet] }
+}
+
+/** Sends one alert to the workspace's owners and the instance admins, each address once, in its version. Run by a job. */
 export async function sendSpendingAlert(
   tx: Tx,
   sender: EmailSender,
@@ -129,15 +161,28 @@ export async function sendSpendingAlert(
         .from(member)
         .innerJoin(user, eq(user.id, member.userId))
         .where(and(eq(member.organizationId, workspaceId), eq(member.role, 'owner'), isNull(user.disabledAt)))
-  const addresses = [
-    ...new Set([...owners.map(o => o.email), ...(await instanceAdminEmails())].map(a => a.toLowerCase())),
+  const recipients = spendingCapRecipients(
+    owners.map(o => o.email),
+    await instanceAdminEmails(),
+  )
+  const help = await ownerHelp(tx)
+  const readers: [string, SpendingCapReader][] = [
+    ...recipients.owners.map((to): [string, SpendingCapReader] => [
+      to,
+      { kind: 'owner', partner: !!workspace.partnerId, ...help },
+    ]),
+    ...recipients.admins.map((to): [string, SpendingCapReader] => [
+      to,
+      { kind: 'admin', workspaceId, support: help.support },
+    ]),
   ]
+  const name = emailSafeName(workspace.name, '') || null
   let sent = 0
   let failed = 0
-  for (const to of addresses) {
+  for (const [to, reader] of readers) {
     try {
       const locale = await localeForEmail(tx, to)
-      await sender.send(spendingAlertEmail(emailSafeName(workspace.name, '') || null, level, cap, to, locale))
+      await sender.send(spendingAlertEmail(name, level, cap, to, reader, now, locale))
       sent++
     } catch (e) {
       failed++

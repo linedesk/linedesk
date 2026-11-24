@@ -59,7 +59,7 @@ export function statusBadge(
     case 'suspended':
       return { key: msg('settings.billing.status.suspended'), tone: 'danger' }
     case 'canceled':
-      return { key: msg('settings.billing.status.canceled'), tone: 'neutral' }
+      return { key: msg('settings.billing.status.ended'), tone: 'neutral' }
     default:
       return { key: msg('settings.billing.status.pending'), tone: 'neutral' }
   }
@@ -67,7 +67,8 @@ export function statusBadge(
 
 /**
  * What the plan card says about its dates: in the trial the one line with the first charge (its date and amount,
- * `cents`; LIN-780), or that nothing will be charged after a cancel; else the renewal, or the end after a cancellation.
+ * `cents`; LIN-780), or that nothing will be charged after a cancel; else the renewal, or the end after a cancellation
+ * (who answers calls until when, the date in bold; the message takes the assistant's name).
  */
 export type PlanLine = { key: MessageKey; date: string; cents?: number } | null
 
@@ -82,8 +83,55 @@ export function planLine(bill: BillingOverviewBill): PlanLine {
         }
   if (!bill.currentPeriodEnd || !['active', 'past_due'].includes(bill.status)) return null
   return bill.cancelAtPeriodEnd
-    ? { key: msg('settings.billing.plan.ends'), date: bill.currentPeriodEnd }
+    ? {
+        key: bill.kind === 'partner' ? msg('settings.billing.plan.endsPartner') : msg('settings.billing.plan.ends'),
+        date: bill.currentPeriodEnd,
+      }
     : { key: msg('settings.billing.plan.renews'), date: bill.currentPeriodEnd }
+}
+
+/**
+ * A paid plan set to cancel says when it ends in its badge ("Ends Dec 14", neutral) instead of a green "Active": the
+ * day is the one the plan line names (LIN-781). Null otherwise (the trial keeps its countdown).
+ */
+export function endsBadge(bill: Pick<BillingOverviewBill, 'status' | 'cancelAtPeriodEnd' | 'currentPeriodEnd'>) {
+  if (!bill.cancelAtPeriodEnd || !bill.currentPeriodEnd || !['active', 'past_due'].includes(bill.status)) return null
+  return { key: msg('settings.billing.status.ends'), date: bill.currentPeriodEnd }
+}
+
+/**
+ * A business's plan that ended (`canceled`): the plan card says since when and offers to start it again, and the page
+ * hides what only a running plan has (auto-recharge, usage this period, calls at the same time). A partner bill keeps
+ * its note (its owner signs up again).
+ */
+export const planEnded = (bill: Pick<BillingOverviewBill, 'status' | 'kind'>) =>
+  bill.status === 'canceled' && bill.kind === 'cloud'
+/** No plan runs: nothing of a period, of recharges or of calls at the same time to show. */
+export const noPlan = (bill: Pick<BillingOverviewBill, 'status'>) => bill.status === 'canceled'
+
+/**
+ * The note under an ended plan (LIN-781): until when the numbers are kept (start again before then, or port them out)
+ * and the calls readable. The dates come from the server, both counted from the end (billing-lifecycle.ts
+ * `endedDates`), so they never disagree with "Plan ended on". Null before billing.state has come.
+ */
+export function endedNote(
+  state: Pick<BillingStateBill, 'status' | 'numbersReleaseAt' | 'dataUntil'> | null,
+  fmtDate: (iso: string) => string,
+  startsAgain: boolean,
+): { tone: 'warning' | 'neutral'; title: MessageKey | null; text: MessageKey; values: Record<string, string> } | null {
+  if (state?.status !== 'canceled' || !state.dataUntil) return null
+  const values = {
+    data: fmtDate(state.dataUntil),
+    numbers: state.numbersReleaseAt ? fmtDate(state.numbersReleaseAt) : '',
+  }
+  if (!state.numbersReleaseAt)
+    return { tone: 'neutral', title: null, text: msg('settings.billing.ended.dataOnly'), values }
+  return {
+    tone: 'warning',
+    title: msg('settings.billing.ended.numbersTitle'),
+    text: startsAgain ? msg('settings.billing.ended.numbersText') : msg('settings.billing.ended.numbersTextNoStart'),
+    values,
+  }
 }
 
 /**

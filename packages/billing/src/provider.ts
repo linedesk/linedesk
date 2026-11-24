@@ -83,11 +83,12 @@ export type RechargeCharge =
 /**
  * A Checkout Session to start (also for top-ups). `trial`: the plan with the free trial (a
  * SetupIntent checks the card, nothing is charged); `plan`: the plan paid now, no trial (a card that already had a
- * trial, or a prepaid one); `topup`: "Buy minutes", a one-off payment of `amountCents` (pre-tax), built on the server.
+ * trial, or a prepaid one); `restart`: the plan paid now after it ended (`billing.startAgain`), like `plan` but marked
+ * so only a canceled bill's confirmation takes it; `topup`: "Buy minutes", a one-off payment of `amountCents` (pre-tax), built on the server.
  * Always the card-only payment method configuration (`paymentMethodConfiguration`), never `payment_method_types`.
  */
 export type CheckoutInput = {
-  kind: 'trial' | 'plan' | 'topup'
+  kind: 'trial' | 'plan' | 'restart' | 'topup'
   billId: string
   customerId: string
   paymentMethodConfiguration: string
@@ -190,7 +191,7 @@ export type CheckoutSession = {
   customerId: string | null
   /** Our bill id (set when the session was made). */
   clientReferenceId: string | null
-  /** `metadata.linedesk_checkout`: `trial`, `plan` or `topup`. */
+  /** `metadata.linedesk_checkout`: `trial`, `plan`, `restart` or `topup`. */
   kind: string | null
   subscription: BillingSubscription | null
   /** The card the subscription will charge, or the one the payment was made with. */
@@ -327,6 +328,8 @@ export type BillingSubscription = {
   cancelAtPeriodEnd: boolean
   trialEnd: string | null
   defaultPaymentMethod: string | null
+  /** The subscription's latest invoice (a plan paid at Checkout: its first one). Absent from older fakes. */
+  latestInvoiceId?: string | null
   /** `unitAmountCents`: the item's price per unit before tax (the renewal reminder names it); null when Stripe has none. */
   /** `productId`: the Stripe product of the item's price (`linedesk_workspace`, …); only ours make a Linedesk plan. */
   items: { lookupKey: string | null; quantity: number; unitAmountCents?: number | null; productId?: string | null }[]
@@ -639,6 +642,8 @@ export type BillingProvider = {
   invoice(id: string): Promise<BillingInvoice | null>
   /** The subscription as it is now; null when the service does not know it. */
   subscription(id: string): Promise<BillingSubscription | null>
+  /** Whether the subscription left invoices unpaid (open or uncollectible): a plan ended by dunning (LIN-781). */
+  unpaidInvoices(subscriptionId: string): Promise<boolean>
   /**
    * The events of the given types created since `sinceSeconds` (Unix), oldest first, at most `limit`; `truncated`
    * when there were more (the reconciliation then says so, it never drops them silently).

@@ -420,6 +420,7 @@ const all = [
   billingCheckout.billingStartTopUp,
   billingCheckout.billingCancel,
   billingCheckout.billingResume,
+  billingCheckout.billingStartAgain,
   billingPage.billingOverview,
   billingPage.billingSetAutoRecharge,
   billingPage.billingSetRechargeCap,

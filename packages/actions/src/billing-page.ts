@@ -119,6 +119,16 @@ export type BillingOverviewBill = {
    */
   taxAddressMissing: boolean
   period: { startsAt: string; endsAt: string; kind: 'trial' | 'month' } | null
+  /** The plan ended (`canceled`): when (`canceled_at`, the moment the numbers and data dates count from). */
+  endedAt?: string | null
+  /**
+   * The plan ended and can start again here (`billing.startAgain`): the price per interval Checkout will charge for
+   * each workspace, before tax (the install's price today). Null otherwise (a plan that runs, a partner bill, an open
+   * dispute or an admin's pause).
+   */
+  startAgain?: { seatCents: number } | null
+  /** Why a plan that ended cannot start again here: an open invoice of the old plan, or a hold only support lifts. */
+  startAgainBlocked?: 'unpaid' | 'held' | null
   calls: BillingCalls
   usage: BillingUsageRow[]
   invoices: BillingInvoiceRow[]

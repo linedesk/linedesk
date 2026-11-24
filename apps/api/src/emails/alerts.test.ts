@@ -183,15 +183,25 @@ describe('in the pseudo-locale nothing is left in English', () => {
 
   it('the spending cap emails and the setup test email', () => {
     const money = (value: number) => getT(pseudo).format.currency(value, 'USD')
-    for (const level of [80, 100])
-      expectTranslated(
-        spendingCapEmail({ workspace: 'Brightwater', level, capUsd: 50, spentUsd: 41 }, ORIGIN, pseudo),
-        ['Brightwater', money(50), money(41)],
-      )
-    expectTranslated(spendingCapEmail({ workspace: null, level: 80, capUsd: 50, spentUsd: 41 }, ORIGIN, pseudo), [
-      money(50),
-      money(41),
-    ])
+    const readers = [
+      { kind: 'owner', support: null, billing: false },
+      { kind: 'owner', support: null, billing: true },
+      { kind: 'owner', support: 'help@desk.example', billing: true },
+      { kind: 'owner', partner: true, support: null, billing: false },
+      { kind: 'admin', workspaceId: 'ws_1', support: null },
+      { kind: 'admin', workspaceId: 'ws_1', support: 'help@desk.example' },
+    ] as const
+    for (const reader of readers)
+      for (const level of [80, 100]) {
+        const facts = { level, capUsd: 50, spentUsd: 41, resetsAt: '2026-12-01T00:00:00.000Z', reader }
+        expectTranslated(spendingCapEmail({ workspace: 'Brightwater', ...facts }, ORIGIN, pseudo), [
+          'Brightwater',
+          money(50),
+          money(41),
+          ...(reader.support ? [reader.support] : []),
+        ])
+        expectTranslated(spendingCapEmail({ workspace: null, ...facts }, ORIGIN, pseudo), [money(50), money(41)])
+      }
     expectTranslated(installTestEmail('204816', ORIGIN, pseudo), ['204816'])
   })
 

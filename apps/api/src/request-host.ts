@@ -351,6 +351,7 @@ const MAIN_ONLY_ACTIONS: ReadonlySet<string> = new Set([
   'billing.startCheckout',
   'billing.confirmCheckout',
   'billing.startTopUp',
+  'billing.startAgain',
   'billing.openPortal',
 ])
 // On a partner's address also what could take an account away or hand its workspace on (white-label S5 PR 5.2, security

@@ -71,6 +71,35 @@ type SuspendReason = (typeof SUSPEND_REASONS)[number]
 const iso = (ms: number) => new Date(ms).toISOString()
 const plusDays = (at: string, days: number) => iso(Date.parse(at) + days * DAY_MS)
 
+/**
+ * What follows the end of a plan, counted from one moment (`canceled_at`): the numbers are kept until
+ * `numbersReleaseAt` (port-out), the calls readable until `dataUntil`. The page, the banner and the emails read these
+ * dates from here only, so "the plan ended", "numbers kept until" and "calls until" never drift apart.
+ */
+export function endedDates(endedAt: string) {
+  return { numbersReleaseAt: plusDays(endedAt, DUNNING.releaseDays), dataUntil: plusDays(endedAt, DUNNING.dataDays) }
+}
+
+/** How far back a promised period end may set `canceled_at` (security review of LIN-781, H1). */
+const PLAN_END_GRACE_MS = 2 * DAY_MS
+
+/**
+ * When a plan that is canceling ended: the period end it was set to cancel at (the date the page promised, "answers
+ * calls until"), not the moment Stripe's event reached us, which can be hours later and fall on the next day. Only a
+ * period end of the last two days counts: one older is stale (a past-due plan's period end stays where the unpaid
+ * renewal left it) and would shorten the 30 days for the numbers and the 90 for the data. A plan ended any other way
+ * (dunning day 30, deleted in Stripe early) ends now.
+ */
+export function planEndedAt(
+  bill: Pick<Bill, 'cancel_at_period_end' | 'current_period_end' | 'trial_ends_at' | 'status'>,
+  now: string,
+): string {
+  const end = bill.status === 'trialing' ? (bill.trial_ends_at ?? bill.current_period_end) : bill.current_period_end
+  if (!bill.cancel_at_period_end || !end) return now
+  const ago = Date.parse(now) - Date.parse(end)
+  return ago >= 0 && ago <= PLAN_END_GRACE_MS ? iso(Date.parse(end)) : now
+}
+
 /** The Stripe subscription statuses that mean the plan fee is still unpaid. */
 const UNPAID_SUBSCRIPTION = ['past_due', 'unpaid']
 /** The Stripe subscription statuses of a plan that is paid up (a late payment came). */
@@ -234,12 +263,14 @@ export async function sendDunningReminders(now: string): Promise<string[]> {
  * A canceled bill (our day-30 job, or the subscription deleted in Stripe): no new period, the numbers kept 30 days
  * for a port-out, the data 90 days; the owner is told both dates once (`numbers_release`, ref = the cancellation).
  */
-async function markCanceled(tx: Tx, bill: Bill, now: string) {
-  await setStatus(tx, bill.id, { status: 'canceled', canceled_at: now }, now)
-  await emailOnce(tx, bill.id, 'numbers_release', now, {
+async function markCanceled(tx: Tx, bill: Bill, now: string, { atPeriodEnd = false } = {}) {
+  const endedAt = atPeriodEnd ? planEndedAt(bill, now) : now
+  const dates = endedDates(endedAt)
+  await setStatus(tx, bill.id, { status: 'canceled', canceled_at: endedAt }, now)
+  await emailOnce(tx, bill.id, 'numbers_release', endedAt, {
     kind: 'canceled',
-    releaseAt: plusDays(now, DUNNING.releaseDays),
-    dataUntil: plusDays(now, DUNNING.dataDays),
+    releaseAt: dates.numbersReleaseAt,
+    dataUntil: dates.dataUntil,
   })
 }
 
@@ -305,6 +336,9 @@ export async function releaseCanceledNumbers(now: string): Promise<{ released: s
     if (!numbers.length) continue
     const gone: string[] = []
     for (const number of numbers) {
+      // Checked again under the bill's lock right before each release: a plan started again since the list was read
+      // (billing.startAgain) keeps its numbers (security review of LIN-781, M2).
+      if (!(await stillReleases(bill, now))) break
       try {
         if ((await releaseNumberAsSystem(number.id)).released) gone.push(number.e164)
       } catch (error) {
@@ -321,11 +355,24 @@ export async function releaseCanceledNumbers(now: string): Promise<{ released: s
         emailOnce(tx, bill.id, 'numbers_released', bill.canceled_at!, {
           kind: 'numbers_released',
           numbers: gone,
-          dataUntil: plusDays(bill.canceled_at!, DUNNING.dataDays),
+          dataUntil: endedDates(bill.canceled_at!).dataUntil,
         }),
       )
   }
   return { released, failed }
+}
+
+/** Whether a canceled bill's numbers are still due for release: still canceled, by the same cancellation, 30 days ago. */
+async function stillReleases(bill: Bill, now: string) {
+  return db.transaction(async tx => {
+    const current = await lockBill(tx, bill.id)
+    return (
+      current?.status === 'canceled' &&
+      !!current.canceled_at &&
+      Date.parse(current.canceled_at) === Date.parse(bill.canceled_at!) &&
+      Date.parse(current.canceled_at) <= Date.parse(now) - DUNNING.releaseDays * DAY_MS
+    )
+  })
 }
 
 export type DunningRun = {
@@ -794,7 +841,7 @@ async function subscriptionDeleted(provider: BillingProvider, objectId: string, 
   const changed = await db.transaction(async tx => {
     const current = await lockBill(tx, bill.id)
     if (!current || current.status === 'canceled' || current.stripe_subscription_id !== objectId) return false
-    await markCanceled(tx, current, now)
+    await markCanceled(tx, current, now, { atPeriodEnd: true })
     return true
   })
   return changed ? { outcome: 'lifecycle', bill: bill.id, change: 'canceled' } : { outcome: 'applied', bill: bill.id }
@@ -869,9 +916,9 @@ export function lifecycleDates(
     suspendsAt: bill.status === 'past_due' && since ? plusDays(since, grace) : null,
     cancelsAt:
       (bill.status === 'past_due' || bill.status === 'suspended') && since ? plusDays(since, DUNNING.cancelDays) : null,
-    numbersReleaseAt:
-      bill.status === 'canceled' && bill.canceled_at ? plusDays(bill.canceled_at, DUNNING.releaseDays) : null,
-    dataUntil: bill.status === 'canceled' && bill.canceled_at ? plusDays(bill.canceled_at, DUNNING.dataDays) : null,
+    ...(bill.status === 'canceled' && bill.canceled_at
+      ? endedDates(bill.canceled_at)
+      : { numbersReleaseAt: null, dataUntil: null }),
   }
 }
 

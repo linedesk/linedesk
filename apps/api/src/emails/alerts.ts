@@ -630,6 +630,17 @@ export const enrolmentIssuedAlert =
 
 // ---------------------------------------------------------------- spending cap
 
+/**
+ * Who reads a spending cap email (decision of 2026-11-24): each recipient gets one version, written for what they can
+ * do. The owner (`partner`: the owner of the partner plan that pays for a client workspace) reads what happens to
+ * calls and whom to ask: the install's support address when it bills its workspaces and has one (`support`), else
+ * their server admin; `billing`: the install bills, so buying minutes exists and is said not to lift the cap. A server
+ * admin reads the facts and gets the button to the workspace in Server admin, where the cap is changed.
+ */
+export type SpendingCapReader =
+  | { kind: 'owner'; partner?: boolean; support: string | null; billing: boolean }
+  | { kind: 'admin'; workspaceId: string; support: string | null }
+
 export type SpendingCapEmail = {
   /** Email-safe (emailSafeName); null: the workspace has no usable name. */
   workspace: string | null
@@ -637,11 +648,14 @@ export type SpendingCapEmail = {
   level: number
   capUsd: number
   spentUsd: number
+  /** When the cap starts over: the next UTC month's first day. */
+  resetsAt: string
+  reader: SpendingCapReader
 }
 
-/** A workspace used 80 % of its monthly spending cap, or reached it; the same email for owners and instance admins. */
+/** A workspace used 80 % of its monthly spending cap, or reached it, in the version for its reader. */
 export function spendingCapEmail(
-  { workspace, level, capUsd, spentUsd }: SpendingCapEmail,
+  { workspace, level, capUsd, spentUsd, resetsAt, reader }: SpendingCapEmail,
   origin = emailOrigin(),
   locale?: EmailLocale,
 ): RenderedEmail {
@@ -652,25 +666,80 @@ export function spendingCapEmail(
     cap: format.currency(capUsd, 'USD'),
     spent: format.currency(spentUsd, 'USD'),
     percent: format.number(level / 100, { style: 'percent' }),
+    date: format.dateTime(new Date(resetsAt), { month: 'long', day: 'numeric', timeZone: 'UTC' }),
+    email: reader.support ?? '',
   }
   const reached = level >= 100
   const subject = reached ? t('email.spendingCap.reachedSubject', values) : t('email.spendingCap.levelSubject', values)
-  return renderEmail({
-    locale: lang,
-    subject,
-    preheader: reached ? t('email.spendingCap.reachedText', values) : t('email.spendingCap.levelText', values),
-    eyebrow: t('email.spendingCap.eyebrow'),
-    ...(reached ? { urgent: t('email.spendingCap.urgent') } : {}),
-    heading: subject,
-    blocks: [
+  const blocks: Block[] = []
+  if (reader.kind === 'admin') {
+    blocks.push(
       {
         kind: 'text',
         text: reached ? t('email.spendingCap.reachedText', values) : t('email.spendingCap.levelText', values),
       },
-      { kind: 'text', text: reached ? t('email.spendingCap.reachedEffect') : t('email.spendingCap.levelEffect') },
-      { kind: 'text', tone: 'muted', text: t('email.spendingCap.change', values) },
-    ],
-    reason: t('email.spendingCap.reason', { workspace: name, site: siteHost(origin) }),
+      {
+        kind: 'text',
+        text: reached
+          ? t('email.spendingCap.admin.reachedEffect', values)
+          : t('email.spendingCap.admin.levelEffect', values),
+      },
+      {
+        kind: 'button',
+        label: reached ? t('email.spendingCap.admin.raise') : t('email.spendingCap.admin.change'),
+        url: `${origin}/#admin/workspaces/${encodeURIComponent(reader.workspaceId)}`,
+      },
+      {
+        kind: 'text',
+        tone: 'muted',
+        text: reader.support
+          ? t('email.spendingCap.admin.ownerToldSupport', values)
+          : t('email.spendingCap.admin.ownerTold', values),
+      },
+    )
+  } else {
+    const whom = reader.support ? 'support' : reader.billing ? 'adminMinutes' : 'admin'
+    if (reached) {
+      blocks.push({
+        kind: 'text',
+        text: reader.partner
+          ? t('email.spendingCap.owner.reachedEffectPartner', values)
+          : t('email.spendingCap.owner.reachedEffect', values),
+      })
+      // i18n-dynamic: email.spendingCap.owner.reachedAsk.*
+      blocks.push({ kind: 'text', text: t(`email.spendingCap.owner.reachedAsk.${whom}`, values) })
+    } else {
+      blocks.push({ kind: 'text', text: t('email.spendingCap.levelText', values) })
+      blocks.push({
+        kind: 'text',
+        text: reader.partner
+          ? t('email.spendingCap.owner.levelEffectPartner', values)
+          : t('email.spendingCap.owner.levelEffect', values),
+      })
+      blocks.push({
+        kind: 'text',
+        tone: 'muted',
+        text: reader.support
+          ? t('email.spendingCap.owner.levelAsk.support', values)
+          : t('email.spendingCap.owner.levelAsk.admin'),
+      })
+    }
+  }
+  const lede = blocks[0]?.kind === 'text' ? blocks[0].text : subject
+  return renderEmail({
+    locale: lang,
+    subject,
+    preheader: lede,
+    eyebrow: t('email.spendingCap.eyebrow'),
+    ...(reached ? { urgent: t('email.spendingCap.urgent') } : {}),
+    heading: subject,
+    blocks,
+    reason:
+      reader.kind === 'admin'
+        ? t('email.spendingCap.reason.admin', { site: siteHost(origin) })
+        : reader.partner
+          ? t('email.spendingCap.reason.partner', { workspace: name })
+          : t('email.spendingCap.reason.owner', { workspace: name }),
     origin,
   })
 }

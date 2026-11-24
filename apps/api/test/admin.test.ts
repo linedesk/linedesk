@@ -4749,6 +4749,27 @@ describe('monthly spending cap', () => {
       subject: 'Alerted Plumbing reached its monthly spending cap',
       text: expect.stringContaining('call them back'),
     })
+    // Each reader gets one version (decision of 2026-11-24): the owner what happens and whom to ask, no button; the
+    // instance admin the facts and the button to the workspace in Server admin.
+    const ownerAddress = (await emailOf(ws.owner)).toLowerCase()
+    const operatorAddress = (await emailOf(operator)).toLowerCase()
+    const ownerMail = sent.find(e => e.to === ownerAddress)!
+    const adminMail = sent.find(e => e.to === operatorAddress)!
+    expect(ownerMail.text).toContain('your assistant no longer answers calls')
+    expect(ownerMail.text).toMatch(/[Aa]sk (them|your server admin) to raise it/)
+    expect(ownerMail.text).toContain('because you own Alerted Plumbing')
+    expect(ownerMail.text).not.toContain('#admin/workspaces')
+    expect(adminMail.text).toContain(`#admin/workspaces/${ws.id}`)
+    expect(adminMail.text).toContain('The workspace owner got an email too')
+    expect(adminMail.text).toContain('because you are a server admin')
+    // An owner who is also an instance admin gets one email, the admin's.
+    await db.update(user).set({ instanceAdmin: true }).where(eq(user.id, ws.owner.userId))
+    sent.length = 0
+    await sendSpendingAlert(db, sender, { workspaceId: ws.id, month, level: 100 })
+    const toOwner = sent.filter(e => e.to === ownerAddress)
+    expect(toOwner).toHaveLength(1)
+    expect(toOwner[0]!.text).toContain('Raise the cap')
+    await db.update(user).set({ instanceAdmin: false }).where(eq(user.id, ws.owner.userId))
     // A name that reads like a link is not put into the email (emailSafeName).
     await db.update(organization).set({ name: 'Pay at evil.example.com' }).where(eq(organization.id, ws.id))
     sent.length = 0

@@ -39,6 +39,17 @@ export const billingStartCheckout = defineAction({
 /** `data` of `billing.startCheckout` and `billing.startTopUp`. */
 export type CheckoutStartData = { url: string }
 
+export const billingStartAgain = defineAction({
+  name: 'billing.startAgain',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "Start a business's plan again after it ended (the bill is canceled, its period over): a Checkout of the plan at today's price, paid now, with no free trial and no extra calls. Answers the Checkout link to open. Confirmed like any Checkout (`billing.confirmCheckout`): the bill is active again with a new subscription, its balance as it was, and the numbers it still has answer again. Refused while a plan runs or waits for Checkout, for a partner bill, and while a dispute, a fraud warning or an admin's pause is open.",
+  input: z.object({}),
+  permission: 'billing:manage',
+  // The Checkout link pays this bill: in the answer only, never in the command log.
+  secretResult: ['url'],
+})
+
 export const billingConfirmCheckout = defineAction({
   name: 'billing.confirmCheckout',
   description:

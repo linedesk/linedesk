@@ -145,6 +145,7 @@
   "audit.billing.setAutoRecharge": "Changed auto-recharge",
   "audit.billing.setRechargeCap": "Changed the monthly recharge cap",
   "audit.billing.signUp": "Signed up and started a bill",
+  "audit.billing.startAgain": "Started the plan again",
   "audit.billing.startCheckout": "Opened Stripe Checkout",
   "audit.billing.startTopUp": "Opened Checkout to buy {amount} of minutes",
   "audit.billingCap": "Set a bill's recharge cap to {amount}",

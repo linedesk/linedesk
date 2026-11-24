@@ -14,6 +14,7 @@ import type {
   BillingStateData,
   BillingUsageRow,
   CancelData,
+  CheckoutStartData,
   ExtraCallsData,
   IntervalData,
   PortalData,
@@ -33,9 +34,10 @@ import { i18n } from '../i18n/index.tsx'
 import { signInAgain } from '../localData.ts'
 import { useKeepAnswered } from '../shell/BillingBanner.tsx'
 import { useLegalLinks } from '../shell/WorkspaceMenu.tsx'
+import { useAssistantNameIfAny } from '../store.tsx'
 import { tabWorkspace } from '../tabWorkspace.ts'
 import { readTrialLink, takeAlreadyRunning } from '../trialLink.ts'
-import { ExternalLink, LinkButton } from '../ui/AppLink.tsx'
+import { appLink, ExternalLink, LinkButton } from '../ui/AppLink.tsx'
 import { Select } from '../ui/controls.tsx'
 import { DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
 import { Dialog, FormField, Input } from '../ui/form.tsx'
@@ -56,10 +58,14 @@ import {
   centsToDollars,
   changesRecharge,
   dollarsToCents,
+  endedNote,
+  endsBadge,
   extraCallChoices,
   freeExtraCalls,
   microsToDollars,
+  noPlan,
   paysCharges,
+  planEnded,
   planLine,
   purchaseKeys,
   refusalKey,
@@ -255,6 +261,7 @@ function BillingPage({
 }) {
   // A comped bill pays nothing: no balance to top up (unless one is left from before) and no auto-recharge.
   const pays = paysCharges(bill)
+  const ended = noPlan(bill)
   const toPay = invoicesToPay(state, bill.invoices)
   return (
     <>
@@ -262,11 +269,12 @@ function BillingPage({
       {(pays || bill.balanceMicros !== 0) && (
         <BalanceCard bill={bill} state={state} payFirst={toPay.length > 0} toast={toast} />
       )}
-      {pays && <AutoRechargeCard bill={bill} toast={toast} />}
-      <UsageCard bill={bill} />
+      {/* No plan runs after it ended: nothing to recharge, no period's usage, no calls at the same time (LIN-781). */}
+      {pays && !ended && <AutoRechargeCard bill={bill} toast={toast} />}
+      {!ended && <UsageCard bill={bill} />}
       <InvoicesCard bill={bill} toast={toast} />
       {/* Rarely changed, so last (2026-11-18); the busy-line link scrolls down to it. */}
-      {pays && <CallsCard bill={bill} toast={toast} />}
+      {pays && !ended && <CallsCard bill={bill} toast={toast} />}
     </>
   )
 }
@@ -387,42 +395,36 @@ function BillFacts({
   bill: BillingOverviewBill
   line: ReturnType<typeof planLine>
   date: (iso: string) => string
-  /** Opens the switch to monthly: a yearly plan in the trial says so in its billing line. */
+  /** Opens the switch to monthly: a yearly plan in the trial offers it as the small link under its first charge. */
   onSwitch: (() => void) | null
 }) {
   const t = useT()
   const format = useFormat()
+  const assistant = useAssistantNameIfAny()
   const partner = bill.kind === 'partner'
   const trial = bill.status === 'trialing'
   return (
     <div className="billing-plan">
       {line && (
         <span className="help">
-          {line.cents !== undefined ? (
-            <T
-              k={line.key}
-              values={{
-                date: date(line.date),
-                amount: format.currency(centsToDollars(line.cents), 'USD'),
-                b: chunks => <b>{chunks}</b>,
-              }}
-            />
-          ) : (
-            t(line.key, { date: date(line.date) })
-          )}
+          <T
+            k={line.key}
+            values={{
+              date: date(line.date),
+              amount: line.cents !== undefined ? format.currency(centsToDollars(line.cents), 'USD') : '',
+              assistant,
+              b: chunks => <b>{chunks}</b>,
+            }}
+          />
         </span>
       )}
-      {trial && (
+      {/* "Billed yearly" is said once, by the grey total under the price (LIN-781); monthly says how it is billed. */}
+      {trial && bill.interval === 'month' && <span className="help">{t('common.price.billedMonthly')}</span>}
+      {trial && bill.interval === 'year' && onSwitch && (
         <span className="help">
-          {bill.interval === 'year' ? t('settings.billing.plan.billedYearly') : t('common.price.billedMonthly')}
-          {bill.interval === 'year' && onSwitch && (
-            <>
-              {' · '}
-              <LinkButton title={t('settings.billing.interval.buttonTip')} onClick={onSwitch}>
-                {t('settings.billing.interval.toMonth')}
-              </LinkButton>
-            </>
-          )}
+          <LinkButton title={t('settings.billing.interval.buttonTip')} onClick={onSwitch}>
+            {t('settings.billing.interval.toMonth')}
+          </LinkButton>
         </span>
       )}
       {!partner && bill.workspaces > 1 && (
@@ -461,6 +463,9 @@ function BillPlan({
   const supportEmail = useLegalLinks()?.supportEmail ?? null
   const date = (iso: string) => format.date(new Date(iso))
   const badge = statusBadge(bill.status, bill.heldForReview)
+  // A paid plan set to cancel: "Ends Dec 14" instead of "Active" (LIN-781).
+  const ends = bill.heldForReview ? null : endsBadge(bill)
+  const ended = planEnded(bill)
   // In the trial the badge carries the days left ("Free trial · 10 days left"); held for review says so instead.
   const trialDays = bill.heldForReview ? null : trialBadge(bill)
   const line = planLine(bill)
@@ -512,13 +517,19 @@ function BillPlan({
       actions={
         // Before the first Checkout there is no plan to report on: no "Waiting for a card" before activation started.
         bill.status === 'pending_payment' ? undefined : (
-          <Badge tone={badge.tone} dot>
-            {trialDays ? t(trialDays.key, { count: trialDays.count }) : t(badge.key)}
+          <Badge tone={ends ? 'neutral' : badge.tone} dot>
+            {trialDays
+              ? t(trialDays.key, { count: trialDays.count })
+              : ends
+                ? t(ends.key, { date: format.date(new Date(ends.date), { month: 'short', day: 'numeric' }) })
+                : t(badge.key)}
           </Badge>
         )
       }
     >
-      {pays ? (
+      {ended ? (
+        <EndedPlan bill={bill} state={state} date={date} toast={toast} />
+      ) : pays ? (
         <PlanCard
           bare
           price={price}
@@ -527,8 +538,8 @@ function BillPlan({
           prices={bill.prices}
           each={partner ? 'client' : bill.workspaces > 1 ? 'workspace' : null}
           calls={partner ? null : bill.calls}
-          // In the trial the first-charge line says the tax.
-          tax={bill.taxed && !trial}
+          // In the trial the first-charge line says the tax; a plan that ends charges nothing more.
+          tax={bill.taxed && !trial && !bill.cancelAtPeriodEnd}
           autoRecharge={bill.autoRecharge.on}
         >
           <BillFacts bill={bill} line={line} date={date} onSwitch={toMonthly} />
@@ -546,7 +557,7 @@ function BillPlan({
             : t('settings.billing.held.textNoEmail')}
         </Note>
       )}
-      {note && (
+      {note && !ended && (
         <Note tone={note.tone} title={t(note.title)}>
           {t(note.text, note.values)}
           {toPay.length > 0 && (
@@ -602,6 +613,90 @@ function BillPlan({
         <IntervalDialog bill={bill} to={intervalSwitch} onClose={() => setSwitching(false)} toast={toast} />
       )}
     </Section>
+  )
+}
+
+/**
+ * A business's plan that ended (LIN-781): since when, what callers get now, "Start plan again" with its price (the
+ * install's price today, a month first) and the note with until when the numbers are kept and the calls readable,
+ * linking Phone numbers (port-out) and Export calls. The plan starts again through Checkout (`billing.startAgain`).
+ */
+function EndedPlan({
+  bill,
+  state,
+  date,
+  toast,
+}: {
+  bill: BillingOverviewBill
+  state: BillingStateData['bill']
+  date: (iso: string) => string
+  toast: (text: string) => void
+}) {
+  const t = useT()
+  const calls = useBillCalls()
+  const prices = usePrice()
+  const assistant = useAssistantNameIfAny()
+  const [starting, setStarting] = useState(false)
+  const again = bill.startAgain ?? null
+  const note = endedNote(state, date, !!again)
+
+  async function startAgain() {
+    setStarting(true)
+    try {
+      const done = await calls.write<CheckoutStartData>('billing.startAgain')
+      window.location.assign(done.url)
+    } catch (err) {
+      toast(errorMessage(err))
+      setStarting(false)
+    }
+  }
+
+  return (
+    <div className="billing-plan billing-ended">
+      <b className="billing-ended-title">
+        {bill.endedAt
+          ? t('settings.billing.ended.title', { date: date(bill.endedAt) })
+          : t('settings.billing.ended.titleNoDate')}
+      </b>
+      <span>{t('settings.billing.ended.text', { assistant })}</span>
+      {again && (
+        <div className="billing-actions billing-ended-start">
+          <Button
+            variant="primary"
+            busy={starting}
+            title={t('settings.billing.ended.startTip')}
+            onClick={() => void startAgain()}
+          >
+            {t('settings.billing.ended.start')}
+          </Button>
+          <span className="help">
+            {t(bill.taxed ? 'settings.billing.ended.priceTaxed' : 'settings.billing.ended.price', {
+              price: prices.perMonth(again.seatCents, bill.interval),
+              interval: bill.interval,
+            })}
+          </span>
+        </div>
+      )}
+      {!again && bill.startAgainBlocked && (
+        <span className="help">
+          {bill.startAgainBlocked === 'unpaid'
+            ? t('settings.billing.ended.blockedUnpaid')
+            : t('settings.billing.ended.blockedHeld')}
+        </span>
+      )}
+      {note && (
+        <Note tone={note.tone} title={note.title ? t(note.title, note.values) : undefined}>
+          <T
+            k={note.text}
+            values={{
+              ...note.values,
+              phone: appLink('#workspace/phone'),
+              export: appLink('#workspace/export'),
+            }}
+          />
+        </Note>
+      )}
+    </div>
   )
 }
 
@@ -1056,7 +1151,9 @@ function BalanceCard({
     <Section
       id="billing-balance"
       title={t('settings.billing.balance.title')}
-      description={t('settings.billing.balance.description')}
+      description={
+        bill.startAgain ? t('settings.billing.balance.keptForStart') : t('settings.billing.balance.description')
+      }
     >
       <div className="billing-balance">
         <span className={bill.availableMicros < 0 ? 'billing-amount is-negative' : 'billing-amount'}>

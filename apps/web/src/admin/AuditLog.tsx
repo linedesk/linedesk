@@ -553,6 +553,7 @@ const plainLabels: Record<string, MessageKey> = {
   'billing.confirmCheckout': msg('admin.audit.billing.confirmCheckout'),
   'billing.cancel': msg('admin.audit.billing.cancel'),
   'billing.resume': msg('admin.audit.billing.resume'),
+  'billing.startAgain': msg('admin.audit.billing.startAgain'),
   'billing.setAutoRecharge': msg('admin.audit.billing.setAutoRecharge'),
   'billing.setRechargeCap': msg('admin.audit.billing.setRechargeCap'),
   'billing.openPortal': msg('admin.audit.billing.openPortal'),

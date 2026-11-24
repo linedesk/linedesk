@@ -164,6 +164,21 @@ export function useReadSyncDown(): boolean {
   return useSyncExternalStore(store?.subscribe ?? noStore, read, read)
 }
 
+/**
+ * The default assistant's name where a store may be missing (Partner › Billing has no workspace's data): the generic
+ * word then, and while the assistants have not arrived.
+ */
+export function useAssistantNameIfAny(): string {
+  const t = useT()
+  const store = useContext(StoreContext)?.store
+  const read = () => {
+    const rows = store ? [...store.getSnapshot().tables.assistants.values()] : []
+    rows.sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
+    return rows[0]?.name ?? null
+  }
+  return useSyncExternalStore(store?.subscribe ?? noStore, read, read) ?? t('common.assistant.unnamed')
+}
+
 /** Whether the workspace is disabled, as the server's latest answer said; null until one did. */
 export function useWorkspaceState() {
   const { store } = useCtx()

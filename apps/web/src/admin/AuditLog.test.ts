@@ -258,6 +258,7 @@ const AUDITED_ACTION_NAMES = [
   'billing.startTopUp',
   'billing.cancel',
   'billing.resume',
+  'billing.startAgain',
   'billing.setAutoRecharge',
   'billing.setRechargeCap',
   'billing.openPortal',

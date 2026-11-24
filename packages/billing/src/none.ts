@@ -37,6 +37,7 @@ export const noneBillingProvider: BillingProvider = {
     throw new WebhookRefused('signature')
   },
   invoice: async () => null,
+  unpaidInvoices: async () => false,
   subscription: async () => null,
   recentEvents: async () => ({ events: [], truncated: false }),
   refundBlockers: off,

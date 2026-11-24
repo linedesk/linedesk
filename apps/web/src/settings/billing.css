@@ -53,3 +53,19 @@
     width: 100%;
   }
 }
+
+/* A business's plan that ended (LIN-781): since when, as large as a price, then Start plan again with its price. */
+.billing-ended {
+  gap: 8px;
+}
+.billing-ended-title {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.billing-ended-start {
+  align-items: center;
+  margin-top: 8px;
+}

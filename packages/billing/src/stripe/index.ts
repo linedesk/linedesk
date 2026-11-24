@@ -467,6 +467,14 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
       return eventOf(event)
     },
 
+    async unpaidInvoices(subscriptionId) {
+      for (const status of ['open', 'uncollectible'] as const) {
+        const found = await stripe.invoices.list({ subscription: subscriptionId, status, limit: 1 })
+        if (found.data.length) return true
+      }
+      return false
+    },
+
     async invoice(id) {
       let invoice: Stripe.Invoice
       try {
@@ -794,6 +802,7 @@ function subscriptionOf(sub: Stripe.Subscription): BillingSubscription {
     cancelAtPeriodEnd: sub.cancel_at_period_end,
     trialEnd: iso(sub.trial_end),
     defaultPaymentMethod: idOf(sub.default_payment_method),
+    latestInvoiceId: idOf(sub.latest_invoice),
     // A price the bootstrap replaced (a new amount) lost its lookup key; its `metadata.linedesk` keeps it.
     items: sub.items.data.map(item => ({
       lookupKey: item.price.lookup_key ?? item.price.metadata?.linedesk ?? null,

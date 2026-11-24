@@ -185,6 +185,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'billing.startTopUp',
     'billing.cancel',
     'billing.resume',
+    'billing.startAgain',
     // The banner; port-out and hand-over stay with the bill's owner (the handlers check it).
     'billing.state',
     'billing.portOutInfo',
@@ -473,6 +474,7 @@ describe('workspace rights', () => {
       'billing.startTopUp',
       'billing.cancel',
       'billing.resume',
+      'billing.startAgain',
       'billing.overview',
       'billing.setAutoRecharge',
       'billing.setRechargeCap',

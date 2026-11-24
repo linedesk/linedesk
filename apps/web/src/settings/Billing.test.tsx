@@ -260,7 +260,7 @@ test('the trial says each fact once (LIN-780): the days in the badge, one line w
   expect(trial({ trialEndsAt: new Date(Date.now() + 60_000).toISOString() })).toContain('Free trial · 1 day left')
 })
 
-test('a yearly trial: the first charge is the year, and back to monthly is the small link in the billing line', () => {
+test('a yearly trial: the first charge is the year, "billed yearly" once, and back to monthly is the small link (LIN-781)', () => {
   const html = render(
     {
       billingOn: true,
@@ -275,8 +275,12 @@ test('a yearly trial: the first charge is the year, and back to monthly is the s
     state({ status: 'trialing' }),
   )
   expect(html).toContain('First charge then: <b>$108.00</b>.')
-  expect(html).toMatch(/Billed yearly · <button[^>]*>Switch to monthly<\/button>/)
+  expect(html).toMatch(/<span class="help"><button[^>]*>Switch to monthly<\/button><\/span>/)
+  // Said once: the grey total under the price, never a second "Billed yearly" line.
+  expect(html.match(/billed yearly/gi)).toHaveLength(1)
+  expect(html).toContain('$108 billed yearly')
   expect(html).not.toMatch(/k-btn[^"]*"[^>]*><span>Switch to monthly/)
+  expect(html).toContain('Cancel trial')
 })
 
 test('a failed recharge: the reason, Retry as the primary button, Buy minutes no longer primary', () => {
@@ -457,11 +461,78 @@ test('no pay links in a running plan, nor for someone who does not pay for the w
   expect(notOwner).not.toContain('invoice.stripe.com')
 })
 
-test('canceled at the period end: the end date and Keep my plan instead of Cancel plan', () => {
-  const html = render({ billingOn: true, bill: bill({ cancelAtPeriodEnd: true }) })
-  expect(html).toContain('You canceled.')
+test('canceled at the period end: "Ends <date>" badge, who answers until when, Keep my plan, no tax line (LIN-781)', () => {
+  const currentPeriodEnd = new Date(Date.UTC(2026, 11, 14, 12)).toISOString()
+  const html = render({ billingOn: true, bill: bill({ cancelAtPeriodEnd: true, currentPeriodEnd, taxed: true }) })
+  expect(html).toContain('Ends Dec 14')
+  expect(html).not.toContain('>Active<')
+  expect(html).toContain(
+    'Assistant answers calls until <b>Dec 14, 2026</b>. Then the plan ends and nothing more is charged.',
+  )
+  expect(html).not.toContain('Plus tax where it applies')
   expect(html).toContain('Keep my plan')
   expect(html).not.toContain('Cancel plan')
+  // The badge is neutral, not the green of a running plan.
+  expect(html).toMatch(/k-badge-neutral[^>]*>[^<]*(<[^>]*>)*Ends Dec 14/)
+})
+
+test('a plan that ended: since when, Start plan again with its price, the numbers note; no running-plan cards (LIN-781)', () => {
+  const endedAt = new Date(Date.UTC(2026, 10, 14, 12)).toISOString()
+  const ended = (over: Partial<BillingOverviewBill> = {}, s: Partial<BillingStateBill> = {}) =>
+    render(
+      {
+        billingOn: true,
+        bill: bill({
+          status: 'canceled',
+          endedAt,
+          startAgain: { seatCents: 1100 },
+          canBuyMinutes: false,
+          balanceMicros: 700_000,
+          availableMicros: 700_000,
+          taxed: true,
+          ...over,
+        }),
+      },
+      state({
+        status: 'canceled',
+        canceledAt: endedAt,
+        numbersReleaseAt: new Date(Date.UTC(2026, 11, 14, 12)).toISOString(),
+        dataUntil: new Date(Date.UTC(2027, 1, 12, 12)).toISOString(),
+        ...s,
+      }),
+    )
+  const html = ended()
+  expect(html).toContain('>Ended<')
+  expect(html).toContain('Plan ended on Nov 14, 2026')
+  expect(html).toContain('no longer answers calls. Callers hear that you’ll call back.')
+  expect(html).toContain('Start plan again')
+  expect(html).toContain('$11 a month per workspace, plus tax where it applies')
+  expect(primaries(html)).toBe(1)
+  // The numbers note: amber, the port-out and export places as links, the dates from the server.
+  expect(html).toContain('k-note-warning')
+  expect(html).toContain('Your numbers are kept until Dec 14, 2026')
+  expect(html).toMatch(/href="#workspace\/phone"[^>]*>port them to another carrier/)
+  expect(html).toMatch(/href="#workspace\/export"[^>]*>export your calls/)
+  expect(html).toContain('until Feb 12, 2027')
+  expect(html).not.toContain('Your plan is canceled')
+  // No plan: no auto-recharge, no usage of a period, no calls at the same time; the balance is kept.
+  expect(html).not.toContain('id="billing-auto"')
+  expect(html).not.toContain('id="billing-usage"')
+  expect(html).not.toContain('id="billing-calls"')
+  expect(html).toContain('Kept for when you start again.')
+  expect(html).toContain('$0.70')
+  // Yearly: the price a month first, billed yearly.
+  expect(ended({ interval: 'year', startAgain: { seatCents: 10800 }, taxed: false })).toContain(
+    '$9 a month per workspace, billed yearly',
+  )
+  // Not offered (an open dispute, a pause by the team): no button, and the note does not say "start again".
+  const held = ended({ startAgain: null })
+  expect(held).not.toContain('Start plan again')
+  expect(held).not.toContain('Start again before then')
+  expect(held).not.toContain('Kept for when you start again.')
+  // No numbers: only the calls line.
+  expect(ended({}, { numbersReleaseAt: null })).toContain('You can read and')
+  expect(ended({}, { numbersReleaseAt: null })).not.toContain('numbers are kept')
 })
 
 test('someone who does not pay for the workspace, or billing off: nothing about the bill', () => {
@@ -782,8 +853,8 @@ test('in the trial: Switch to monthly or yearly next to Cancel; not on a paid pl
   const toMonthly = trialing({ intervalSwitch: { interval: 'month', seatCents: 1100 } })
   expect(toMonthly).toContain('Switch to monthly')
   expect(toMonthly).toContain('Cancel trial')
-  // Not a second primary button: yearly to monthly is the link in the billing line.
-  expect(toMonthly).toMatch(/Billed yearly · <button/)
+  // Not a second primary button: yearly to monthly is the small link under the first charge.
+  expect(toMonthly).toMatch(/<span class="help"><button/)
   expect(
     trialing({ interval: 'month', seatCents: 1100, intervalSwitch: { interval: 'year', seatCents: 10800 } }),
   ).toContain('Switch to yearly')

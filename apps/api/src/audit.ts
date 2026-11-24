@@ -245,6 +245,7 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'billing.startTopUp': 'account',
   'billing.cancel': 'account',
   'billing.resume': 'account',
+  'billing.startAgain': 'account',
   // Settings › Billing: auto-recharge, the cap, the portal and Retry; the overview is a read.
   'billing.setAutoRecharge': 'account',
   'billing.setRechargeCap': 'account',

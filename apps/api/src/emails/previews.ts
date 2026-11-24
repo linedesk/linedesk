@@ -279,17 +279,76 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
       ),
     },
     {
-      name: 'spending-cap-80',
+      name: 'spending-cap-80-owner',
       email: spendingCapEmail(
-        { workspace: 'Brightwater Plumbing & Heating', level: 80, capUsd: 50, spentUsd: 40.2 },
+        {
+          workspace: 'Brightwater Plumbing & Heating',
+          level: 80,
+          capUsd: 50,
+          spentUsd: 40.2,
+          resetsAt: '2026-12-01T00:00:00.000Z',
+          reader: { kind: 'owner', support: null, billing: false },
+        },
         origin,
         locale,
       ),
     },
     {
-      name: 'spending-cap-100',
+      name: 'spending-cap-80-admin',
       email: spendingCapEmail(
-        { workspace: 'Brightwater Plumbing & Heating', level: 100, capUsd: 50, spentUsd: 50.35 },
+        {
+          workspace: 'Brightwater Plumbing & Heating',
+          level: 80,
+          capUsd: 50,
+          spentUsd: 40.2,
+          resetsAt: '2026-12-01T00:00:00.000Z',
+          reader: { kind: 'admin', workspaceId: 'ws_brightwater', support: null },
+        },
+        origin,
+        locale,
+      ),
+    },
+    {
+      name: 'spending-cap-100-owner-cloud',
+      email: spendingCapEmail(
+        {
+          workspace: 'Brightwater Plumbing & Heating',
+          level: 100,
+          capUsd: 50,
+          spentUsd: 50.35,
+          resetsAt: '2026-12-01T00:00:00.000Z',
+          reader: { kind: 'owner', support: 'support@linedesk.example', billing: true },
+        },
+        origin,
+        locale,
+      ),
+    },
+    {
+      name: 'spending-cap-100-owner',
+      email: spendingCapEmail(
+        {
+          workspace: 'Brightwater Plumbing & Heating',
+          level: 100,
+          capUsd: 50,
+          spentUsd: 50.35,
+          resetsAt: '2026-12-01T00:00:00.000Z',
+          reader: { kind: 'owner', support: null, billing: false },
+        },
+        origin,
+        locale,
+      ),
+    },
+    {
+      name: 'spending-cap-100-admin',
+      email: spendingCapEmail(
+        {
+          workspace: 'Brightwater Plumbing & Heating',
+          level: 100,
+          capUsd: 50,
+          spentUsd: 50.35,
+          resetsAt: '2026-12-01T00:00:00.000Z',
+          reader: { kind: 'admin', workspaceId: 'ws_brightwater', support: null },
+        },
         origin,
         locale,
       ),

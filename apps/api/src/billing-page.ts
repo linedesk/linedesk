@@ -61,7 +61,9 @@ import {
   BUYS_MINUTES,
   ownBill,
   planPrices,
+  oldPlanUnpaid,
   setupFailed,
+  startAgainRefusal,
   stillManages,
   trialOffered,
 } from './billing-checkout.ts'
@@ -473,6 +475,8 @@ async function overview(
     taxAddressMissing:
       rules.automaticTax && bill.status !== 'comped' && (await lastAttemptTax(tx, bill.id)) === 'no_address',
     period: period ? { startsAt: period.starts_at, endsAt: period.ends_at, kind: period.kind } : null,
+    endedAt: bill.status === 'canceled' ? bill.canceled_at : null,
+    ...(await startAgainOf(tx as Tx, bill, planPrice(seatKey, rules)?.cents ?? 0)),
     calls: callsOf(bill, workspaces, rules, now, await busyCallersByWorkspace(tx, [bill.id], now)),
     usage: period ? await periodUsage(tx, bill.id, period.id, workspaces, rules.includedStandardSeconds) : [],
     invoices: invoices.map(
@@ -489,6 +493,26 @@ async function overview(
     ),
   }
   return { rows: {}, data: { billingOn, bill: data } }
+}
+
+/**
+ * A plan that ended: whether it can start again here and at what price, else why not (`unpaid`, `held`). Stripe is
+ * asked about the old plan's unpaid invoices; when it cannot be asked, the button shows and the start asks again.
+ */
+async function startAgainOf(tx: Tx, bill: Bill, seatCents: number) {
+  if (bill.status !== 'canceled' || bill.kind !== 'cloud') return { startAgain: null, startAgainBlocked: null }
+  const held = await startAgainRefusal(tx, bill)
+  const unpaid =
+    !held &&
+    (await oldPlanUnpaid(await billingProvider(tx), bill).catch(e => {
+      console.warn("billing: the old plan's invoices could not be read:", e instanceof Error ? e.message : e)
+      return false
+    }))
+  const refusal = held ?? (unpaid ? 'unpaid' : null)
+  return {
+    startAgain: refusal ? null : { seatCents },
+    startAgainBlocked: refusal === 'unpaid' || refusal === 'held' ? refusal : null,
+  }
 }
 
 // ---- What /v1/me tells the app about the workspace's bill ------------------------------------------------------

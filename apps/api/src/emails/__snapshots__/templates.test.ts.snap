@@ -418,7 +418,7 @@ Linedesk · desk.example.com
 ",
   ],
   [
-    "spending-cap-80",
+    "spending-cap-80-owner",
     "Brightwater Plumbing & Heating used 80% of its monthly spending cap",
     "Spending cap
 
@@ -426,19 +426,78 @@ Brightwater Plumbing & Heating used 80% of its monthly spending cap
 
 Brightwater Plumbing & Heating used about $40.20 of its monthly spending cap of $50.00 (80%, estimated).
 
-When it reaches the cap, the assistant stops answering calls until the end of the month (UTC): callers hear that the business will call them back, and each call shows up in the inbox as a missed call to return.
+Once it reaches the cap, your assistant stops answering calls until December 1: callers hear that you’ll call them back.
 
-A server admin can change the cap in Server admin › Workspaces › Brightwater Plumbing & Heating.
+To raise the cap, ask your server admin.
 
 --
 
-You got this email because you own Brightwater Plumbing & Heating or are a server admin of desk.example.com.
+You got this email because you own Brightwater Plumbing & Heating.
 
 Linedesk · desk.example.com
 ",
   ],
   [
-    "spending-cap-100",
+    "spending-cap-80-admin",
+    "Brightwater Plumbing & Heating used 80% of its monthly spending cap",
+    "Spending cap
+
+Brightwater Plumbing & Heating used 80% of its monthly spending cap
+
+Brightwater Plumbing & Heating used about $40.20 of its monthly spending cap of $50.00 (80%, estimated).
+
+When it reaches the cap, its assistant stops answering calls until December 1 (UTC): callers hear that the business will call them back, and each call shows up in the inbox as a missed call to return.
+
+Change the cap:
+https://desk.example.com/#admin/workspaces/ws_brightwater
+
+The workspace owner got an email too, asking them to contact you.
+
+--
+
+You got this email because you are a server admin of desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "spending-cap-100-owner-cloud",
+    "Brightwater Plumbing & Heating reached its monthly spending cap",
+    "CAP REACHED · Spending cap
+
+Brightwater Plumbing & Heating reached its monthly spending cap
+
+Until December 1, your assistant no longer answers calls. Callers hear that you’ll call them back, and each call shows up in your inbox as a missed call with “Call back”.
+
+Your workspace has a spending cap of $50.00 a month (estimated cost this month: about $50.35). Buying minutes doesn’t lift it: write to support@linedesk.example if calls should be answered before December 1.
+
+--
+
+You got this email because you own Brightwater Plumbing & Heating.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "spending-cap-100-owner",
+    "Brightwater Plumbing & Heating reached its monthly spending cap",
+    "CAP REACHED · Spending cap
+
+Brightwater Plumbing & Heating reached its monthly spending cap
+
+Until December 1, your assistant no longer answers calls. Callers hear that you’ll call them back, and each call shows up in your inbox as a missed call with “Call back”.
+
+Your server admin set this cap at $50.00 a month (estimated cost this month: about $50.35). Ask them to raise it if calls should be answered before December 1.
+
+--
+
+You got this email because you own Brightwater Plumbing & Heating.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "spending-cap-100-admin",
     "Brightwater Plumbing & Heating reached its monthly spending cap",
     "CAP REACHED · Spending cap
 
@@ -446,13 +505,16 @@ Brightwater Plumbing & Heating reached its monthly spending cap
 
 Brightwater Plumbing & Heating reached its monthly spending cap of $50.00 (estimated cost this month: about $50.35).
 
-Until the end of the month (UTC) the assistant no longer answers calls: callers hear that the business will call them back, and each call shows up in the inbox as a missed call with “Call back”. Test calls are off too.
+Until December 1 (UTC) its assistant no longer answers calls: callers hear that the business will call them back, and each call shows up in the inbox as a missed call with “Call back”. Test calls are off too.
 
-A server admin can change the cap in Server admin › Workspaces › Brightwater Plumbing & Heating.
+Raise the cap:
+https://desk.example.com/#admin/workspaces/ws_brightwater
+
+The workspace owner got an email too, asking them to contact you.
 
 --
 
-You got this email because you own Brightwater Plumbing & Heating or are a server admin of desk.example.com.
+You got this email because you are a server admin of desk.example.com.
 
 Linedesk · desk.example.com
 ",
@@ -1725,7 +1787,7 @@ Linedesk · desk.example.com
 ",
   ],
   [
-    "spending-cap-80",
+    "spending-cap-80-owner",
     "Brightwater Plumbing & Heating usó el 80 % de su límite de gasto mensual",
     "Límite de gasto
 
@@ -1733,19 +1795,78 @@ Brightwater Plumbing & Heating usó el 80 % de su límite de gasto mensual
 
 Brightwater Plumbing & Heating usó unos 40,20 US$ de su límite de gasto mensual de 50,00 US$ (80 %, estimado).
 
-Al alcanzar el límite, el asistente deja de contestar llamadas hasta fin de mes (UTC): quien llama oye que la empresa le devolverá la llamada, y cada llamada aparece en la bandeja de entrada como una llamada perdida que hay que devolver.
+Once it reaches the cap, your assistant stops answering calls until 1 de diciembre: callers hear that you’ll call them back.
 
-Un administrador del servidor puede cambiar el límite en Administración del servidor › Espacios de trabajo › Brightwater Plumbing & Heating.
+To raise the cap, ask your server admin.
 
 --
 
-Recibes este correo porque eres propietario de Brightwater Plumbing & Heating o administrador del servidor de desk.example.com.
+You got this email because you own Brightwater Plumbing & Heating.
 
 Linedesk · desk.example.com
 ",
   ],
   [
-    "spending-cap-100",
+    "spending-cap-80-admin",
+    "Brightwater Plumbing & Heating usó el 80 % de su límite de gasto mensual",
+    "Límite de gasto
+
+Brightwater Plumbing & Heating usó el 80 % de su límite de gasto mensual
+
+Brightwater Plumbing & Heating usó unos 40,20 US$ de su límite de gasto mensual de 50,00 US$ (80 %, estimado).
+
+When it reaches the cap, its assistant stops answering calls until 1 de diciembre (UTC): callers hear that the business will call them back, and each call shows up in the inbox as a missed call to return.
+
+Change the cap:
+https://desk.example.com/#admin/workspaces/ws_brightwater
+
+The workspace owner got an email too, asking them to contact you.
+
+--
+
+You got this email because you are a server admin of desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "spending-cap-100-owner-cloud",
+    "Brightwater Plumbing & Heating alcanzó su límite de gasto mensual",
+    "LÍMITE ALCANZADO · Límite de gasto
+
+Brightwater Plumbing & Heating alcanzó su límite de gasto mensual
+
+Until 1 de diciembre, your assistant no longer answers calls. Callers hear that you’ll call them back, and each call shows up in your inbox as a missed call with “Call back”.
+
+Your workspace has a spending cap of 50,00 US$ a month (estimated cost this month: about 50,35 US$). Buying minutes doesn’t lift it: write to support@linedesk.example if calls should be answered before 1 de diciembre.
+
+--
+
+You got this email because you own Brightwater Plumbing & Heating.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "spending-cap-100-owner",
+    "Brightwater Plumbing & Heating alcanzó su límite de gasto mensual",
+    "LÍMITE ALCANZADO · Límite de gasto
+
+Brightwater Plumbing & Heating alcanzó su límite de gasto mensual
+
+Until 1 de diciembre, your assistant no longer answers calls. Callers hear that you’ll call them back, and each call shows up in your inbox as a missed call with “Call back”.
+
+Your server admin set this cap at 50,00 US$ a month (estimated cost this month: about 50,35 US$). Ask them to raise it if calls should be answered before 1 de diciembre.
+
+--
+
+You got this email because you own Brightwater Plumbing & Heating.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "spending-cap-100-admin",
     "Brightwater Plumbing & Heating alcanzó su límite de gasto mensual",
     "LÍMITE ALCANZADO · Límite de gasto
 
@@ -1753,13 +1874,16 @@ Brightwater Plumbing & Heating alcanzó su límite de gasto mensual
 
 Brightwater Plumbing & Heating alcanzó su límite de gasto mensual de 50,00 US$ (costo estimado este mes: unos 50,35 US$).
 
-Hasta fin de mes (UTC) el asistente ya no contesta llamadas: quien llama oye que la empresa le devolverá la llamada, y cada llamada aparece en la bandeja de entrada como llamada perdida con “Devolver la llamada”. Las llamadas de prueba también están desactivadas.
+Until 1 de diciembre (UTC) its assistant no longer answers calls: callers hear that the business will call them back, and each call shows up in the inbox as a missed call with “Call back”. Test calls are off too.
 
-Un administrador del servidor puede cambiar el límite en Administración del servidor › Espacios de trabajo › Brightwater Plumbing & Heating.
+Raise the cap:
+https://desk.example.com/#admin/workspaces/ws_brightwater
+
+The workspace owner got an email too, asking them to contact you.
 
 --
 
-Recibes este correo porque eres propietario de Brightwater Plumbing & Heating o administrador del servidor de desk.example.com.
+You got this email because you are a server admin of desk.example.com.
 
 Linedesk · desk.example.com
 ",

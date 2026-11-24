@@ -29,12 +29,14 @@ import {
   type BillingRules,
   billing_accounts,
   billing_alerts,
+  billing_disputes,
   billing_periods,
   billing_recharges,
   card_fingerprints,
   EXTRA_CALLS_LOOKUP_PREFIX,
   EXTRA_CALLS_STEP,
   INCLUDED_NUMBERS_PER_WORKSPACE,
+  ledger_entries,
   maxExtraCalls,
   minutesPromptFor,
   organization,
@@ -42,6 +44,7 @@ import {
   partners,
   phone_numbers,
   planPrice,
+  stripe_events,
   rechargeCapCents,
   type TRIAL_REFUSALS,
   type TrialRechargeDisclosure,
@@ -51,7 +54,7 @@ import {
   workspace_settings,
 } from '@linedesk/db'
 import { type MessageKey, msg } from '@linedesk/i18n'
-import { and, asc, eq, gte, isNotNull, isNull, ne, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, gte, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm'
 import { SIGN_IN_AGAIN } from './account.ts'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
@@ -602,6 +605,112 @@ const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput)
   } satisfies Started
 }
 
+// ---- Starting the plan again after it ended ----------------------------------------------------------------------
+
+/**
+ * Why a bill's plan cannot start again now (`billing.startAgain`), or null. Only a business's bill whose plan ended
+ * (`canceled`: the period over, or ended by dunning or in Stripe); never a partner bill (its owner signs up again).
+ * Not while a dispute is open, after any fraud warning (settled or refunded too: only the team lifts that), nor after
+ * an instance admin's pause: those end with support, and a new subscription must not lift them (security review of
+ * LIN-781, M4). An old plan's unpaid invoices are Stripe's to tell (`oldPlanUnpaid`).
+ */
+export async function startAgainRefusal(tx: Tx, bill: Bill): Promise<StartAgainRefusal | null> {
+  if (bill.kind !== 'cloud') return 'partner'
+  if (bill.status !== 'canceled') return 'notEnded'
+  if (bill.suspend_reason && bill.suspend_reason !== 'payment') return 'held'
+  const { openDisputes } = await import('./billing-lifecycle.ts')
+  if ((await openDisputes(tx, bill.id)).length) return 'held'
+  const [warned] = await tx
+    .select({ id: billing_disputes.id })
+    .from(billing_disputes)
+    .where(and(eq(billing_disputes.billing_account_id, bill.id), eq(billing_disputes.kind, 'fraud_warning')))
+    .limit(1)
+  if (warned) return 'held'
+  return null
+}
+
+/**
+ * Whether the old plan left invoices unpaid (open or uncollectible at Stripe; our invoice list mirrors only paid ones):
+ * a plan ended by dunning is paid first, under Card and invoices, before it starts again (security review of LIN-781,
+ * M3). Asked at the start, outside a transaction; a confirmation comes from a start that passed it.
+ */
+export async function oldPlanUnpaid(provider: BillingProvider, bill: Bill): Promise<boolean> {
+  return bill.stripe_subscription_id ? provider.unpaidInvoices(bill.stripe_subscription_id) : false
+}
+export type StartAgainRefusal = 'partner' | 'notEnded' | 'held' | 'unpaid'
+const START_AGAIN_REFUSED: Record<StartAgainRefusal, MessageKey> = {
+  partner: msg('server.api.checkout.startAgain.partner'),
+  notEnded: msg('server.api.checkout.startAgain.notEnded'),
+  held: msg('server.api.checkout.startAgain.held'),
+  unpaid: msg('server.api.checkout.startAgain.unpaid'),
+}
+
+/**
+ * `billing.startAgain`: the plan of a business whose plan ended, paid now through Checkout (kind `restart`): the seats
+ * at the bill's interval and today's price, no trial and no extra calls. The same Stripe customer, so the card and
+ * invoices stay together; the balance is not touched. Confirmed by `confirmSession` (restartPlan).
+ */
+const prepareStartAgain: Preparer = async ({ actor, now }) => {
+  const bill = await db.transaction(tx => ownBill(tx, actor))
+  const refusal = await db.transaction(tx => startAgainRefusal(tx, bill))
+  if (refusal) throw Reject.t(START_AGAIN_REFUSED[refusal])
+  const terms = await termsInEffect(bill)
+  refuseCheckoutFlood(bill.id)
+  const items = await db.transaction(tx => planItems(tx, bill))
+  await db.transaction(tx => refuseUnservedWorkspaces(tx, bill.id))
+  const provider = await billingProvider(db)
+  if (await oldPlanUnpaid(provider, bill).catch(setupFailed)) throw Reject.t(START_AGAIN_REFUSED.unpaid)
+  await stillManages(actor, bill.id)
+  const configuration = await cardOnlyConfiguration(provider)
+  const customerId = await customerOf(provider, bill)
+  // One open Checkout per bill (G1), as for the first start.
+  if (bill.stripe_customer_id) await provider.expireOpenCheckouts(customerId).catch(setupFailed)
+  const rules = await billingRules(db)
+  const prices = await pricesForCheckout(provider).catch(setupFailed)
+  const country = await db.transaction(tx => checkoutCountry(tx, bill.id, actor))
+  const price = { cents: itemsCents(items, rules), interval: bill.interval }
+  const started = await provider
+    .startCheckout({
+      kind: 'restart',
+      billId: bill.id,
+      customerId,
+      paymentMethodConfiguration: configuration,
+      catalog: planCatalog(rules, brandName()),
+      prices,
+      items,
+      submitText: checkoutText('plan', wordsOf(actor), {
+        brand: brandName(),
+        trialDays: rules.trialDays,
+        taxed: rules.automaticTax,
+        price,
+      }),
+      branding: checkoutBranding(),
+      ...(country ? { country } : {}),
+      successUrl: returnUrl(),
+      cancelUrl: cancelUrl(),
+      idempotencyKey: `${bill.id}:checkout:restart:${bill.interval}:${now.slice(0, 19)}`,
+      expiresAt: checkoutExpiresAt(),
+    })
+    .catch(setupFailed)
+  return {
+    url: started.url,
+    sessionId: started.id,
+    customerId,
+    billId: bill.id,
+    accepted: terms
+      ? {
+          terms,
+          disclosure: activationDisclosure(
+            { planCents: price.cents, interval: bill.interval, trial: false },
+            rules,
+            now,
+          ),
+        }
+      : null,
+    interval: bill.interval,
+  } satisfies Started
+}
+
 /** Stores the bill's customer the first time (a second start finds it). */
 async function storeCustomer(tx: Tx, started: Started, now: string) {
   await tx
@@ -766,6 +875,9 @@ export async function confirmSession(
   const sub = session.subscription
   // The session's own subscription, when Stripe made one for this bill's customer and it still runs.
   const own = sub && sub.customerId === bill.stripe_customer_id && RUNNING.includes(sub.status) ? sub : null
+  // A plan started again after it ended (`billing.startAgain`): only a `restart` session, only on a canceled bill.
+  if (bill.status === 'canceled' && session.kind === 'restart')
+    return restartPlan(tx, bill, session, own, provider, now)
   if (bill.status !== 'pending_payment') {
     // A second session completed after the first was confirmed (two tabs; security review of #961, G1): its
     // subscription would convert and charge for nothing. It is canceled at once and the admins are told.
@@ -881,6 +993,142 @@ export async function confirmSession(
   await applyCheckoutExtraCalls(tx, bill.id, sub, end)
   await activated(tx, bill.id)
   return { status: 'active', heldForReview: held }
+}
+
+/**
+ * Confirms a `restart` Checkout of a canceled bill: the session's own new subscription, paid (`active`), a Linedesk
+ * plan with no trial. The bill is active again on it: the cancellation, the pause and the dunning dates cleared, its
+ * workspaces answering again, a new first period. The balance stays as it was (no entry is posted), the numbers still
+ * kept answer again (nothing was released before `canceled_at` + 30 days), extra calls are gone (not sold). Anything
+ * else cancels the subscription at once and answers the refusal, as for a first Checkout (G5).
+ */
+async function restartPlan(
+  tx: Tx,
+  bill: Bill,
+  session: CheckoutSession,
+  own: BillingSubscription | null,
+  provider: BillingProvider,
+  now: string,
+): Promise<ConfirmData> {
+  // A restart is paid at Checkout: a refusal ends the subscription and, when it was paid, tells the admins to refund
+  // it (dropExtraCheckout; security review of LIN-781, L5).
+  const refuse = async (key: MessageKey): Promise<never> => {
+    if (own) await dropExtraCheckout(provider, bill, session, own)
+    throw Reject.t(key)
+  }
+  if (session.status !== 'complete') throw Reject.t('server.api.checkout.notFinished')
+  const sub = own
+  if (!sub || !isLinedeskPlan(sub) || sub.id === bill.stripe_subscription_id)
+    return refuse(msg('server.api.checkout.noPlan'))
+  // Checked again under the lock: a dispute opened or a partner bill since the start is refused, the subscription ended.
+  const refusal = await startAgainRefusal(tx, bill)
+  if (refusal) return refuse(START_AGAIN_REFUSED[refusal])
+  if (sub.status === 'trialing') return refuse(msg('server.api.checkout.startAgain.noTrial'))
+  if (sub.status !== 'active') throw Reject.t('server.api.checkout.notPaid')
+  const fingerprint = session.card?.fingerprint
+  if (!fingerprint) return refuse(msg('server.api.checkout.noCard'))
+  if (!isStripeTestCard(session)) await rememberCard(tx, fingerprint, bill.id)
+  const rules = await signupRules(tx)
+  const held = !!session.riskLevel && rules.reviewRiskLevels.includes(session.riskLevel)
+  const start = sub.currentPeriodStart ?? now
+  const end = sub.currentPeriodEnd ?? addMonth(start)
+  await tx
+    .update(billing_accounts)
+    .set({
+      status: 'active',
+      stripe_subscription_id: sub.id,
+      checkout_confirmed_at: now,
+      card_risk_level: session.riskLevel,
+      ...(held ? { held_for_review_at: now } : {}),
+      current_period_start: start,
+      current_period_end: end,
+      ...(sub.interval ? { interval: sub.interval } : {}),
+      // The new subscription's months, never the old one's (billing-periods.ts counts from the anchor).
+      billing_anchor: sub.billingCycleAnchor ?? start,
+      cancel_at_period_end: false,
+      canceled_at: null,
+      trial_ends_at: null,
+      suspend_reason: null,
+      suspended_at: null,
+      suspended_from: null,
+      past_due_since: null,
+      past_due_first_payment: false,
+      recharge_failed_at: null,
+      extra_calls_paid: 0,
+      extra_calls_paid_until: null,
+      updated_at: now,
+    })
+    .where(and(eq(billing_accounts.id, bill.id), eq(billing_accounts.status, 'canceled')))
+  await tx
+    .update(organization)
+    .set({ billingState: workspaceState('active'), extraCalls: 0 })
+    .where(eq(organization.billingAccountId, bill.id))
+  await clearPeriodsFrom(tx, bill.id, start)
+  const monthEnd = addMonth(start)
+  await openFirstPeriod(tx, bill, start, Date.parse(end) < Date.parse(monthEnd) ? end : monthEnd, 'month')
+  await settleFirstInvoiceAgain(tx, bill, sub)
+  return { status: 'active', heldForReview: held || !!bill.held_for_review_at }
+}
+
+/**
+ * The restarted plan's first invoice: its `invoice.paid` usually came before this confirmation and changed nothing
+ * then (a canceled bill links no subscription), so the invoice list missed it. That stored event is processed again
+ * now, after this commit, as Server admin's "Process again" does; one still on its way is processed as usual
+ * (security review of LIN-781, L6).
+ */
+async function settleFirstInvoiceAgain(tx: Tx, bill: Bill, sub: BillingSubscription) {
+  if (!sub.latestInvoiceId) return
+  const again = await tx
+    .update(stripe_events)
+    .set({ processed_at: null, attempts: 0, last_error: null })
+    .where(
+      and(
+        eq(stripe_events.type, 'invoice.paid'),
+        isNotNull(stripe_events.processed_at),
+        sql`${stripe_events.payload}->'data'->'object'->>'id' = ${sub.latestInvoiceId}`,
+        sql`${stripe_events.payload}->'data'->'object'->>'customer' = ${bill.stripe_customer_id}`,
+      ),
+    )
+    .returning({ id: stripe_events.id })
+  if (!again.length) return
+  const { queueStripeEvent } = await import('./stripe-events.ts')
+  for (const { id } of again) await queueStripeEvent(tx, id)
+}
+
+/**
+ * Makes room for a restarted plan's first period at `start`: a period of the old plan still running then (the plan was
+ * canceled mid-period, by dunning) ends at `start`, so its counters and allowance stay with the old plan; one the
+ * period job opened ahead (it opens the next one 2 hours early) goes, with its counters, while nothing posted in it.
+ */
+async function clearPeriodsFrom(tx: Tx, billId: string, start: string) {
+  await tx
+    .update(billing_periods)
+    .set({ ends_at: start })
+    .where(
+      and(
+        eq(billing_periods.billing_account_id, billId),
+        lt(billing_periods.starts_at, start),
+        gt(billing_periods.ends_at, start),
+      ),
+    )
+  const ahead = await tx
+    .select({ id: billing_periods.id })
+    .from(billing_periods)
+    .where(
+      and(
+        eq(billing_periods.billing_account_id, billId),
+        gte(billing_periods.starts_at, start),
+        sql`not exists (select 1 from ${ledger_entries} where ${ledger_entries.period_id} = ${billing_periods.id})`,
+      ),
+    )
+  // In a savepoint: a period something else still points at stays, and the restart goes on.
+  for (const { id } of ahead)
+    await tx
+      .transaction(async sp => {
+        await sp.delete(usage_counters).where(eq(usage_counters.period_id, id))
+        await sp.delete(billing_periods).where(eq(billing_periods.id, id))
+      })
+      .catch(e => console.error(`billing: period ${id} ahead of a restarted plan stays:`, e))
 }
 
 /**
@@ -1296,6 +1544,7 @@ export const checkoutPreparers: Record<string, Preparer> = {
   'billing.startTopUp': prepareTopUp,
   'billing.cancel': prepareCancel(false),
   'billing.resume': prepareCancel(true),
+  'billing.startAgain': prepareStartAgain,
 }
 
 export const checkoutHandlers: Record<string, Handler> = {
@@ -1371,6 +1620,26 @@ export const checkoutHandlers: Record<string, Handler> = {
   },
   'billing.cancel': applyCancel,
   'billing.resume': applyCancel,
+  'billing.startAgain': async ({ tx, actor, now, prepared }) => {
+    const started = prepared as Started
+    const bill = await ownBill(tx, actor, { lock: true })
+    if (bill.id !== started.billId) throw new Reject('the bill changed; try again')
+    const refusal = await startAgainRefusal(tx, bill)
+    if (refusal) throw Reject.t(START_AGAIN_REFUSED[refusal])
+    await storeCustomer(tx, started, now)
+    // The consent to the plan's charge, as the activation step records it (no trial): the terms in effect and the price.
+    if (started.accepted)
+      await recordAcceptance(tx, {
+        userId: actor.actorId,
+        billId: bill.id,
+        sessionId: actor.sessionId!,
+        terms: started.accepted.terms,
+        disclosure: started.accepted.disclosure,
+        now,
+        source: 'activation',
+      })
+    return { rows: {}, data: { url: started.url } }
+  },
 }
 
 // ---- Numbers on a billed workspace -----------------------------------------------------------------------------

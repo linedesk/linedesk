@@ -13,6 +13,7 @@ import {
   billing_accounts,
   billing_alerts,
   billing_balances,
+  billing_disputes,
   billing_periods,
   billing_recharges,
   CARD_FINGERPRINT_RETENTION_MONTHS,
@@ -326,6 +327,14 @@ const fakeStripe: typeof fetch = async (input, init) => {
     const invoice = stripe.invoices.get(id)!
     if (body.has('description')) invoice.description = body.get('description')
     return reply(200, invoice)
+  }
+  if (kind === 'invoices' && !id && method === 'GET') {
+    const subscriptionId = url.searchParams.get('subscription')
+    const status = url.searchParams.get('status')
+    const found = [...stripe.invoices.values()].filter(
+      i => (!subscriptionId || i.subscription === subscriptionId) && (!status || i.status === status),
+    )
+    return reply(200, list(found, url.pathname))
   }
   if (kind === 'invoices' && id) return stripe.invoices.has(id) ? reply(200, stripe.invoices.get(id)) : notFound()
   if (kind === 'invoiceitems' && method === 'POST' && !id && body.get('invoice')) {
@@ -1094,6 +1103,208 @@ describe('billing.cancel and billing.resume', () => {
     // Canceled for good: nothing to cancel any more.
     await db.update(billing_accounts).set({ status: 'canceled' }).where(eq(billing_accounts.id, bill.id))
     expect((await act(owner, 'billing.cancel', {})).status).toBe(409)
+  })
+})
+
+describe('billing.startAgain: a plan that ended starts again through Checkout (LIN-781)', () => {
+  /** A trial that ran, was canceled and is over: the bill `canceled`, its workspace paused, a balance left. */
+  async function endedPlan(over: Partial<typeof billing_accounts.$inferInsert> = {}) {
+    const started = await trialWith(rid('fp'))
+    const endedAt = new Date(Date.now() - 10 * DAY_S * 1000).toISOString()
+    await db
+      .update(billing_accounts)
+      .set({ status: 'canceled', canceled_at: endedAt, cancel_at_period_end: true, ...over })
+      .where(eq(billing_accounts.id, started.bill.id))
+    await db
+      .update(organization)
+      .set({ billingState: 'suspended', extraCalls: 5 })
+      .where(eq(organization.id, started.ws.id))
+    stripe.subscriptions.get(started.sub.id as string)!.status = 'canceled'
+    await db
+      .update(billing_balances)
+      .set({ balance_micros: 700_000 })
+      .where(eq(billing_balances.billing_account_id, started.bill.id))
+    return started
+  }
+  const balanceOf = async (billId: string) =>
+    (await db.select().from(billing_balances).where(eq(billing_balances.billing_account_id, billId)))[0]?.balance_micros
+
+  test('Checkout of the plan only, paid now, no trial; confirmed: active again on a new subscription, balance kept', async () => {
+    const { bill, ws, owner, sub: old } = await endedPlan()
+    const before = await balanceOf(bill.id)
+    const res = await act(owner, 'billing.startAgain', {})
+    expect(res.status).toBe(200)
+    expect(res.body.data.url).toBe('https://checkout.stripe.test/c/pay')
+    const made = checkoutsMade().at(-1)!
+    expect(made.body.get('metadata[linedesk_checkout]')).toBe('restart')
+    expect(made.body.get('mode')).toBe('subscription')
+    expect(made.body.get('subscription_data[trial_period_days]')).toBeNull()
+    expect(made.body.get('line_items[0][price]')).toBe('price_ws_monthly')
+    expect(made.body.get('line_items[1][price]')).toBeNull()
+    // The same Stripe customer: card and invoices stay together.
+    expect(made.body.get('customer')).toBe(bill.stripe_customer_id ?? (await billRow(bill.id)).stripe_customer_id)
+    // Nothing changed yet: the plan starts only once Checkout is paid.
+    expect((await billRow(bill.id)).status).toBe('canceled')
+    const sessionId = [...stripe.sessions.keys()].at(-1)!
+    const customer = (await billRow(bill.id)).stripe_customer_id!
+    const fresh = subscription(customer, { status: 'active' })
+    complete(sessionId, fresh)
+    // Its first invoice's invoice.paid came first and changed nothing (a canceled bill links no subscription).
+    const earlyEvent = rid('evt')
+    await db.insert(stripe_events).values({
+      id: earlyEvent,
+      type: 'invoice.paid',
+      livemode: false,
+      created: new Date().toISOString(),
+      processed_at: new Date().toISOString(),
+      payload: { data: { object: { id: fresh.latest_invoice, object: 'invoice', customer } } },
+    })
+    const confirmed = await act(owner, 'billing.confirmCheckout', { sessionId })
+    expect(confirmed.body.data).toEqual({ status: 'active', heldForReview: false })
+    const row = await billRow(bill.id)
+    expect(row).toMatchObject({
+      status: 'active',
+      stripe_subscription_id: fresh.id,
+      canceled_at: null,
+      cancel_at_period_end: false,
+      trial_ends_at: null,
+      extra_calls_paid: 0,
+    })
+    expect(row.stripe_subscription_id).not.toBe(old.id)
+    // That event is processed again now, so the invoice list gets the first invoice.
+    expect((await db.select().from(stripe_events).where(eq(stripe_events.id, earlyEvent)))[0]!.processed_at).toBeNull()
+    expect(row.billing_anchor).not.toBeNull()
+    expect(await workspaceState(ws.id)).toBe('active')
+    expect((await db.select().from(organization).where(eq(organization.id, ws.id)))[0]!.extraCalls).toBe(0)
+    expect(await balanceOf(bill.id)).toBe(before)
+    // A new month is open from now, so calls are rated again.
+    const periods = await db.select().from(billing_periods).where(eq(billing_periods.billing_account_id, bill.id))
+    expect(periods.some(p => p.kind === 'month' && Date.parse(p.ends_at) > Date.now())).toBe(true)
+    // The consent to the charge is kept, without a trial.
+    const [consent] = await db
+      .select()
+      .from(terms_acceptances)
+      .where(and(eq(terms_acceptances.billing_account_id, bill.id), eq(terms_acceptances.source, 'activation')))
+      .orderBy(terms_acceptances.accepted_at)
+    expect(consent).toBeDefined()
+    // Confirmed again (the webhook after the return page): nothing runs twice; it is running now, so no second start.
+    expect((await act(owner, 'billing.confirmCheckout', { sessionId })).body.data).toMatchObject({ status: 'active' })
+    expect((await act(owner, 'billing.startAgain', {})).status).toBe(409)
+  })
+
+  test('the webhook confirms it the same way; the overview offers it with the price of today', async () => {
+    const { bill, owner } = await endedPlan()
+    const overview = await act(owner, 'billing.overview', {})
+    expect(overview.body.data.bill).toMatchObject({ status: 'canceled', startAgain: { seatCents: 1100 } })
+    expect(overview.body.data.bill.endedAt).not.toBeNull()
+    await act(owner, 'billing.startAgain', {})
+    const sessionId = [...stripe.sessions.keys()].at(-1)!
+    const customer = (await billRow(bill.id)).stripe_customer_id!
+    complete(sessionId, subscription(customer, { status: 'active' }))
+    expect(
+      await processEvent('checkout.session.completed', { id: sessionId, object: 'checkout.session', customer }),
+    ).toMatchObject({ detail: 'active' })
+    expect((await billRow(bill.id)).status).toBe('active')
+  })
+
+  test('only who manages the bill, only a plan that ended, never a partner bill', async () => {
+    const { ws, owner } = await endedPlan()
+    const member = await addMember(ws.id, 'member')
+    expect((await act(member, 'billing.startAgain', {})).status).toBe(403)
+    const admin = await addMember(ws.id, 'admin')
+    expect((await act(admin, 'billing.startAgain', {})).status).toBe(200)
+    expect((await act(owner, 'billing.startAgain', {})).status).toBe(200)
+    // A plan that runs, or a sign-up waiting for Checkout: nothing to start again.
+    const running = await trialWith(rid('fp'))
+    expect((await act(running.owner, 'billing.startAgain', {})).status).toBe(409)
+    const waiting = await pendingSignUp()
+    expect((await act(waiting.owner, 'billing.startAgain', {})).status).toBe(409)
+    // A partner bill (its owner signs up again).
+    const partnerBill = await endedPlan({ kind: 'partner' })
+    expect((await act(partnerBill.owner, 'billing.startAgain', {})).status).not.toBe(200)
+  })
+
+  test('not while a dispute, a fraud warning or an admin pause is open: refused before Stripe, again at confirmation', async () => {
+    const paused = await endedPlan({ suspend_reason: 'admin' })
+    const before = checkoutsMade().length
+    expect((await act(paused.owner, 'billing.startAgain', {})).status).toBe(409)
+    expect(checkoutsMade()).toHaveLength(before)
+    expect((await act(paused.owner, 'billing.overview', {})).body.data.bill.startAgain).toBeNull()
+    // A dispute opened after the start: the confirmation ends the new subscription and the bill stays canceled.
+    const { bill, owner } = await endedPlan()
+    await act(owner, 'billing.startAgain', {})
+    const sessionId = [...stripe.sessions.keys()].at(-1)!
+    const customer = (await billRow(bill.id)).stripe_customer_id!
+    const fresh = subscription(customer, { status: 'active' })
+    complete(sessionId, fresh)
+    await db.insert(billing_disputes).values({
+      id: rid('du'),
+      billing_account_id: bill.id,
+      kind: 'dispute',
+      charge_id: rid('ch'),
+      status: 'needs_response',
+    })
+    expect((await act(owner, 'billing.confirmCheckout', { sessionId })).status).toBe(409)
+    expect(stripe.subscriptions.get(fresh.id as string)!.status).toBe('canceled')
+    expect((await billRow(bill.id)).status).toBe('canceled')
+    expect((await act(owner, 'billing.startAgain', {})).status).toBe(409)
+    // It was paid at Checkout: the admins are told to refund it.
+    await vi.waitFor(() =>
+      expect(
+        mails.some(m => /extra Checkout/i.test(m.subject) && (m.text ?? m.html ?? '').includes(fresh.id as string)),
+      ).toBe(true),
+    )
+  })
+
+  test('not after a fraud warning, even refunded; not while an invoice of the old plan is open (the page says why)', async () => {
+    const warned = await endedPlan()
+    await db.insert(billing_disputes).values({
+      id: rid('issfr'),
+      billing_account_id: warned.bill.id,
+      kind: 'fraud_warning',
+      charge_id: rid('ch'),
+      status: 'refunded',
+    })
+    expect((await act(warned.owner, 'billing.startAgain', {})).status).toBe(409)
+    expect((await act(warned.owner, 'billing.overview', {})).body.data.bill).toMatchObject({
+      startAgain: null,
+      startAgainBlocked: 'held',
+    })
+    // Ended by dunning: the old plan's invoice is still open at Stripe (our list mirrors only paid ones).
+    const unpaid = await endedPlan({ suspend_reason: 'payment' })
+    const openInvoice = rid('in')
+    stripe.invoices.set(openInvoice, {
+      id: openInvoice,
+      object: 'invoice',
+      subscription: unpaid.sub.id,
+      status: 'open',
+    })
+    const refused = await act(unpaid.owner, 'billing.startAgain', {})
+    expect(refused.status).toBe(409)
+    expect(refused.body.error).toContain('open invoice')
+    expect((await act(unpaid.owner, 'billing.overview', {})).body.data.bill.startAgainBlocked).toBe('unpaid')
+    // Paid since: it starts again.
+    stripe.invoices.get(openInvoice)!.status = 'paid'
+    expect((await act(unpaid.owner, 'billing.startAgain', {})).status).toBe(200)
+  })
+
+  test('only a restart session starts it: a trial on it, or an older trial Checkout, is ended and changes nothing', async () => {
+    const { bill, owner } = await endedPlan()
+    await act(owner, 'billing.startAgain', {})
+    const sessionId = [...stripe.sessions.keys()].at(-1)!
+    const customer = (await billRow(bill.id)).stripe_customer_id!
+    const trialing = subscription(customer)
+    complete(sessionId, trialing)
+    expect((await act(owner, 'billing.confirmCheckout', { sessionId })).status).toBe(409)
+    expect(stripe.subscriptions.get(trialing.id as string)!.status).toBe('canceled')
+    expect((await billRow(bill.id)).status).toBe('canceled')
+    // A session of another kind (a trial Checkout opened before the plan ended) never restarts the plan.
+    stripe.sessions.get(sessionId)!.metadata = { linedesk_checkout: 'trial' }
+    const paid = subscription(customer, { status: 'active' })
+    complete(sessionId, paid)
+    expect((await act(owner, 'billing.confirmCheckout', { sessionId })).status).not.toBe(200)
+    expect(stripe.subscriptions.get(paid.id as string)!.status).toBe('canceled')
+    expect((await billRow(bill.id)).status).toBe('canceled')
   })
 })
 

@@ -24,6 +24,7 @@ import {
 } from '@linedesk/db'
 import { and, eq, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
+import { endedDates, planEndedAt } from '../src/billing-lifecycle.ts'
 import { BILLING_LIFECYCLE_EMAIL, type LifecycleEmailJob, sendLifecycleEmail } from '../src/billing-periods.ts'
 import { rechargeGaveUp, rechargeSetupAlertKey } from '../src/billing-recharge.ts'
 import { reconcileBilling } from '../src/billing-reconcile.ts'
@@ -2256,6 +2257,38 @@ describe('disputes, fraud warnings and cancellations', () => {
       .from(billing_alerts)
       .where(and(eq(billing_alerts.billing_account_id, bill.id), eq(billing_alerts.kind, 'numbers_release')))
     expect(alerts).toHaveLength(1)
+    // Set to cancel at its period end, and the event came hours later (the next day): the plan ended on the day the
+    // page promised ("answers calls until"), and the numbers and data dates count from it (LIN-781).
+    const endingId = rid('sub')
+    const periodEnd = new Date(Date.now() - 20 * 3_600_000).toISOString()
+    const ending = await billWith({
+      stripe_subscription_id: endingId,
+      cancel_at_period_end: true,
+      current_period_end: periodEnd,
+    })
+    stripe.subscriptions.set(endingId, subscription(endingId, ending.bill.stripe_customer_id!, 'canceled'))
+    await deliverAndProcess(
+      event('customer.subscription.deleted', {
+        id: endingId,
+        object: 'subscription',
+        customer: ending.bill.stripe_customer_id,
+      }),
+    )
+    const ended = await billNow(ending.bill.id)
+    expect(ended.status).toBe('canceled')
+    expect(Date.parse(ended.canceled_at!)).toBe(Date.parse(periodEnd))
+    expect(endedDates(ended.canceled_at!)).toEqual({
+      numbersReleaseAt: new Date(Date.parse(periodEnd) + 30 * 86_400_000).toISOString(),
+      dataUntil: new Date(Date.parse(periodEnd) + 90 * 86_400_000).toISOString(),
+    })
+    expect(planEndedAt({ ...ended, status: 'active' }, new Date().toISOString())).toBe(periodEnd)
+    // A stale period end (a past-due plan's renewal never paid, weeks ago) never shortens the 30 and 90 days: now.
+    const stale = new Date(Date.now() - 20 * 86_400_000).toISOString()
+    const later = new Date().toISOString()
+    expect(planEndedAt({ ...ended, status: 'past_due', current_period_end: stale }, later)).toBe(later)
+    // Not set to cancel (deleted in Stripe early): it ended now.
+    const now = new Date().toISOString()
+    expect(planEndedAt({ ...ended, status: 'active', cancel_at_period_end: false }, now)).toBe(now)
     // Still active in Stripe (a stale event): nothing.
     const liveId = rid('sub')
     const live = await billWith({ stripe_subscription_id: liveId })
