@@ -249,7 +249,7 @@ type PartRow = Row & { id: BillingTab | 'events' }
 /** Whether billing through Stripe runs, in which mode, or what stops it. */
 function stripeRow(t: Translate, s: AdminBillingSummary): PartRow {
   const b = s.billing
-  const row = (state: StatusState, value: string, line: string): PartRow => ({
+  const row = (state: StatusState, value: string, line: string | null): PartRow => ({
     id: 'stripe',
     label: t(TAB_LABELS.stripe),
     state,
@@ -265,11 +265,8 @@ function stripeRow(t: Translate, s: AdminBillingSummary): PartRow {
   if (!b.guardsOk) return row('failing', t('admin.bills.summary.paused'), t('admin.billing.guardsMissing'))
   const mode = t(b.mode === 'live' ? 'admin.bills.summary.live' : 'admin.bills.summary.test')
   if (!b.on) return row('off', t('admin.bills.summary.off'), t('admin.bills.summary.turnOn', { mode }))
-  return row(
-    b.mode === 'live' ? 'works' : 'partly',
-    t('admin.bills.summary.on', { mode }),
-    t(s.automaticTax ? 'admin.bills.summary.taxOn' : 'admin.bills.summary.taxOff'),
-  )
+  const on = t('admin.bills.summary.on', { mode })
+  return b.mode === 'live' ? row('works', on, null) : row('partly', on, t('admin.billing.testMode'))
 }
 
 const CLOSED_BECAUSE: Record<NonNullable<AdminBillingSummary['selfServe']['closedBecause']>, MessageKey> = {
@@ -347,14 +344,14 @@ function eventsRow(t: Translate, s: AdminBillingSummary): PartRow {
   }
 }
 
-/** The plan prices and the billing rules: settings, with no state of their own. */
-const rulesRow = (t: Translate): PartRow => ({
+/** The plan prices and the billing rules: settings, with no state of their own; the line says whether Stripe Tax is on (its switch is here). */
+const rulesRow = (t: Translate, s: AdminBillingSummary): PartRow => ({
   id: 'rules',
   label: t(TAB_LABELS.rules),
   state: null,
   mark: '',
   value: null,
-  problem: null,
+  problem: t(s.automaticTax ? 'admin.bills.summary.taxOn' : 'admin.bills.summary.taxOff'),
   help: null,
   href: '#admin/billing/rules',
 })
@@ -365,7 +362,7 @@ const partRows = (t: Translate, s: AdminBillingSummary): PartRow[] => [
   reviewRow(t, s),
   eventsRow(t, s),
   signupRow(t, s),
-  rulesRow(t),
+  rulesRow(t, s),
   stripeRow(t, s),
 ]
 
