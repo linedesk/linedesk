@@ -716,3 +716,16 @@
 .confirm-name-copy:hover {
   color: var(--ink);
 }
+
+/* A Card inside an opener that already shows its title (CardInline): only its description and body. */
+.k-card-inline {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.k-card-inline-desc {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}

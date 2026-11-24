@@ -9,6 +9,8 @@ import {
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
+  createContext,
+  useContext,
   useEffect,
   useId,
   useRef,
@@ -39,8 +41,22 @@ type CardProps = {
   children?: ReactNode
 }
 
+/**
+ * Inside an opener that already shows the card's title (Server admin › Features), a Card renders only its description
+ * and body: no second title, no raised card in a card.
+ */
+export const CardInline = createContext(false)
+
 /** A section of a settings page: a raised card with a title row. */
 export function Card({ id, title, description, help, actions, className, children }: CardProps) {
+  if (useContext(CardInline))
+    return (
+      <div id={id} className={cx('k-card-inline', className)}>
+        {description && <p className="k-card-inline-desc">{description}</p>}
+        {actions && <div className="k-card-actions">{actions}</div>}
+        {children}
+      </div>
+    )
   const headingId = id && title ? `${id}-h` : undefined
   return (
     <section id={id} className={cx('k-card', className)} aria-labelledby={headingId}>

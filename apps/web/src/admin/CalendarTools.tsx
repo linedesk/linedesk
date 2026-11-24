@@ -11,8 +11,8 @@ import { Loading } from '../ui/LoadStates.tsx'
 import type { SelectOption } from '../ui/controls.tsx'
 import { runAdmin } from './api.ts'
 
-const TOOLS_QUERY = 'admin.calendarTools'
-const loadTools = async () => (await runAdmin('calendarTools.get', {})) as CalendarToolsData
+export const TOOLS_QUERY = 'admin.calendarTools'
+export const loadTools = async () => (await runAdmin('calendarTools.get', {})) as CalendarToolsData
 
 type Translate = ReturnType<typeof useT>
 

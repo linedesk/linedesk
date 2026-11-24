@@ -35,8 +35,8 @@ import { agentLabel } from '../onboarding/AgentPicker.tsx'
 import { InternationalTransfers } from './InternationalTransfers.tsx'
 import { SignupAccess } from './SignupAccess.tsx'
 
-const CLONING = 'admin.voiceCloning'
-const loadCloning = async () => (await runAdmin('voiceCloning.get', {})) as VoiceCloningData
+export const CLONING = 'admin.voiceCloning'
+export const loadCloning = async () => (await runAdmin('voiceCloning.get', {})) as VoiceCloningData
 
 /** Voice cloning for every workspace: off by default; existing clones keep working when it is turned off. */
 export function VoiceCloning() {
@@ -84,9 +84,9 @@ export function VoiceCloning() {
   )
 }
 
-const GERMAN_NUMBERS = 'admin.germanNumbers'
+export const GERMAN_NUMBERS = 'admin.germanNumbers'
 const GERMAN_GROUP = 'admin.germanNumbers.group'
-const loadGermanNumbers = async () => (await runAdmin('germanNumbers.get', {})) as GermanNumbersData
+export const loadGermanNumbers = async () => (await runAdmin('germanNumbers.get', {})) as GermanNumbersData
 const loadGermanGroup = async () => (await runAdmin('germanNumbers.group', {})) as GermanGroupData
 
 const NO_GROUP_READ: GermanGroupData = {
@@ -362,8 +362,8 @@ export function GermanNumbers() {
   )
 }
 
-const ZAPIER_APP = 'admin.zapierApp'
-const loadZapierApp = async () => (await runAdmin('zapierApp.get', {})) as ZapierAppData
+export const ZAPIER_APP = 'admin.zapierApp'
+export const loadZapierApp = async () => (await runAdmin('zapierApp.get', {})) as ZapierAppData
 
 /**
  * Zapier: one Linedesk app on Zapier serves every install; each workspace connects it with its own key and this
