@@ -357,3 +357,10 @@
 .as-main-focus .as-progress {
   gap: 12px;
 }
+/* The optional providers (AgentSetup's OptionalProviders): a part of its own under the checklist, folded while setting up. */
+.as-optional .as-optional-toggle {
+  margin-left: auto;
+}
+.as-optional-lede {
+  margin: 0;
+}

@@ -1,7 +1,8 @@
-import { z } from 'zod'
-import { defineAction } from './define.ts'
 import type { MessageKey } from '@linedesk/i18n'
+import { z } from 'zod'
 import { CHATGPT_PLUGINS_URL, CLAUDE_CONNECTORS_URL, claudeConnectorLink } from './agent-client-links.ts'
+import { defineAction } from './define.ts'
+import type { ProviderGroupId } from './provider-status.ts'
 import { english, type Words } from './words.ts'
 
 // Agent setup (LIN-125, docs/api.md "Setup MCP"): the preferred way to set up an install is an AI agent. An instance
@@ -270,6 +271,13 @@ export type AgentSetupState = {
      * Missing from older APIs. `unnamed`: made by sign-up and not named yet (its name is the sign-up placeholder).
      */
     workspace?: { id: string; name?: string; unnamed?: boolean; assistantName: string } | null
+    /**
+     * An install link's providers a first call does not need (setup_status.optional, billing aside: its keys are set
+     * only in the app), in Server admin › Providers' order: `off` until connected. The page lists them apart, never in
+     * the count: optional while setting up, every one the agent can connect when changing. Missing for a workspace
+     * owner's or partner's link and from older APIs.
+     */
+    optional?: { id: ProviderGroupId; label: string; state: 'done' | 'todo' | 'failing' | 'off' }[]
   }
 }
 
@@ -381,10 +389,12 @@ export function startPlan(
   scope: SetupScope = 'install',
   change?: SetupChange,
   words: Words = english,
+  /** An install that is set up: the agent changes providers or connects more, it does not set up again. */
+  edit = false,
 ): StartPlan {
   const t = words.t
-  const prompt = agentSetupPrompt(url, { scope, change, words })
-  const COMMAND_PROMPT = commandPrompt(scope, change, words)
+  const prompt = agentSetupPrompt(url, { scope, change, words, edit })
+  const COMMAND_PROMPT = commandPrompt(scope, change, words, edit)
   switch (client) {
     case 'claude_code':
       return {
@@ -466,7 +476,7 @@ export function startPlan(
         promptFirst: false,
       }
     case 'claude': {
-      const viaConnector = agentSetupPrompt(url, { connector: true, scope, change, words })
+      const viaConnector = agentSetupPrompt(url, { connector: true, scope, change, words, edit })
       // Claude cannot add a connector by itself. Its install link opens Add custom connector with the name and this
       // address filled in (claudeConnectorLink). The address carries the setup key: it reaches Claude either way (the
       // person would paste it there), the link adds only their own browser history, and the key lasts SETUP_KEY_HOURS
@@ -529,7 +539,7 @@ export function startPlan(
           },
           { text: t('onboarding.agentSetup.start.chatgpt.chat'), prompt: true },
         ],
-        prompt: agentSetupPrompt(url, { connector: true, scope, change, words }),
+        prompt: agentSetupPrompt(url, { connector: true, scope, change, words, edit }),
         promptFirst: false,
         numbered: true,
       }
@@ -545,7 +555,7 @@ export function startPlan(
 
 const MCP_NAME = 'linedesk-setup'
 /** The first message of the one-command start: the setup server's own instructions carry the playbook. */
-const commandPrompt = (scope: SetupScope, change: SetupChange | undefined, words: Words) =>
+const commandPrompt = (scope: SetupScope, change: SetupChange | undefined, words: Words, edit = false) =>
   change
     ? change.assistant
       ? words.t('server.setupAgent.command.changeAssistant', {
@@ -557,7 +567,9 @@ const commandPrompt = (scope: SetupScope, change: SetupChange | undefined, words
       ? words.t('server.setupAgent.partner.command')
       : scope === 'workspace'
         ? words.t('server.setupAgent.command.workspace')
-        : words.t('server.setupAgent.command.install')
+        : edit
+          ? words.t('server.setupAgent.command.installEdit')
+          : words.t('server.setupAgent.command.install')
 /** A POSIX shell word: single quotes, a single quote inside written as '\''. */
 export const shellQuote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`
 
@@ -575,7 +587,8 @@ export function agentSetupPrompt(
     scope = 'install',
     change,
     words = english,
-  }: { connector?: boolean; scope?: SetupScope; change?: SetupChange; words?: Words } = {},
+    edit = false,
+  }: { connector?: boolean; scope?: SetupScope; change?: SetupChange; words?: Words; edit?: boolean } = {},
 ): string {
   if (change) return changeSettingsPrompt(url, connector, change, words)
   // Where the person connects their email in their AI app, for the step that learns from it (agent-client-links.ts).
@@ -588,6 +601,10 @@ export function agentSetupPrompt(
   if (scope === 'partner')
     return words.t('server.setupAgent.partner.prompt', {
       tools: toolsLines(url, connector, 'partner_get, partnerBrand_set', words),
+    })
+  if (edit)
+    return words.t('server.setupAgent.prompt.installEdit', {
+      tools: toolsLines(url, connector, 'providers_list, provider_setKeys', words),
     })
   return words.t('server.setupAgent.prompt.install', {
     tools: toolsLines(url, connector, 'providers_list, provider_setKeys', words),
@@ -664,7 +681,7 @@ export const setupMcpPartnerInstructions = () =>
 /** The setup MCP's `instructions`: the playbook an agent follows (also when the copied prompt was shortened). */
 export const SETUP_MCP_INSTRUCTIONS = `Linedesk setup: you are setting up a Linedesk install (an open-source AI receptionist that answers a business's phone calls) for its admin, the person you are talking to. You act as that admin, with setup tools only, email and sign-in included, through a key that ends after ${SETUP_KEY_HOURS} hours.
 
-Always start with setup_status and call it again after each step: it lists the steps in order with their state and, for the next one, exactly what to do. The server's steps come once (setup_status.steps): AI (speech, model and voice), phone carrier, email, the voice server (LiveKit). Then each workspace (one business or location) has its own steps (setup_status.workspaces, each with its id): the business (its name, time zone, and what the assistant knows about it, one step), assistant, when to answer, notifications, phone number, call forwarding, a test call. next_step and next_workspace_id say which comes next. setup_status.optional lists what a first call does not need (sign-in apps, calendar, recording storage, business lookup): offer it once the required steps are done, or business lookup before the business profile.
+Always start with setup_status and call it again after each step: it lists the steps in order with their state and, for the next one, exactly what to do. The server's steps come once (setup_status.steps): AI (speech, model and voice), phone carrier, email, the voice server (LiveKit). Then each workspace (one business or location) has its own steps (setup_status.workspaces, each with its id): the business (its name, time zone, and what the assistant knows about it, one step), assistant, when to answer, notifications, phone number, call forwarding, a test call. next_step and next_workspace_id say which comes next. setup_status.optional lists every other provider; a first call needs none of them (sign-in apps, calendar apps, apps, recording storage, business lookup, partner domains): offer them once, in one line, after the required steps (business lookup before the business profile), and set up only those the admin wants. If every step is done already, the admin came to change something: ask what, then change only that or connect what they pick from setup_status.optional.
 
 You set every key and setting yourself through these tools; the admin never has to paste anything into the Linedesk app. Keys you will ask the admin for, in this order (the default first): an OpenAI API key (or Deepgram, OpenRouter and ElevenLabs keys), a Telnyx API key and its webhook public key (or Twilio's account SID and auth token), a Resend API key and a From address on a domain verified in Resend (or SMTP and other mail services), and optionally a Google Places API key, a Google (or Microsoft, GitHub, OIDC) OAuth client ID and secret, and S3 keys for recordings.
 

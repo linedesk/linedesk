@@ -54,6 +54,7 @@ import { NewWorkspaceDialog } from '../shell/NewWorkspace.tsx'
 import { tabWorkspace } from '../tabWorkspace.ts'
 import { dateTimeLabel, untilLabel } from '../time.ts'
 import { Select } from '../ui/controls.tsx'
+import { AppLink } from '../ui/AppLink.tsx'
 import { HelpTip } from '../ui/HelpTip.tsx'
 import { Button, cx, Icon, Note, Spinner } from '../ui/kit.tsx'
 import { LoadProblem, Skeleton, SkeletonPart, useLoading } from '../ui/LoadStates.tsx'
@@ -312,6 +313,9 @@ export function AgentSetup({
   // Everything is set up: the page offers to change it, with the agent or the install walkthrough (opens at its
   // first part, nothing saved is reset; off on Cloud, where Server admin › Providers is the way by hand).
   const allDone = state?.progress.allDone ?? false
+  // Server admin's page once everything is set up (Edit with AI): the agent changes providers or connects more, and
+  // the optional providers show open.
+  const editInstall = scope === 'install' && !change && allDone
   const install = useQuery(personal ? null : ADMIN_INSTALL_SETUP, () => loadInstallSetup()).data
   const stepByStep = () => {
     if (install?.enabled === false) window.location.hash = '#admin/providers'
@@ -568,11 +572,17 @@ export function AgentSetup({
                       <details className="as-other-way">
                         <summary>{t('onboarding.agentSetup.cloudBlocked.showSteps')}</summary>
                         <div className="as-other-way-body">
-                          <StartAgent client={client} url={created.url} scope={scope} change={change} />
+                          <StartAgent
+                            client={client}
+                            url={created.url}
+                            scope={scope}
+                            change={change}
+                            edit={editInstall}
+                          />
                         </div>
                       </details>
                     ) : (
-                      <StartAgent client={client} url={created.url} scope={scope} change={change} />
+                      <StartAgent client={client} url={created.url} scope={scope} change={change} edit={editInstall} />
                     )}
                   </div>
                 ) : (
@@ -649,6 +659,7 @@ export function AgentSetup({
             partner={partner ?? null}
             partnerScope={partnerId !== null}
             onFirstWorkspace={onFirstWorkspace}
+            editing={editInstall}
           />
         )
       ) : skeleton ? null : (
@@ -710,6 +721,7 @@ function Progress({
   partner = null,
   partnerScope = false,
   onFirstWorkspace,
+  editing = false,
 }: {
   state: AgentSetupState
   /** Changing settings (AgentSetup's `change`): what the agent can change, with no "set up" words and no count. */
@@ -726,6 +738,8 @@ function Progress({
   partner?: MyPartner | null
   partnerScope?: boolean
   onFirstWorkspace?: () => void
+  /** Changing an install that is set up (Edit with AI): the optional providers show open, connecting more is the point. */
+  editing?: boolean
 }) {
   const t = useT()
   // The assistant answered a test call made here: the row shows done at once; the next read of the progress agrees.
@@ -904,7 +918,76 @@ function Progress({
       ) : newWorkspace ? (
         <NewWorkspaceDialog onClose={() => setNewWorkspace(false)} ownerChoice={false} />
       ) : null}
+      {state.progress.optional?.length ? (
+        <OptionalProviders items={state.progress.optional} openFirst={editing} />
+      ) : null}
     </section>
+  )
+}
+
+type OptionalProvider = NonNullable<AgentSetupState['progress']['optional']>[number]
+
+/**
+ * An install's providers calls do not need (sign-in, calendar apps, apps, recordings, …), the last part of the card
+ * and never in its count: folded to one line while setting up, so the setup keeps to what calls need; open when an
+ * install that is set up is changed (Edit with AI), where connecting more is the point. The agent offers them too
+ * (setup_status.optional); each row's Open goes to its group in Server admin › Providers, the way by hand.
+ */
+function OptionalProviders({ items, openFirst }: { items: readonly OptionalProvider[]; openFirst: boolean }) {
+  const t = useT()
+  const [open, setOpen] = useState(openFirst)
+  const connected = items.filter(i => i.state === 'done').length
+  return (
+    <div className="as-group as-group-ws as-optional">
+      <div className="as-ws-head">
+        <h3 className="as-group-label" id="as-group-optional">
+          {t('onboarding.agentSetup.optional.title')}
+        </h3>
+        <span className="as-hint">
+          {t('onboarding.agentSetup.optional.count', { done: connected, total: items.length })}
+        </span>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="as-optional-toggle"
+          aria-expanded={open}
+          aria-controls="as-optional-list"
+          onClick={() => setOpen(o => !o)}
+          title={t(open ? 'onboarding.agentSetup.optional.hideTitle' : 'onboarding.agentSetup.optional.showTitle')}
+        >
+          {t(open ? 'onboarding.agentSetup.optional.hide' : 'onboarding.agentSetup.optional.show')}
+        </Button>
+      </div>
+      {open && (
+        <>
+          <p className="as-hint as-optional-lede">{t('onboarding.agentSetup.optional.lede')}</p>
+          <ul className="as-list" id="as-optional-list" aria-labelledby="as-group-optional">
+            {items.map(item => (
+              <li key={item.id} className={cx('as-item', item.state === 'off' ? 'todo' : item.state)}>
+                <span className="as-mark" aria-hidden>
+                  {item.state === 'done' ? (
+                    <MarkGlyph kind="works" size={12} />
+                  ) : item.state === 'failing' ? (
+                    <MarkGlyph kind="partly" size={12} />
+                  ) : null}
+                </span>
+                <span className="as-item-label">
+                  {item.label}
+                  {item.state === 'off' && (
+                    <span className="as-hint"> · {t('onboarding.agentSetup.optional.off')}</span>
+                  )}
+                </span>
+                <span className="as-item-action">
+                  <AppLink to={`#admin/providers/${item.id}`} title={t('onboarding.agentSetup.optional.openTitle')}>
+                    {t('onboarding.agentSetup.optional.open')}
+                  </AppLink>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -1345,17 +1428,20 @@ export function StartAgent({
   url,
   scope = 'install',
   change,
+  edit = false,
 }: {
   client: AgentClient
   url: string
   scope?: SetupScope
   /** Changing settings (AgentSetup's `change`): the prompt names what to change and reads it first. */
   change?: SetupChange
+  /** An install that is set up (Edit with AI): the prompt changes providers or connects more, no setup again. */
+  edit?: boolean
 }) {
   const t = useT()
   const format = useFormat()
   // The page's language: the steps and the prompt the agent gets, so it talks to the person in it.
-  return <AgentSteps plan={startPlan(client, url, scope, change, { t, format })} />
+  return <AgentSteps plan={startPlan(client, url, scope, change, { t, format }, edit)} />
 }
 
 /**

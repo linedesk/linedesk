@@ -173,6 +173,16 @@ describe('setup keys', () => {
       { id: ws.id, name: 'Brightwater Plumbing & Heating', done: expect.any(Number), total: expect.any(Number) },
     ])
     expect(body.progress.workspace).toMatchObject({ id: ws.id, name: 'Brightwater Plumbing & Heating', unnamed: false })
+    // Every provider a first call does not need (billing aside), apart from the steps and off until connected: the
+    // page lists them under the checklist (folded while setting up, open on Edit with AI).
+    expect(body.progress.optional.map((o: { id: string }) => o.id)).toEqual(
+      providerGroups.filter(g => !g.needed && g.id !== 'billing').map(g => g.id),
+    )
+    expect(body.progress.optional.find((o: { id: string }) => o.id === 'domains')).toMatchObject({
+      label: 'Partner domains',
+      state: 'off',
+    })
+    expect(JSON.stringify(body.progress.optional)).not.toMatch(/how/)
   })
 })
 

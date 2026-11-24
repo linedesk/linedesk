@@ -926,7 +926,7 @@ export function wrapUp(
     return `Your part is done; only the ${person} can do what is still open (${open.join(', ')}). Give a short summary of what is set up and what is left for them, ask whether to end your access now, and if they agree, ${end}`
   return oneWorkspace
     ? `Everything is set up. Give the ${person} a short summary of what is set up and what is left for them, ${end}`
-    : `Everything is set up. Give the admin a short summary of what is set up in each workspace and what is left for them (the optional steps), ${end}`
+    : `Everything is set up. If the admin came to change a provider or to connect more (setup_status.optional), do that first. Then give the admin a short summary of what is set up in each workspace and what is left for them (the optional steps), ${end}`
 }
 
 /** Where an OAuth app sends people back to: the same list as the provider's dialog (web ProviderLogo.tsx). */
@@ -1108,6 +1108,16 @@ export async function setupProgress(actor: Actor, selected?: string | null, word
           assistantName: assistant?.name ?? 'Maya',
         }
       : null,
+    // An install link's optional providers, in the reader's words (workspace and partner links have none).
+    ...('optional' in status
+      ? {
+          optional: status.optional.map(({ id, state }) => ({
+            id,
+            label: groupText(id, words).label,
+            state: state as 'done' | 'todo' | 'failing' | 'off',
+          })),
+        }
+      : {}),
   }
 }
 

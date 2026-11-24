@@ -275,6 +275,29 @@ describe('a link to change settings (Workspace settings, Assistant settings)', (
   })
 })
 
+// Edit with AI on an install that is set up (2026-11-24): change providers or connect more, never a second setup.
+describe('a link to change the install (Server admin, everything set up)', () => {
+  test('reads what is connected first, then offers to change one or connect the optional ones', () => {
+    const prompt = agentSetupPrompt(URL, { edit: true })
+    expect(prompt).toMatch(/setup_status and providers_list first.*Do not change anything yet/)
+    expect(prompt).toMatch(/setup_status\.optional/)
+    expect(prompt).toMatch(/partner domains/)
+    expect(prompt).not.toMatch(/set it up end to end|business_import/)
+    for (const client of agentClients) {
+      const plan = startPlan(client, URL, 'install', undefined, english, true)
+      expect(plan.prompt).toMatch(/change its providers or connect more/)
+      for (const step of plan.steps)
+        if (step.code?.startsWith('claude ')) expect(step.code).toMatch(/change a provider or connect more/)
+    }
+  })
+
+  test('setting up offers the optional providers once, as a last step the person may skip', () => {
+    const prompt = agentSetupPrompt(URL)
+    expect(prompt).toMatch(/9\. Optional, only after the steps above/)
+    expect(prompt).toMatch(/If I say no, skip them/)
+  })
+})
+
 // The setup page's checklist in the reader's language (2026-11-18): the names come from the catalog, never English
 // written in the code, so a German reader gets German where the catalog has it (the API passes the reader's Words).
 test("the setup page's step names are the reader's words", () => {
