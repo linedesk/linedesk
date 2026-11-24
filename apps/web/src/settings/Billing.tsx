@@ -53,6 +53,7 @@ import {
   type BalanceNote,
   balanceNote,
   balanceProblem,
+  billDate,
   canCancel,
   canResume,
   centsToDollars,
@@ -64,6 +65,7 @@ import {
   freeExtraCalls,
   microsToDollars,
   noPlan,
+  otherDateZone,
   paysCharges,
   planEnded,
   planLine,
@@ -80,6 +82,7 @@ import {
 import { loadOverview, loadState, loadWorkspaceUsage, OVERVIEW, STATE, WORKSPACE_USAGE } from './billingQueries.ts'
 import { Section, SwitchRow } from './fields.tsx'
 import { callAction } from './settings-api.ts'
+import { zoneCity } from './timeZones.ts'
 import './billing.css'
 
 /** The page's text for a refusal: by its code when the page has one, else the server's sentence. */
@@ -158,6 +161,12 @@ export function Billing({ toast, view = 'owner', partnerId, viaPartner = false }
   )
 }
 
+/** The bill's dates, each the day in the bill's zone as its emails write it (billDate, LIN-785). */
+function useBillDate(timeZone: string | undefined) {
+  const format = useFormat()
+  return useMemo(() => billDate(format, timeZone), [format, timeZone])
+}
+
 /** An install that bills, and this workspace on no bill: one calm line. */
 function NoBill() {
   const t = useT()
@@ -207,9 +216,9 @@ function OwnerBilling({ toast, viaPartner }: { toast: (text: string) => void; vi
  */
 function NotPaying({ viaPartner = false }: { viaPartner?: boolean }) {
   const t = useT()
-  const format = useFormat()
   const read = useQuery(WORKSPACE_USAGE, loadWorkspaceUsage)
   const usage = read.data?.usage
+  const date = useBillDate(usage?.timeZone)
   const period = usage?.period
   return (
     <>
@@ -235,10 +244,7 @@ function NotPaying({ viaPartner = false }: { viaPartner?: boolean }) {
             title={t('settings.billing.usage.title')}
             description={
               period
-                ? t('settings.billing.usage.period', {
-                    from: format.date(new Date(period.startsAt)),
-                    to: format.date(new Date(period.endsAt)),
-                  })
+                ? t('settings.billing.usage.period', { from: date(period.startsAt), to: date(period.endsAt) })
                 : undefined
             }
           >
@@ -448,7 +454,6 @@ function BillPlan({
 }) {
   const t = useT()
   const calls = useBillCalls()
-  const format = useFormat()
   const prices = usePrice()
   // "Cancel my trial" in the trial emails links here with `cancel=1`: the cancel dialog opens at once (once).
   const [cancelOpen, setCancelOpen] = useState(() => takeCancelRequest() && canCancel(bill))
@@ -461,7 +466,8 @@ function BillPlan({
   const [resuming, setResuming] = useState(false)
   const portal = usePortal(toast)
   const supportEmail = useLegalLinks()?.supportEmail ?? null
-  const date = (iso: string) => format.date(new Date(iso))
+  const date = useBillDate(bill.timeZone)
+  const zone = otherDateZone(bill.timeZone)
   const badge = statusBadge(bill.status, bill.heldForReview)
   // A paid plan set to cancel: "Ends Dec 14" instead of "Active" (LIN-781).
   const ends = bill.heldForReview ? null : endsBadge(bill)
@@ -514,6 +520,8 @@ function BillPlan({
     <Section
       id="billing-plan"
       title={t('settings.billing.plan.title')}
+      // Every date below is the bill's day, as its emails say it; when the browser's day can differ, said once.
+      description={zone ? t('settings.billing.zoneNote', { zone: zoneCity(zone) }) : undefined}
       actions={
         // Before the first Checkout there is no plan to report on: no "Waiting for a card" before activation started.
         bill.status === 'pending_payment' ? undefined : (
@@ -521,7 +529,7 @@ function BillPlan({
             {trialDays
               ? t(trialDays.key, { count: trialDays.count })
               : ends
-                ? t(ends.key, { date: format.date(new Date(ends.date), { month: 'short', day: 'numeric' }) })
+                ? t(ends.key, { date: date(ends.date, { month: 'short', day: 'numeric' }) })
                 : t(badge.key)}
           </Badge>
         )
@@ -717,9 +725,9 @@ export function IntervalDialog({
 }) {
   const t = useT()
   const calls = useBillCalls()
-  const format = useFormat()
   const prices = usePrice()
   const planPrice = usePlanPrice()
+  const date = useBillDate(bill.timeZone)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const title = to.interval === 'month' ? t('settings.billing.interval.toMonth') : t('settings.billing.interval.toYear')
@@ -779,7 +787,7 @@ export function IntervalDialog({
         </PriceLine>
         <span className="help">
           {bill.trialEndsAt
-            ? t('settings.billing.interval.noCharge', { date: format.date(new Date(bill.trialEndsAt)) })
+            ? t('settings.billing.interval.noCharge', { date: date(bill.trialEndsAt) })
             : t('settings.billing.interval.noChargeNoDate')}
         </span>
       </div>
@@ -803,10 +811,11 @@ export function CancelDialog({
   const format = useFormat()
   const supportEmail = useLegalLinks()?.supportEmail ?? null
   const end = bill.status === 'trialing' ? bill.trialEndsAt : bill.currentPeriodEnd
-  const endText = end ? format.date(new Date(end)) : null
+  const date = useBillDate(bill.timeZone)
+  const endText = end ? date(end) : null
   // What is refunded on request (the terms' "Refunds"): a yearly plan paid in the last 14 days,
   // and the unused balance. Both are asked for, never automatic.
-  const refund = yearlyRefundLine(bill, iso => format.date(new Date(iso)))
+  const refund = yearlyRefundLine(bill, date)
   const balance = bill.availableMicros > 0 ? format.currency(microsToDollars(bill.availableMicros), 'USD') : null
   const ask = supportEmail ? t('settings.billing.cancel.ask', { email: supportEmail }) : null
   // A partner bill: the numbers and calls are its client workspaces'.
@@ -1264,7 +1273,7 @@ function BalanceProblemNote({
       title={t(note.title, values)}
       action={
         problem.kind === 'minutes' ? (
-          <KeepAnsweredButton prompt={problem.prompt} toast={toast} />
+          <KeepAnsweredButton prompt={problem.prompt} timeZone={bill.timeZone} toast={toast} />
         ) : note.fix === 'auto' ? (
           <TurnOnAutoButton bill={bill} toast={toast} />
         ) : note.fix === 'cap' ? (
@@ -1278,11 +1287,20 @@ function BalanceProblemNote({
 }
 
 /** "Keep calls answered": the banner's purchase (useKeepAnswered), through this page's bill. */
-function KeepAnsweredButton({ prompt, toast }: { prompt: TrialMinutesPrompt; toast: (text: string) => void }) {
+function KeepAnsweredButton({
+  prompt,
+  timeZone,
+  toast,
+}: {
+  prompt: TrialMinutesPrompt
+  timeZone: string | undefined
+  toast: (text: string) => void
+}) {
   const t = useT()
   const calls = useBillCalls()
   const { busy, keep, tip } = useKeepAnswered(
     prompt,
+    timeZone,
     toast,
     (input, idempotencyKey) => calls.write<TopUpData>('billing.startTopUp', input, { idempotencyKey }),
     calls.reload,
@@ -1770,7 +1788,7 @@ function workspaceQuery() {
 
 function UsageCard({ bill }: { bill: BillingOverviewBill }) {
   const t = useT()
-  const format = useFormat()
+  const date = useBillDate(bill.timeZone)
   const period = bill.period
   return (
     <Section
@@ -1778,10 +1796,7 @@ function UsageCard({ bill }: { bill: BillingOverviewBill }) {
       title={t('settings.billing.usage.title')}
       description={
         period
-          ? t('settings.billing.usage.period', {
-              from: format.date(new Date(period.startsAt)),
-              to: format.date(new Date(period.endsAt)),
-            })
+          ? t('settings.billing.usage.period', { from: date(period.startsAt), to: date(period.endsAt) })
           : undefined
       }
     >
@@ -1849,6 +1864,7 @@ function usePortal(toast: (text: string) => void) {
 function InvoicesCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: string) => void }) {
   const t = useT()
   const format = useFormat()
+  const date = useBillDate(bill.timeZone)
   const portal = usePortal(toast)
 
   return (
@@ -1886,7 +1902,7 @@ function InvoicesCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text
                     : t(`settings.billing.invoices.kind.${inv.kind}` as MessageKey)
                 }
                 sub={[
-                  format.date(new Date(inv.createdAt)),
+                  date(inv.createdAt),
                   inv.number,
                   // Tax as its own line: the total above includes it; the balance never got it.
                   inv.taxCents > 0 &&

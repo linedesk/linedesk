@@ -106,6 +106,8 @@ export const billingState = defineAction({
 export type BillingStateData = { bill: BillingStateBill | null }
 export type BillingStateBill = {
   status: 'pending_payment' | 'trialing' | 'active' | 'past_due' | 'suspended' | 'canceled' | 'comped'
+  /** The zone every date of the bill is shown in (LIN-785), as in Billing overview. Absent from an older server. */
+  timeZone?: string
   suspendedReason: 'admin' | 'payment' | 'dispute' | 'early_fraud_warning' | null
   pastDueSince: string | null
   suspendsAt: string | null

@@ -516,6 +516,29 @@ describe('billing.overview', () => {
     expect(invoice).not.toHaveProperty('pdfUrl')
   })
 
+  test("every date's zone is the bill's oldest workspace's, as its emails use; the install default without one (LIN-785)", async () => {
+    const b = await billed()
+    // No zone saved yet: the install's default, the zone the emails fall back to.
+    expect((await overview(b.owner)).bill.timeZone).toBe(DEFAULT_TIME_ZONE)
+    const LA = 'America/Los_Angeles'
+    await db
+      .insert(workspace_settings)
+      .values({ workspace_id: b.ws.id, timezone: LA })
+      .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { timezone: LA } })
+    expect((await overview(b.owner)).bill.timeZone).toBe(LA)
+    expect((await act(b.owner, 'billing.state', {})).body.data.bill.timeZone).toBe(LA)
+    // A second workspace on the bill in another zone: still the oldest one's, for the payer and for the page of the
+    // workspace that does not pay (its usage period).
+    const { second, payer } = await shareBill(b)
+    await db
+      .insert(workspace_settings)
+      .values({ workspace_id: second.id, timezone: 'Europe/Berlin' })
+      .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { timezone: 'Europe/Berlin' } })
+    expect((await overview(payer)).bill.timeZone).toBe(LA)
+    const usage = await act(second.owner, 'billing.workspaceUsage', {})
+    expect(usage.body.data.usage.timeZone).toBe(LA)
+  })
+
   test('billing off on the server: no bill, whatever the workspace was', async () => {
     const b = await billed()
     cloud.on = false
@@ -1031,8 +1054,8 @@ describe('billing.workspaceUsage', () => {
       allowanceSeconds: 3000,
       levels: { standard: { seconds: 600, micros: 500_000 } },
     })
-    // Nothing of the bill itself: no balance, plan or invoices.
-    expect(Object.keys(data.usage).sort()).toEqual(['minutesOnly', 'period', 'row'])
+    // Nothing of the bill itself: no balance, plan or invoices; only the zone its dates are shown in (LIN-785).
+    expect(Object.keys(data.usage).sort()).toEqual(['minutesOnly', 'period', 'row', 'timeZone'])
     expect(data.usage.minutesOnly).toBe(false)
   })
 

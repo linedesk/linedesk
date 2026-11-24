@@ -1,4 +1,4 @@
-import { createFormatters } from '@linedesk/i18n'
+import { createFormatters, inTimeZone } from '@linedesk/i18n'
 import { afterEach, describe, expect, it } from 'vitest'
 import { setBrandingInMemory } from '../branding.ts'
 import { billingOwnerEmail } from './billing.ts'
@@ -697,6 +697,15 @@ describe('dates in emails (LIN-783)', () => {
     expect(app).toBe('November 23, 2026')
     expect(emailDate(endedAt, LA, 'en')).toBe(app)
     expect(emailDate(endedAt, 'Europe/Berlin', 'de')).toBe('24. November 2026')
+  })
+
+  it('follow the one day rule Settings › Billing formats with (inTimeZone, LIN-785)', () => {
+    // The page writes "Nov 23, 2026" (dateStyle medium) through the same rule: the same day, whatever the browser's zone.
+    const page = createFormatters('en').date(new Date(endedAt), inTimeZone({ dateStyle: 'medium' }, LA))
+    expect(page).toBe('Nov 23, 2026')
+    expect(emailDate(endedAt, LA, 'en', { dateStyle: 'medium' })).toBe(page)
+    // An unknown zone: both fall back to UTC.
+    expect(inTimeZone({ dateStyle: 'medium' }, 'Mars/Olympus').timeZone).toBe('UTC')
   })
 
   it('without a zone (or an unknown one) are UTC, and say so', () => {

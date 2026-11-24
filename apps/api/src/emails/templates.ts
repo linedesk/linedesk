@@ -7,6 +7,7 @@
 // frame and the labels are in it, while what callers said and the call summary stay as they were written (in the
 // workspace's language). Who gets which language: docs/translations.md, "Levels".
 import { isE164, type SetupStep, setupStepPath } from '@linedesk/actions'
+import { inTimeZone, knownTimeZone } from '@linedesk/i18n'
 import { getT } from '@linedesk/i18n/server'
 import { emailBrandName, emailOrigin, partnerEmailBrand } from '../email-brand.ts'
 import {
@@ -348,17 +349,6 @@ export const EMAIL_DAY = {
   day: 'numeric',
 } as const satisfies Intl.DateTimeFormatOptions
 
-/** A zone Intl knows, else null. */
-function knownZone(timeZone: string | null | undefined): string | null {
-  if (!timeZone) return null
-  try {
-    getT(null).format.dateTime(0, { timeZone })
-    return timeZone
-  } catch {
-    return null
-  }
-}
-
 /**
  * Every date and time an email writes goes through here: in the reader's language and in `timeZone`, the workspace's
  * (`timeZoneOf`: the install's default when it has none), the zone the app's pages mean, so "Plan ended November 23"
@@ -374,9 +364,9 @@ export function emailDate(
   options: Intl.DateTimeFormatOptions = EMAIL_DAY,
 ): string {
   const { t, format } = getT(locale)
-  const zone = knownZone(timeZone)
-  if (zone) return format.dateTime(new Date(at), { ...options, timeZone: zone })
-  return t('email.adminAlert.utc', { time: format.dateTime(new Date(at), { ...options, timeZone: 'UTC' }) })
+  // The same day rule as Settings › Billing (inTimeZone); a zone Intl does not know is named as UTC here.
+  const time = format.dateTime(new Date(at), inTimeZone(options, timeZone))
+  return knownTimeZone(timeZone) ? time : t('email.adminAlert.utc', { time })
 }
 
 /**
@@ -385,7 +375,7 @@ export function emailDate(
  * between Node releases (Spanish "2026, 9:05" or "2026 a las 9:05"), the email must not.
  */
 export function deletedWhen(at: string, timeZone: string | null | undefined, locale?: EmailLocale): string {
-  const zone = knownZone(timeZone) ?? 'UTC'
+  const zone = knownTimeZone(timeZone) ?? 'UTC'
   return getT(locale).t('email.dateAtTime', {
     date: emailDate(at, zone, locale),
     time: emailDate(at, zone, locale, { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }),

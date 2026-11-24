@@ -3,6 +3,7 @@
 // primary), past due and suspended in plain words, cancel and resume, the page for someone who does not manage the
 // bill, and the workspace on no bill.
 import type { BillingOverviewBill, BillingOverviewData, BillingStateBill } from '@linedesk/actions'
+import { createFormatters, inTimeZone } from '@linedesk/i18n'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, onTestFinished, test, vi } from 'vitest'
 
@@ -968,4 +969,80 @@ test('past due: Update card next to the pay link, as the warning asks for a new 
   )
   expect(html).toMatch(/Pay \$11\.00 invoice<\/a><button[^>]*k-btn-secondary[^>]*><span>Update card/)
   expect(primaries(html)).toBe(1)
+})
+
+test("every date is the bill's day in the workspace's zone, as its emails say it, not the browser's (LIN-785)", () => {
+  // The browser is in Berlin, the workspace in Los Angeles. Period ends at 03:00 UTC: Dec 7 in Berlin, Dec 6 in LA.
+  const browser = process.env.TZ
+  process.env.TZ = 'Europe/Berlin'
+  onTestFinished(() => {
+    process.env.TZ = browser
+  })
+  const LA = 'America/Los_Angeles'
+  const end = '2026-12-07T03:00:00.000Z'
+  const sameRule = (iso: string) => createFormatters('en').date(new Date(iso), inTimeZone({ dateStyle: 'medium' }, LA))
+  expect(sameRule(end)).toBe('Dec 6, 2026')
+  const running = bill({
+    timeZone: LA,
+    currentPeriodEnd: end,
+    period: { startsAt: '2026-11-07T03:00:00.000Z', endsAt: end, kind: 'month' },
+    invoices: [{ ...bill().invoices[0]!, createdAt: '2026-11-07T03:00:00.000Z' }],
+  })
+  const html = render({ billingOn: true, bill: running })
+  expect(html).toContain('Renews on Dec 6, 2026')
+  expect(html).toContain('Nov 6, 2026 to Dec 6, 2026')
+  expect(html).toContain('Nov 6, 2026')
+  expect(html).not.toContain('Dec 7, 2026')
+  // Said once, small and grey under the plan's title, because the browser's day can differ.
+  expect(html.match(/Dates in Los Angeles time/g)).toHaveLength(1)
+  // Canceling: the badge and the "answers calls until" line too.
+  const canceling = render({ billingOn: true, bill: { ...running, cancelAtPeriodEnd: true } })
+  expect(canceling).toContain('Ends Dec 6')
+  expect(canceling).toContain('<b>Dec 6, 2026</b>')
+
+  // A plan that ended at 03:00 UTC: "ended on", "numbers kept until" and "calls until" are the email's days.
+  const endedAt = '2026-11-24T03:00:00.000Z'
+  const ended = render(
+    { billingOn: true, bill: bill({ timeZone: LA, status: 'canceled', endedAt, startAgain: { seatCents: 1100 } }) },
+    state({
+      status: 'canceled',
+      canceledAt: endedAt,
+      numbersReleaseAt: '2026-12-24T03:00:00.000Z',
+      dataUntil: '2027-02-22T03:00:00.000Z',
+    }),
+  )
+  expect(ended).toContain(`Plan ended on ${sameRule(endedAt)}`)
+  expect(ended).toContain('Plan ended on Nov 23, 2026')
+  expect(ended).toContain('Your numbers are kept until Dec 23, 2026')
+  expect(ended).toContain('until Feb 21, 2027')
+
+  // Someone who does not pay: the usage period in the bill's zone too.
+  queries.usage = { usage: { period: running.period, row: null, minutesOnly: false, timeZone: LA } }
+  expect(renderToStaticMarkup(<Billing toast={() => {}} view="usage" />)).toContain('Nov 6, 2026 to Dec 6, 2026')
+
+  // The cancel dialog: the end of the plan in the bill's zone (rendered in place, no DOM here).
+  vi.stubGlobal('document', { activeElement: null })
+  onTestFinished(() => {
+    vi.unstubAllGlobals()
+  })
+  expect(renderToStaticMarkup(<CancelDialog bill={running} onClose={() => {}} toast={() => {}} />)).toContain(
+    'Dec 6, 2026',
+  )
+})
+
+test('the zone note only when the browser can see another day: not in the same zone or one with the same offset', () => {
+  const browser = process.env.TZ
+  onTestFinished(() => {
+    process.env.TZ = browser
+  })
+  const page = (zone: string) => {
+    process.env.TZ = zone
+    return render({ billingOn: true, bill: bill({ timeZone: 'America/Los_Angeles' }) })
+  }
+  expect(page('America/Los_Angeles')).not.toContain('Dates in')
+  expect(page('America/Tijuana')).not.toContain('Dates in')
+  expect(page('America/New_York')).toContain('Dates in Los Angeles time')
+  // An older server sends no zone: the browser's dates, as before, and no note.
+  process.env.TZ = 'Europe/Berlin'
+  expect(render({ billingOn: true, bill: bill() })).not.toContain('Dates in')
 })

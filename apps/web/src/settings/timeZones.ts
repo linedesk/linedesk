@@ -32,9 +32,12 @@ function genericName(zone: string): string | null {
   }
 }
 
+/** America/Los_Angeles → "Los Angeles". */
+export const zoneCity = (zone: string) => (zone.split('/').pop() ?? zone).replaceAll('_', ' ')
+
 /** America/Los_Angeles → "Los Angeles · Pacific Time". */
 export function timeZoneLabel(zone: string): string {
-  const city = (zone.split('/').pop() ?? zone).replaceAll('_', ' ')
+  const city = zoneCity(zone)
   const name = genericName(zone)
   return name && name !== city ? `${city} · ${name}` : city
 }

@@ -165,6 +165,29 @@ type DurationFormatCtor = new (
   options: { style: string; hoursDisplay?: 'auto' | 'always' },
 ) => { format(duration: { hours?: number; minutes?: number; seconds?: number }): string }
 
+/** `zone` when Intl knows it, else null (a zone saved by an older browser, a typo in a seed). */
+export function knownTimeZone(zone: string | null | undefined): string | null {
+  if (!zone) return null
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: zone })
+    return zone
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The one day rule for a bill's dates (LIN-785): `options` in the workspace's zone, UTC when it is unknown. The billing
+ * emails (`emailDate`) and Settings › Billing both format through it, so "Plan ended", "numbers kept until" or a
+ * period's end fall on the same day in the email and on the page, whatever zone the browser is in.
+ */
+export function inTimeZone(
+  options: Intl.DateTimeFormatOptions,
+  zone: string | null | undefined,
+): Intl.DateTimeFormatOptions & { timeZone: string } {
+  return { ...options, timeZone: knownTimeZone(zone) ?? 'UTC' }
+}
+
 /** The decimals of a rate: cents always shown, sub-cent digits only when the price has them ($0.0085). */
 export const RATE_DIGITS = { minimumFractionDigits: 2, maximumFractionDigits: 4 } as const
 

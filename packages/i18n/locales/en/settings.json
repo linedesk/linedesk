@@ -473,6 +473,7 @@
   "billing.usage.standard": "{count, plural, one {# Standard minute} other {# Standard minutes}}",
   "billing.usage.title": "Usage this period",
   "billing.usage.ultra": "{count, plural, one {# Ultra minute} other {# Ultra minutes}}",
+  "billing.zoneNote": "Dates in {zone} time",
   "calendar.accessWithdrawn": "Access was withdrawn.",
   "calendar.accounts": "Calendar accounts",
   "calendar.accountsHide": "Hide calendar accounts",

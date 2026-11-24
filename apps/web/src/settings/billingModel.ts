@@ -9,11 +9,39 @@ import type {
   BusyLinePrompt,
   TrialMinutesPrompt,
 } from '@linedesk/actions'
-import { type MessageKey, msg } from '@linedesk/i18n'
+import { type Formatters, inTimeZone, knownTimeZone, type MessageKey, msg } from '@linedesk/i18n'
 import type { Me } from '../auth.ts'
+import { browserTimeZone, gmtOffset } from './timeZones.ts'
 
 /** Settings › Billing opens the add-calls dialog (`?addCalls=1`; the busy-line email and banner link there, LIN-450). */
 export const ADD_CALLS_PARAM = 'addCalls'
+
+/**
+ * A bill's dates (LIN-785): every date on Settings › Billing and in the banner is the day in the bill's zone
+ * (`timeZone` of the overview and the state, its oldest workspace's), by the same rule as the billing emails
+ * (`inTimeZone`, `emailDate` on the server), so page and email never say different days. An older server sends no
+ * zone: then the browser's, as before.
+ */
+export function billDate(format: Formatters, timeZone: string | undefined) {
+  return (iso: string, options: Intl.DateTimeFormatOptions = { dateStyle: 'medium' }) =>
+    format.date(new Date(iso), timeZone ? inTimeZone(options, timeZone) : options)
+}
+
+/**
+ * The bill's zone when its days can differ from the browser's: its offset now is not the browser's (a zone named
+ * differently with the same offset, "America/Vancouver" next to "America/Los_Angeles", says the same days). Null
+ * when they agree, or without a zone. The page then says once which zone its dates are in.
+ */
+export function otherDateZone(
+  timeZone: string | undefined,
+  browserZone: string | null = browserTimeZone(),
+  now = Date.now(),
+): string | null {
+  const zone = knownTimeZone(timeZone)
+  const browser = knownTimeZone(browserZone)
+  if (!zone || !browser || zone === browser) return null
+  return gmtOffset(zone, now) === gmtOffset(browser, now) ? null : zone
+}
 
 export const centsToDollars = (cents: number) => cents / 100
 export const microsToDollars = (micros: number) => micros / 1_000_000

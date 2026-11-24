@@ -43,7 +43,7 @@ import {
 } from '@linedesk/db'
 import { and, count, eq, inArray, isNotNull, ne } from 'drizzle-orm'
 import { lifecycleDates } from './billing-lifecycle.ts'
-import { balanceFlags } from './billing-page.ts'
+import { balanceFlags, billTimeZone } from './billing-page.ts'
 import { canAddCallsStep } from './extra-calls.ts'
 import { busyLineRef } from './billing-recharge.ts'
 import { DEFAULT_TIME_ZONE } from './bookings.ts'
@@ -120,6 +120,7 @@ async function billingState(
     data: {
       bill: {
         status: bill.status,
+        timeZone: await billTimeZone(tx, bill.id),
         suspendedReason: bill.status === 'suspended' ? bill.suspend_reason : null,
         pastDueSince: bill.past_due_since,
         ...lifecycleDates(bill),

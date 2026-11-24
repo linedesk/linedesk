@@ -51,7 +51,7 @@ import {
 } from '@linedesk/db'
 import { msg } from '@linedesk/i18n'
 import { getT } from '@linedesk/i18n/server'
-import { and, desc, eq, gte, inArray, isNotNull, not, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, not, sql } from 'drizzle-orm'
 import { SIGN_IN_AGAIN } from './account.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
 import { managesBill, tellBillOwner } from './bill-manager.ts'
@@ -70,6 +70,7 @@ import {
 import { busyCallersByWorkspace } from './billing-recharge.ts'
 import { billingRules } from './billing-rules.ts'
 import { billingProvider, billingState } from './billing-settings.ts'
+import { DEFAULT_TIME_ZONE, timeZoneOf } from './bookings.ts'
 import { afterDebit } from './call-billing.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
@@ -171,6 +172,21 @@ async function workspacesOf(tx: Reader, billId: string) {
     .from(organization)
     .where(eq(organization.billingAccountId, billId))
     .orderBy(organization.name)
+}
+
+/**
+ * The zone a bill's dates are shown in (LIN-785): its oldest workspace's, the one its owner emails are about
+ * (sendLifecycleEmail), else the install's default. Settings › Billing and the banner format every date of the bill in
+ * it, as the emails do, so both say the same day whatever zone the browser is in.
+ */
+export async function billTimeZone(tx: Reader, billId: string): Promise<string> {
+  const [oldest] = await tx
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.billingAccountId, billId))
+    .orderBy(asc(organization.createdAt))
+    .limit(1)
+  return oldest ? timeZoneOf(tx as Tx, oldest.id) : DEFAULT_TIME_ZONE
 }
 
 /** A $0 plan invoice: on a bill whose trial was refused, the one Stripe made for the trial that never ran. */
@@ -437,6 +453,7 @@ async function overview(
     seatCents: await chargedCents(lookupKey),
     clientSeatCents: bill.kind === 'partner' ? await chargedCents(seatKey) : null,
     workspaces: workspaces.length,
+    timeZone: await billTimeZone(tx, bill.id),
     trialEndsAt: bill.status === 'trialing' ? bill.trial_ends_at : null,
     currentPeriodEnd: bill.current_period_end,
     cancelAtPeriodEnd: bill.cancel_at_period_end,
@@ -615,7 +632,9 @@ async function workspaceUsage({
   if (!found?.billId) return none
   const rules = await billingRules(tx as Tx)
   const period = await periodAt(tx as Tx, found.billId, now)
-  if (!period) return { rows: {}, data: { usage: { period: null, row: null, minutesOnly: !!found.partnerId } } }
+  const timeZone = await billTimeZone(tx, found.billId)
+  if (!period)
+    return { rows: {}, data: { usage: { period: null, row: null, minutesOnly: !!found.partnerId, timeZone } } }
   const [row] = await periodUsage(
     tx,
     found.billId,
@@ -634,6 +653,7 @@ async function workspaceUsage({
         period: { startsAt: period.starts_at, endsAt: period.ends_at, kind: period.kind },
         row: row && minutesOnly ? withoutAmounts(row) : (row ?? null),
         minutesOnly,
+        timeZone,
       },
     },
   }

@@ -19,6 +19,7 @@ import { auth } from '../auth.ts'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import {
   ADD_CALLS_PARAM,
+  billDate,
   billingBanner,
   centsToDollars,
   purchaseKeys,
@@ -42,7 +43,7 @@ export function BillingBanner({ toast }: { toast: (text: string) => void }) {
     <div className={cx('setup-bar', `is-${banner.tone}`)} role="status">
       <Icon name={banner.tone === 'danger' ? 'alert' : 'warning'} size={15} />
       {banner.trial ? (
-        <TrialPrompt prompt={banner.trial} lineKey={banner.key} toast={toast} />
+        <TrialPrompt prompt={banner.trial} timeZone={state.data?.bill?.timeZone} lineKey={banner.key} toast={toast} />
       ) : banner.busy ? (
         <BusyLine prompt={banner.busy} lineKey={banner.key} toast={toast} />
       ) : (
@@ -92,6 +93,8 @@ type LineKey = Parameters<ReturnType<typeof useT>>[0]
  */
 export function useKeepAnswered(
   prompt: TrialMinutesPrompt,
+  /** The bill's zone (billDate): the free trial's end is the day its emails say. */
+  timeZone: string | undefined,
   toast: (text: string) => void,
   buyWith: (input: object, idempotencyKey: string) => Promise<TopUpData> = buy,
   after: () => Promise<unknown> = () => Promise.all([refreshQuery(STATE), refreshQuery(OVERVIEW)]),
@@ -116,7 +119,7 @@ export function useKeepAnswered(
     card: cardName(card, t),
     threshold: usd(prompt.thresholdCents),
     cap: usd(prompt.capCents),
-    date: prompt.freeUntil ? format.date(new Date(prompt.freeUntil), { dateStyle: 'long' }) : '',
+    date: prompt.freeUntil ? billDate(format, timeZone)(prompt.freeUntil, { dateStyle: 'long' }) : '',
     rate: format.rate(prompt.standardMicrosPerMinute / 1_000_000, 'USD'),
   }
   const tip = t(
@@ -176,15 +179,17 @@ export function useKeepAnswered(
 /** The minutes prompt's line and its one button (the trial, or a paid plan with auto-recharge off). */
 function TrialPrompt({
   prompt,
+  timeZone,
   lineKey,
   toast,
 }: {
   prompt: TrialMinutesPrompt
+  timeZone: string | undefined
   lineKey: LineKey
   toast: (text: string) => void
 }) {
   const t = useT()
-  const { busy, keep, values, tip } = useKeepAnswered(prompt, toast)
+  const { busy, keep, values, tip } = useKeepAnswered(prompt, timeZone, toast)
   return (
     <>
       <span>

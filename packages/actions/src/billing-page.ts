@@ -66,6 +66,11 @@ export type BillingOverviewBill = {
   /** A partner bill: the price of each client workspace per interval, before tax; null on a Cloud bill. */
   clientSeatCents: number | null
   workspaces: number
+  /**
+   * The zone the page shows every date of the bill in (LIN-785): its oldest workspace's, as its emails do. Absent from
+   * an older server.
+   */
+  timeZone?: string
   trialEndsAt: string | null
   currentPeriodEnd: string | null
   cancelAtPeriodEnd: boolean
@@ -153,6 +158,8 @@ export type BillingWorkspaceUsageData = {
      * sets what it charges the client (docs/white-label.md).
      */
     minutesOnly: boolean
+    /** The bill's zone, which the period's dates are shown in (LIN-785). Absent from an older server. */
+    timeZone?: string
   } | null
 }
 
