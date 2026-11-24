@@ -2,7 +2,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test } from 'vitest'
 import type { AdminWorkspace, UsageRow } from './api.ts'
-import { recentMonths } from './model.ts'
+import { monthLabel, recentMonths } from './model.ts'
 import { Usage } from './Usage.tsx'
 
 const [month] = recentMonths(1)
@@ -25,4 +25,14 @@ test('the dollar note only when a listed workspace has a dollar amount', () => {
   const billed = renderToStaticMarkup(<Usage workspaces={workspaces} usage={[row('a', 1_500_000)]} months={12} />)
   expect(billed).toContain('adm-usage-note')
   expect(billed).toContain('$1.50')
+})
+
+test('months on a time axis: the oldest on the left, the current month on the very right', () => {
+  const months = recentMonths(3) // newest first
+  const html = renderToStaticMarkup(<Usage workspaces={workspaces} usage={[row('a', null)]} months={3} />)
+  const head = html.slice(0, html.indexOf('</thead>'))
+  const at = months.map(m => head.indexOf(monthLabel(m)))
+  expect(at.every(i => i > 0)).toBe(true)
+  expect(at[2]!).toBeLessThan(at[1]!)
+  expect(at[1]!).toBeLessThan(at[0]!)
 })

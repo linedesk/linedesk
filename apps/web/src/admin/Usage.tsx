@@ -1,5 +1,5 @@
 import { useT } from '@linedesk/i18n/react'
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import type { AdminWorkspace, UsageRow } from './api.ts'
 import { usdOfMicros } from './billingModel.ts'
 import {
@@ -19,7 +19,8 @@ type Props = { workspaces: AdminWorkspace[]; usage: UsageRow[]; months: number }
 
 /**
  * Answered minutes, calls and, with billing, the dollars charged per workspace and calendar month (UTC). Only months
- * back to the first usage get a column; workspaces without calls in them wait behind a button. The dollar note shows
+ * back to the first usage get a column, on a time axis: the oldest on the left, the current month on the very right
+ * (a wide table opens scrolled to it). Workspaces without calls in them wait behind a button. The dollar note shows
  * only when a listed workspace has a dollar amount.
  */
 export function Usage({ workspaces, usage, months }: Props) {
@@ -30,7 +31,15 @@ export function Usage({ workspaces, usage, months }: Props) {
   // total and the dollar note without a row to show them.
   const ids = new Set(workspaces.map(w => w.id))
   const listed = usage.filter(u => ids.has(u.workspace_id))
+  // Newest first (columns[0] is the current month, which the rows sort by); shown oldest first, left to right.
   const columns = monthsWithUsage(recentMonths(months), listed)
+  const shown = [...columns].reverse()
+  const scroller = useRef<HTMLDivElement>(null)
+  // The current month is the one people look at: a table wider than the screen starts scrolled to it.
+  useLayoutEffect(() => {
+    const el = scroller.current
+    if (el) el.scrollLeft = el.scrollWidth
+  }, [])
   const grid = usageByWorkspace(listed)
   const used = (w: AdminWorkspace) => columns.some(month => grid.get(w.id)?.has(month))
   const current = (w: AdminWorkspace) => grid.get(w.id)?.get(columns[0]!)?.minutes ?? 0
@@ -47,13 +56,13 @@ export function Usage({ workspaces, usage, months }: Props) {
 
   return (
     <div className="adm-card">
-      <div className="adm-scroll">
+      <div className="adm-scroll" ref={scroller}>
         <table className="adm-table adm-stack adm-stack-grid adm-usage">
           <thead>
             <tr>
               <SortTh label={t('admin.usage.workspace')} column="name" sort={sort} onSort={toggle} />
-              {columns.map((month, i) =>
-                i === 0 ? (
+              {shown.map(month =>
+                month === columns[0] ? (
                   <SortTh
                     key={month}
                     label={monthLabel(month)}
@@ -75,7 +84,7 @@ export function Usage({ workspaces, usage, months }: Props) {
             {active.length > 1 && (
               <tr className="adm-total">
                 <th scope="row">{t('admin.usage.total')}</th>
-                {columns.map(month => (
+                {shown.map(month => (
                   <UsageTd key={month} month={month} cell={totals.get(month)} />
                 ))}
               </tr>
@@ -87,7 +96,7 @@ export function Usage({ workspaces, usage, months }: Props) {
                     {w.name}
                   </span>
                 </th>
-                {columns.map(month => (
+                {shown.map(month => (
                   <UsageTd key={month} month={month} cell={grid.get(w.id)?.get(month)} />
                 ))}
               </tr>
