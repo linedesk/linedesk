@@ -48,7 +48,6 @@ import { localeForEmail } from './email-locale.ts'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { ledgerCheckAlert, stuckRechargesAlert } from './emails/alerts.ts'
 import { checkLedger } from './ledger.ts'
-import { withWorkspaceBrand } from './partner-brand.ts'
 import {
   type BillingAlertJob,
   chargeRecharge,
@@ -229,8 +228,10 @@ async function runJobs(instance: PgBoss, env: Env) {
     return result
   })
   await instance.work<SpendingAlert>(SPENDING_CAP_ALERT, async ([job]) => {
-    // With the workspace's brand: a white-label partner's client hears it under the partner's name (partner-brand.ts).
-    const result = await withWorkspaceBrand(job!.data.workspaceId, () => sendSpendingAlert(db, emailSender, job!.data))
+    // With the install's brand, also for a white-label partner's client: its readers are the partner's owner, who pays
+    // for the client, and the instance admins, never the client's people; its links are the install's (white-label.md)
+    // and the owner may be sent to the install's support address, so brand and links agree.
+    const result = await withEmailBrand(null, () => sendSpendingAlert(db, emailSender, job!.data))
     if (result.failed && !result.sent) throw new Error(`no spending cap email could be sent (${result.failed} failed)`)
     return result
   })

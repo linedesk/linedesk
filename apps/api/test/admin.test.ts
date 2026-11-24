@@ -1521,6 +1521,7 @@ describe('overview', () => {
       'agent',
       'api',
       'email',
+      'installType',
       'livekit',
       'livekitConfigured',
       'readSync',
@@ -1528,6 +1529,8 @@ describe('overview', () => {
     ])
     // Whether LiveKit is set in .env at all: the overview's Call audio row says "Not set up" instead of "Failing".
     expect(typeof before.livekitConfigured).toBe('boolean')
+    // What starts the voice agent on this install: the overview's hint when it is not running (LIN-773).
+    expect(typeof before.installType).toBe('string')
     expect(before.api.ok).toBe(true)
     await request(agent(), 'GET', AGENT_ROUTE)
     expect((await request(operator, 'GET', '/v1/admin/health')).body.agent).toMatchObject({ ok: true })
