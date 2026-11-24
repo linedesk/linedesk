@@ -219,15 +219,14 @@ export type ExtraNumber = { id: string; e164: string; workspaceId: string }
 
 /**
  * The bill's extra numbers: on Linedesk's carrier account, bought through Linedesk, beyond the first of each workspace
- * (its oldest is the one the workspace includes); numbers whose fee the install waives are left out (`feeNumbers`). The
- * same count as `extraNumbersOnBill` (ledger.ts).
+ * (its oldest is the one the workspace includes; `feeNumbers`). The same count as `extraNumbersOnBill` (ledger.ts).
  */
 export async function extraNumbersOf(tx: Tx, billId: string): Promise<ExtraNumber[]> {
   const rows = await tx
     .select({ id: phone_numbers.id, e164: phone_numbers.e164, workspaceId: phone_numbers.workspace_id })
     .from(phone_numbers)
     .innerJoin(organization, eq(organization.id, phone_numbers.workspace_id))
-    .where(and(eq(organization.billingAccountId, billId), await feeNumbers(tx)))
+    .where(and(eq(organization.billingAccountId, billId), feeNumbers()))
     .orderBy(asc(phone_numbers.workspace_id), asc(phone_numbers.created_at), asc(phone_numbers.id))
   const seen = new Set<string>()
   return rows.filter(r => {

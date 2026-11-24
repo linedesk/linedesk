@@ -4565,21 +4565,6 @@
       "out": "0e9048119360ee6bf57a299f39aa0ee8086cb25943db605ab7fea0e15405f284",
       "src": "50ca11bcec4106f48f2c4f6032e759e1fa6759de9f2604a4990b7b8a2f066950"
     },
-    "admin.bills.rules.regulatedNumberFeeWaived": {
-      "by": "ai",
-      "out": "48ff5bedaeff18f313779fa569fb515c8939d8c533073ef8d24edcb1e4ed59fd",
-      "src": "d6ad1be53a14579a64e308e42619c755f09d9ccaa3d29d86d72233de09df425b"
-    },
-    "admin.bills.rules.regulatedNumberFeeWaived.help": {
-      "by": "ai",
-      "out": "da794cc544caa3f5f2bc1bd164c2b3a272d3640877e1ffb7b7352a6d2ca89dfa",
-      "src": "2f18017ec22c9724534bdd03d9ceae755a17efcc51db060a42b7e5ef3d56404d"
-    },
-    "admin.bills.rules.regulatedNumberFeeWaived.short": {
-      "by": "ai",
-      "out": "51e9636b2b2cac813ae90f884204d1024e7e23d8687494284807e1eb1daca198",
-      "src": "77e629acb06f76860fd0b049cb0d08aa0f2ed99753db0c09a6f6d7cbbb655b25"
-    },
     "admin.bills.rules.reset": {
       "by": "ai",
       "out": "1ba0463c46e6cafa39baed6d955cc01ba0d6f615ff2846100415370e38c83442",
@@ -43681,21 +43666,6 @@
       "by": "ai",
       "out": "1e9ee2c4687afb962c8fea157a364425dc8af0f6afb73e0050d21a3c13076ce1",
       "src": "50ca11bcec4106f48f2c4f6032e759e1fa6759de9f2604a4990b7b8a2f066950"
-    },
-    "admin.bills.rules.regulatedNumberFeeWaived": {
-      "by": "ai",
-      "out": "0b59871d7e564bd60147ba6af18d378cd80f5323274d00275e26e7f1a0dccf51",
-      "src": "d6ad1be53a14579a64e308e42619c755f09d9ccaa3d29d86d72233de09df425b"
-    },
-    "admin.bills.rules.regulatedNumberFeeWaived.help": {
-      "by": "ai",
-      "out": "d6c098ec2ac472e1dcf11a7c27228d0b458076074cc840bed63c68b3925f11b8",
-      "src": "2f18017ec22c9724534bdd03d9ceae755a17efcc51db060a42b7e5ef3d56404d"
-    },
-    "admin.bills.rules.regulatedNumberFeeWaived.short": {
-      "by": "ai",
-      "out": "a294daf824c1f4e07755a78341a9bcf965191e65e924020da5bfa256fa403f59",
-      "src": "77e629acb06f76860fd0b049cb0d08aa0f2ed99753db0c09a6f6d7cbbb655b25"
     },
     "admin.bills.rules.reset": {
       "by": "ai",
@@ -82799,21 +82769,6 @@
       "out": "59c173b96a2ef6c6d6eb01bccbf01bc994266220107412fa3206714e0fb0be4c",
       "src": "50ca11bcec4106f48f2c4f6032e759e1fa6759de9f2604a4990b7b8a2f066950"
     },
-    "admin.bills.rules.regulatedNumberFeeWaived": {
-      "by": "ai",
-      "out": "6dcc2700436e3e1f0988db1283543ccd2db6ff036200af68d677460881249915",
-      "src": "d6ad1be53a14579a64e308e42619c755f09d9ccaa3d29d86d72233de09df425b"
-    },
-    "admin.bills.rules.regulatedNumberFeeWaived.help": {
-      "by": "ai",
-      "out": "82fb95ee3d17a9cbf3b97db774e532db4031a5d911f51fdb54e351ce08aab948",
-      "src": "2f18017ec22c9724534bdd03d9ceae755a17efcc51db060a42b7e5ef3d56404d"
-    },
-    "admin.bills.rules.regulatedNumberFeeWaived.short": {
-      "by": "ai",
-      "out": "e39e75a10bdf0866a219aa37f8b36f6a8c29c0e69167f4fe150c66e66290f9e0",
-      "src": "77e629acb06f76860fd0b049cb0d08aa0f2ed99753db0c09a6f6d7cbbb655b25"
-    },
     "admin.bills.rules.reset": {
       "by": "ai",
       "out": "5b35e0e35591b44cfee15d60de1b8e56669163890da5296496872815e43ee8ed",
@@ -121916,21 +121871,6 @@
       "out": "e7f9c8335fd5a9f9dcfe936cef32b2609380666bba05d5c4eed1dd3e6dcddc18",
       "src": "50ca11bcec4106f48f2c4f6032e759e1fa6759de9f2604a4990b7b8a2f066950"
     },
-    "admin.bills.rules.regulatedNumberFeeWaived": {
-      "by": "ai",
-      "out": "ed7cbb2aa86d747ab11bece7b50133f3df147cfc370d2eb7f9d5a80dea5bb7e7",
-      "src": "d6ad1be53a14579a64e308e42619c755f09d9ccaa3d29d86d72233de09df425b"
-    },
-    "admin.bills.rules.regulatedNumberFeeWaived.help": {
-      "by": "ai",
-      "out": "59e7136b630a67f6c6814e3a545d3c73779bc38e79867f4758a4f42b5cc4ebcb",
-      "src": "2f18017ec22c9724534bdd03d9ceae755a17efcc51db060a42b7e5ef3d56404d"
-    },
-    "admin.bills.rules.regulatedNumberFeeWaived.short": {
-      "by": "ai",
-      "out": "ae9b78c15df175459e3df11d3b0d1f6eabbe41e691fb4443bfde24f3a41bcf70",
-      "src": "77e629acb06f76860fd0b049cb0d08aa0f2ed99753db0c09a6f6d7cbbb655b25"
-    },
     "admin.bills.rules.reset": {
       "by": "ai",
       "out": "535badd805d252bec633190222a4f2ad94418a59c8460d504c4576a74a269463",
@@ -161032,21 +160972,6 @@
       "by": "ai",
       "out": "15822612daf2baaf4d5f20aaec717f05e29e463305691661d6cfbb217125117e",
       "src": "50ca11bcec4106f48f2c4f6032e759e1fa6759de9f2604a4990b7b8a2f066950"
-    },
-    "admin.bills.rules.regulatedNumberFeeWaived": {
-      "by": "ai",
-      "out": "2ba3e84f44da92629a1afc74a64d84a97a0217411fbb1d4ca5cf1375b7776bb8",
-      "src": "d6ad1be53a14579a64e308e42619c755f09d9ccaa3d29d86d72233de09df425b"
-    },
-    "admin.bills.rules.regulatedNumberFeeWaived.help": {
-      "by": "ai",
-      "out": "c2df063f43853332b5ae9f58e73e46a2fa97ab841f9203802312a102229b0f8d",
-      "src": "2f18017ec22c9724534bdd03d9ceae755a17efcc51db060a42b7e5ef3d56404d"
-    },
-    "admin.bills.rules.regulatedNumberFeeWaived.short": {
-      "by": "ai",
-      "out": "b8de468014b940d859d5feb0b33e44a602fa5303e3b44f703fe9423a4c294383",
-      "src": "77e629acb06f76860fd0b049cb0d08aa0f2ed99753db0c09a6f6d7cbbb655b25"
     },
     "admin.bills.rules.reset": {
       "by": "ai",

@@ -246,9 +246,8 @@ test('a part of Billing shows only that part: no status line, no tabs above it',
 test('turning Stripe Tax on: the count of customers without an address shows once asked, "counting" meanwhile (review #1105, N-1)', async () => {
   const { taxChange } = await import('./Billing.tsx')
   const { i18n } = await import('../i18n/index.tsx')
-  const t = i18n().t as Parameters<typeof taxChange>[3]
-  const note = (missing: number | null | undefined) =>
-    renderToStaticMarkup(taxChange({ automaticTax: 'on' }, { automaticTax: 'off' }, missing, t))
+  const t = i18n().t as Parameters<typeof taxChange>[2]
+  const note = (missing: number | null | undefined) => renderToStaticMarkup(taxChange(true, missing, t))
   expect(note(undefined)).toContain('Counting paying customers without a billing address')
   expect(note(2)).toContain('2 paying customers have no billing address')
   expect(note(2)).not.toContain('Counting')
@@ -256,7 +255,5 @@ test('turning Stripe Tax on: the count of customers without an address shows onc
   expect(note(null)).toContain('Running subscriptions are taxed from their next invoice.')
   expect(note(null)).not.toMatch(/Counting|no billing address/)
   // Turning it off asks nothing.
-  expect(renderToStaticMarkup(taxChange({ automaticTax: 'off' }, { automaticTax: 'on' }, undefined, t))).not.toContain(
-    'Counting',
-  )
+  expect(renderToStaticMarkup(taxChange(false, undefined, t))).not.toContain('Counting')
 })

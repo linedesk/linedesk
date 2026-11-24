@@ -74,8 +74,6 @@ import {
   signupDirty,
   signupForm,
   signupFromForm,
-  TAX_FIELD,
-  NUMBER_FEE_WAIVED_FIELD,
   usdOfCents,
   usdOfMicros,
   usdSymbol,
@@ -222,7 +220,12 @@ export function Billing({ id, onOpen, notify, keysRef, data }: Props) {
     case 'rules':
       return <RulesCard notify={notify} />
     case 'stripe':
-      return <StripeCard data={data} />
+      return (
+        <>
+          <StripeCard data={data} />
+          <TaxCard notify={notify} />
+        </>
+      )
   }
 }
 
@@ -249,7 +252,7 @@ type PartRow = Row & { id: BillingTab | 'events' }
 /** Whether billing through Stripe runs, in which mode, or what stops it. */
 function stripeRow(t: Translate, s: AdminBillingSummary): PartRow {
   const b = s.billing
-  const row = (state: StatusState, value: string, line: string | null): PartRow => ({
+  const row = (state: StatusState, value: string, line: string): PartRow => ({
     id: 'stripe',
     label: t(TAB_LABELS.stripe),
     state,
@@ -265,8 +268,9 @@ function stripeRow(t: Translate, s: AdminBillingSummary): PartRow {
   if (!b.guardsOk) return row('failing', t('admin.bills.summary.paused'), t('admin.billing.guardsMissing'))
   const mode = t(b.mode === 'live' ? 'admin.bills.summary.live' : 'admin.bills.summary.test')
   if (!b.on) return row('off', t('admin.bills.summary.off'), t('admin.bills.summary.turnOn', { mode }))
-  const on = t('admin.bills.summary.on', { mode })
-  return b.mode === 'live' ? row('works', on, null) : row('partly', on, t('admin.billing.testMode'))
+  // The Stripe page has the Stripe Tax switch (TaxCard), so its row says whether it is on.
+  const tax = t(s.automaticTax ? 'admin.bills.summary.taxOn' : 'admin.bills.summary.taxOff')
+  return row(b.mode === 'live' ? 'works' : 'partly', t('admin.bills.summary.on', { mode }), tax)
 }
 
 const CLOSED_BECAUSE: Record<NonNullable<AdminBillingSummary['selfServe']['closedBecause']>, MessageKey> = {
@@ -344,14 +348,14 @@ function eventsRow(t: Translate, s: AdminBillingSummary): PartRow {
   }
 }
 
-/** The plan prices and the billing rules: settings, with no state of their own; the line says whether Stripe Tax is on (its switch is here). */
-const rulesRow = (t: Translate, s: AdminBillingSummary): PartRow => ({
+/** The plan prices and the billing rules: settings, with no state of their own. */
+const rulesRow = (t: Translate): PartRow => ({
   id: 'rules',
   label: t(TAB_LABELS.rules),
   state: null,
   mark: '',
   value: null,
-  problem: t(s.automaticTax ? 'admin.bills.summary.taxOn' : 'admin.bills.summary.taxOff'),
+  problem: null,
   help: null,
   href: '#admin/billing/rules',
 })
@@ -362,7 +366,7 @@ const partRows = (t: Translate, s: AdminBillingSummary): PartRow[] => [
   reviewRow(t, s),
   eventsRow(t, s),
   signupRow(t, s),
-  rulesRow(t, s),
+  rulesRow(t),
   stripeRow(t, s),
 ]
 
@@ -859,6 +863,63 @@ function StripeCard({ data }: { data: AdminData | null }) {
   )
 }
 
+/**
+ * The Stripe Tax switch (`BillingRules.automaticTax`), on the Stripe page next to billing itself: a change is confirmed
+ * with a reason and stored like any billing rule, only this field (the server keeps the others).
+ */
+function TaxCard({ notify }: { notify: Notify }) {
+  const t = useT()
+  const query = useQuery(RULES, loadRules, KEPT)
+  const on = query.data?.effective.automaticTax
+  const [asking, setAsking] = useState<boolean | null>(null)
+  // Asked of Stripe only while the confirm dialog turns tax on, never with the rules (security review of #1105, N-1).
+  const taxAddress = useQuery(asking === true ? TAX_ADDRESS : null, loadTaxAddress)
+  return (
+    <Card id="adm-stripe-tax" title={t('admin.bills.rules.group.tax')} className="adm-detail">
+      <div className="swrow adm-swrow-first">
+        <div>
+          <b>
+            {t('admin.bills.rules.automaticTax')}
+            <HelpTip text={t('admin.bills.rules.automaticTax.help')} />
+          </b>
+          <span className="help">{t('admin.bills.rules.automaticTax.short')}</span>
+        </div>
+        <Loading
+          what={t('admin.bills.rules.automaticTax')}
+          loading={on === undefined}
+          error={query.error}
+          onRetry={() => void query.reload()}
+          skeleton={<Skeleton width={34} height={20} className="sk-round" />}
+        >
+          <Switch on={on ?? false} onChange={setAsking} label={t('admin.bills.rules.automaticTax')} />
+        </Loading>
+      </div>
+      {asking !== null && query.data && (
+        <ReasonDialog
+          title={t(asking ? 'admin.bills.tax.confirmOn' : 'admin.bills.tax.confirmOff')}
+          description={t('admin.bills.tax.confirmText')}
+          submit={t(asking ? 'admin.bills.tax.confirmOn' : 'admin.bills.tax.confirmOff')}
+          run={async reason => {
+            const automaticTax = asking === query.data?.defaults.automaticTax ? null : asking
+            const next = (await runAdmin('billingRules.set', {
+              rules: { automaticTax },
+              reason,
+            })) as unknown as BillingRulesData
+            setQueryData<BillingRulesData | undefined>(RULES, next, KEPT)
+            await refreshQuery(SUMMARY)
+            return t('admin.bills.tax.saved')
+          }}
+          notify={notify}
+          onClose={() => setAsking(null)}
+        >
+          {/* The switch reaches running subscriptions: what that means, before the admin confirms (review #1105, M-1). */}
+          {taxChange(asking, taxAddress.error ? null : taxAddress.data, t)}
+        </ReasonDialog>
+      )}
+    </Card>
+  )
+}
+
 // ---- Self-serve sign-up ----
 
 /**
@@ -1324,9 +1385,6 @@ function RulesCard({ notify }: { notify: Notify }) {
   }, [saved])
   const changes = saved ? changedFields(form, saved).length : 0
   const dirty = changes > 0
-  // Asked of Stripe only while the confirm dialog turns tax on, never with the rules (security review of #1105, N-1).
-  const turningTaxOn = !!asking && !!saved && saved[TAX_FIELD] !== 'on' && form[TAX_FIELD] === 'on'
-  const taxAddress = useQuery(turningTaxOn ? TAX_ADDRESS : null, loadTaxAddress)
 
   function save(e: FormEvent) {
     e.preventDefault()
@@ -1413,41 +1471,9 @@ function RulesCard({ notify }: { notify: Notify }) {
               </div>
             )}
             <div className="adm-rules-grid">{group.fields.map(key => ruleField(key))}</div>
-            {group.id === 'plans' && (
-              <div className="swrow">
-                <div>
-                  <b>
-                    {t('admin.bills.rules.regulatedNumberFeeWaived')}
-                    <HelpTip text={t('admin.bills.rules.regulatedNumberFeeWaived.help')} />
-                  </b>
-                  <span className="help">{t('admin.bills.rules.regulatedNumberFeeWaived.short')}</span>
-                </div>
-                <Switch
-                  on={form[NUMBER_FEE_WAIVED_FIELD] === 'on'}
-                  onChange={on => setForm(f => ({ ...f, [NUMBER_FEE_WAIVED_FIELD]: on ? 'on' : 'off' }))}
-                  label={t('admin.bills.rules.regulatedNumberFeeWaived')}
-                />
-              </div>
-            )}
           </Card>
         )
       })}
-      <Card id="adm-rules-tax" title={t('admin.bills.rules.group.tax')} className="adm-detail">
-        <div className="swrow adm-swrow-first">
-          <div>
-            <b>
-              {t('admin.bills.rules.automaticTax')}
-              <HelpTip text={t('admin.bills.rules.automaticTax.help')} />
-            </b>
-            <span className="help">{t('admin.bills.rules.automaticTax.short')}</span>
-          </div>
-          <Switch
-            on={form[TAX_FIELD] === 'on'}
-            onChange={on => setForm(f => ({ ...f, [TAX_FIELD]: on ? 'on' : 'off' }))}
-            label={t('admin.bills.rules.automaticTax')}
-          />
-        </div>
-      </Card>
       <SaveBar
         dirty={dirty}
         onCancel={() => {
@@ -1473,27 +1499,18 @@ function RulesCard({ notify }: { notify: Notify }) {
           }}
           notify={notify}
           onClose={() => setAsking(null)}
-        >
-          {/* The switch reaches running subscriptions: what that means, before the admin confirms (review #1105, M-1). */}
-          {taxChange(form, saved, taxAddress.error ? null : taxAddress.data, t)}
-        </ReasonDialog>
+        />
       )}
     </form>
   )
 }
 
 /**
- * The confirm dialog's note when the Stripe Tax switch changes; null when it does not. `missing`: the count of paying
+ * The confirm dialog's note when the Stripe Tax switch turns `on` (true) or off. `missing`: the count of paying
  * customers without a billing address (undefined while it is asked for, null when it is not known).
  */
-export function taxChange(
-  form: RulesForm,
-  saved: RulesForm | null,
-  missing: number | null | undefined,
-  t: ReturnType<typeof useT>,
-) {
-  if (!saved || form[TAX_FIELD] === saved[TAX_FIELD]) return null
-  if (form[TAX_FIELD] !== 'on') return <Note>{t('admin.bills.rules.automaticTax.offConfirm')}</Note>
+export function taxChange(on: boolean, missing: number | null | undefined, t: ReturnType<typeof useT>) {
+  if (!on) return <Note>{t('admin.bills.rules.automaticTax.offConfirm')}</Note>
   return (
     <Note>
       {t('admin.bills.rules.automaticTax.onConfirm')}

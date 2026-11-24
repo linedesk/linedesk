@@ -1289,6 +1289,13 @@
       "when": 1795459774375,
       "tag": "0184_drop_email_recipients",
       "breakpoints": true
+    },
+    {
+      "idx": 184,
+      "version": "7",
+      "when": 1795500111406,
+      "tag": "0185_billing_rules_drop_fee_waiver",
+      "breakpoints": true
     }
   ]
 }

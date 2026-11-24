@@ -145,12 +145,6 @@ export type BillingRules = {
    * running subscriptions too (billing-tax.ts).
    */
   automaticTax: boolean
-  /**
-   * Numbers in regulated countries (Germany, the UK, Ireland) cost the workspace nothing a month: they are left out of
-   * the extra numbers (no monthly fee), and the operator pays the carrier. Off by default: a German number is the number a workspace includes like a US one, more numbers are extra
-   * numbers (`extraNumberCents`, no beta). An install that wants to give them away turns it on.
-   */
-  regulatedNumberFeeWaived: boolean
 }
 
 /** Linedesk Cloud's rules, and the defaults of every install. */
@@ -174,7 +168,6 @@ export const BILLING_DEFAULTS: BillingRules = {
   extraNumberCents: 300,
   rechargeCapPerWorkspaceCents: RECHARGE_CAP_PER_WORKSPACE_CENTS,
   automaticTax: true,
-  regulatedNumberFeeWaived: false,
 }
 
 /**

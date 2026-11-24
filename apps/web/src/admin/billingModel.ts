@@ -91,17 +91,10 @@ export const RULE_FIELDS = [
 export type RuleField = (typeof RULE_FIELDS)[number][0]
 
 /**
- * The form's text per field: `levels.<level>.price` in dollars a minute, `levels.<level>.factor`, `automaticTax`
- * as `on` or `off` (a switch), the rest by unit.
+ * The form's text per field: `levels.<level>.price` in dollars a minute, `levels.<level>.factor`, the rest by unit.
+ * Stripe Tax is no field here: its switch is on the Stripe page (TaxCard in Billing.tsx).
  */
 export type RulesForm = Record<string, string>
-
-/** The Stripe Tax switch in the rules form (`BillingRules.automaticTax`). */
-export const TAX_FIELD = 'automaticTax'
-/** The switch "numbers that need documents are free" in the rules form (`BillingRules.regulatedNumberFeeWaived`). */
-export const NUMBER_FEE_WAIVED_FIELD = 'regulatedNumberFeeWaived'
-/** The rules form's switches: `on` or `off`, never a number. */
-const SWITCH_FIELDS: readonly string[] = [TAX_FIELD, NUMBER_FEE_WAIVED_FIELD]
 
 const DIVISOR: Record<Unit, number> = { seconds: 1, minutes: 60, count: 1, cents: 100, micros: 1_000_000 }
 const shown = (value: number, unit: Unit) => String(value / DIVISOR[unit])
@@ -110,8 +103,6 @@ const shown = (value: number, unit: Unit) => String(value / DIVISOR[unit])
 export function rulesForm(rules: BillingRules): RulesForm {
   const form: RulesForm = {}
   for (const [field, unit] of RULE_FIELDS) form[field] = shown(rules[field], unit)
-  form[TAX_FIELD] = rules.automaticTax ? 'on' : 'off'
-  form[NUMBER_FEE_WAIVED_FIELD] = rules.regulatedNumberFeeWaived ? 'on' : 'off'
   for (const [name, level] of Object.entries(rules.levels)) {
     form[`levels.${name}.price`] = String(level.microsPerMinute / 1_000_000)
     form[`levels.${name}.factor`] = level.allowanceFactor === null ? '' : String(level.allowanceFactor)
@@ -154,10 +145,6 @@ export function rulesFromForm(
     if (value === null) problems.push(field)
     else rules[field] = value !== defaults[field] ? value : null
   }
-  const taxOn = form[TAX_FIELD] === 'on'
-  rules[TAX_FIELD] = taxOn !== defaults.automaticTax ? taxOn : null
-  const waived = form[NUMBER_FEE_WAIVED_FIELD] === 'on'
-  rules[NUMBER_FEE_WAIVED_FIELD] = waived !== defaults.regulatedNumberFeeWaived ? waived : null
   const levels: Record<string, { microsPerMinute: number; allowanceFactor: number | null } | null> = {}
   for (const [name, fallback] of Object.entries(defaults.levels)) {
     const priceText = form[`levels.${name}.price`] ?? ''
@@ -267,9 +254,7 @@ export const isOwnValue = (key: string, text: string, fallback: string) =>
 
 /** The fields whose text differs from the defaults: the install's own values. */
 export const customFields = (form: RulesForm, defaults: RulesForm) =>
-  Object.keys(defaults).filter(
-    key => !SWITCH_FIELDS.includes(key) && isOwnValue(key, form[key] ?? '', defaults[key] ?? ''),
-  )
+  Object.keys(defaults).filter(key => isOwnValue(key, form[key] ?? '', defaults[key] ?? ''))
 
 /** The fields whose form text differs from `before`: what Save would change. */
 export const changedFields = (form: RulesForm, before: RulesForm) =>

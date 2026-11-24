@@ -36,7 +36,6 @@ import {
 } from '../src/billing-periods.ts'
 import { billingNumberRefusal } from '../src/billing-checkout.ts'
 import { endedDates } from '../src/billing-lifecycle.ts'
-import { BILLING_RULES_KEY } from '../src/billing-rules.ts'
 import { db } from '../src/db.ts'
 import type { EmailSender } from '../src/email.ts'
 import { setJobQueue } from '../src/jobs.ts'
@@ -621,7 +620,7 @@ describe('extra numbers', () => {
       expect(await numberEntries(extra.id)).toEqual([])
     }
   })
-  test('numbers that need documents are extra numbers like any other (the default); waived by the install, they are free', async () => {
+  test('a German number is an extra number like any other next to the included one', async () => {
     const b = await billed({ checkout_confirmed_at: at(Date.now() - 20 * DAY) })
     const german = (
       await db
@@ -636,29 +635,12 @@ describe('extra numbers', () => {
         .returning()
     )[0]!
     const owner = { actorId: b.ws.owner.userId, permissions: ['settings:write'], role: 'owner', workspaceId: b.ws.id }
-    const refusal = (feeWaived: boolean) =>
-      db.transaction(tx => billingNumberRefusal(tx, owner as never, b.ws.id, { feeWaived }))
-    // No balance at all: another paid number would need its first month, a free one needs nothing.
-    expect(await refusal(false)).toMatchObject({ key: 'server.api.checkout.number.extraCost' })
-    expect(await refusal(true)).toBeNull()
-
-    await db
-      .insert(instance_settings)
-      .values({ key: BILLING_RULES_KEY, value: JSON.stringify({ regulatedNumberFeeWaived: true }) })
-    try {
-      expect(await db.transaction(tx => payBoughtNumberMonth(tx, b.ws.id, german.id, at(Date.now())))).toBeNull()
-      await credit(b.billId, b.periodId, 10_000_000)
-      await run()
-      expect(await numberEntries(german.id)).toEqual([])
-      expect((await balanceOf(b.billId))!.balance_micros).toBe(10_000_000)
-      // A free number never takes the included one: a US number bought next is the included one, free as well.
-      await db.update(phone_numbers).set({ purchased: false }).where(eq(phone_numbers.e164, b.ws.number))
-      expect(await refusal(false)).toBeNull()
-      await db.update(phone_numbers).set({ purchased: true }).where(eq(phone_numbers.e164, b.ws.number))
-    } finally {
-      await db.delete(instance_settings).where(eq(instance_settings.key, BILLING_RULES_KEY))
-    }
-    // By default the German number is an extra number next to the included US one: the hourly run charges it.
+    // No balance at all: another paid number would need its first month.
+    expect(await db.transaction(tx => billingNumberRefusal(tx, owner as never, b.ws.id))).toMatchObject({
+      key: 'server.api.checkout.number.extraCost',
+    })
+    // With a balance, the hourly run charges it next to the included US one.
+    await credit(b.billId, b.periodId, 10_000_000)
     await run()
     const entries = await numberEntries(german.id)
     expect(entries).toHaveLength(1)
