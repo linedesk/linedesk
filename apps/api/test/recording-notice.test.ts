@@ -52,7 +52,9 @@ describe('recording notice', () => {
       g => (g.assistant as { id: string }).id === ws.assistant.id,
     )
     expect(stored?.recordingNotice).toBeNull()
-  })
+    // greetingsToStore walks every number in the shared test database (several queries each), so on CI's runner, with
+    // the other files' workspaces in it, this one test can pass the default 5 s.
+  }, 30_000)
 
   test('restoring an earlier version keeps the notice as it is', async () => {
     const ws = await createWorkspace('Notice Restore Plumbing')
