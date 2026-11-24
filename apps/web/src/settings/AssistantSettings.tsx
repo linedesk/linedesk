@@ -44,8 +44,7 @@ import { i18n } from '../i18n/index.tsx'
 import { BackToIntegrations } from '../integrations/fromIntegrations.tsx'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useOutboundCountries } from '../onboarding/outbound-number.ts'
-import { AssistantReview } from '../review/AssistantReview.tsx'
-import { openGroupCount, questionsLabel, REVIEW_SECTION } from '../review/reviewModel.ts'
+import { openGroupCount } from '../review/reviewModel.ts'
 import { useAssistants, useRows, useRun } from '../store.tsx'
 import { appLink } from '../ui/AppLink.tsx'
 import { RadioCard } from '../ui/controls.tsx'
@@ -125,11 +124,9 @@ import { TransferContacts, transferFieldId } from './TransferContacts.tsx'
 import { RealtimeVoiceSettings, useVoiceOptions, VoiceLoading, VoiceSettings } from './VoiceSettings.tsx'
 import { WEBHOOK_SECTION_ID, Webhooks } from './Webhooks.tsx'
 
-type SectionId = 'general' | 'review' | 'business' | 'hours' | 'rules' | 'transfers' | 'emails' | 'booking' | 'advanced'
+type SectionId = 'general' | 'business' | 'hours' | 'rules' | 'transfers' | 'emails' | 'booking' | 'advanced'
 const SECTION_IDS: readonly SectionId[] = [
   'general',
-  // Named after the assistant on the page (sectionsFor); owners and admins only.
-  'review',
   'business',
   'hours',
   'rules',
@@ -148,8 +145,8 @@ const sectionsIn = (t: ReturnType<typeof useT>): readonly PageSection<SectionId>
   }))
 
 /**
- * The sections this member sees: Open questions only for owners and admins (it reads evaluations), with its open
- * question groups as a count.
+ * The sections with their marks: Business info counts the open question groups (the questions callers asked that the
+ * assistant could not answer) for owners and admins, who answer them there.
  */
 function sectionsFor(
   sections: readonly PageSection<SectionId>[],
@@ -158,15 +155,13 @@ function sectionsFor(
   /** The words of the to-do mark on Booking & calendar; null without one. */
   bookingTodo: string | null = null,
 ): readonly PageSection<SectionId>[] {
-  return sections
-    .filter(s => s.id !== REVIEW_SECTION || canEdit)
-    .map(s =>
-      s.id === REVIEW_SECTION
-        ? { ...s, label: questionsLabel(), count: openItems }
-        : s.id === 'booking'
-          ? { ...s, mark: bookingTodo ? <StatusMark state="partly" label={bookingTodo} /> : undefined }
-          : s,
-    )
+  return sections.map(s =>
+    s.id === 'business' && canEdit
+      ? { ...s, count: openItems }
+      : s.id === 'booking'
+        ? { ...s, mark: bookingTodo ? <StatusMark state="partly" label={bookingTodo} /> : undefined }
+        : s,
+  )
 }
 
 /**
@@ -201,7 +196,7 @@ function NotAnswered({ setUp }: { setUp: PipelinesSetUp | null }) {
 }
 
 /** Sections that save on their own, outside the assistant's draft. */
-type OwnSection = 'hours' | 'booking' | 'review'
+type OwnSection = 'hours' | 'booking'
 /** Which draft fields each section holds. */
 const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   business: ['instructions', 'website'],
@@ -1375,24 +1370,9 @@ function Form({
     >
       {/* Members: why nothing here can change, once on top (the webhook's card in Advanced says it for itself). */}
       {!canEdit &&
-        current !== 'review' &&
         // Who hears about calls: every member switches their own row there.
         (current === 'emails' ? <Note tone="info">{t('settings.assistant.emails.readOnly')}</Note> : <ReadOnlyNote />)}
-      {current === 'review' ? (
-        <AssistantReview
-          assistant={assistant}
-          toast={toast}
-          onAnswered={(question, answer) => {
-            // The server added it to the saved text; the draft gets it too, so unsaved edits keep it.
-            const line = answeredQuestionLine(question, answer)
-            setDraft(d =>
-              d.instructions.includes(line)
-                ? d
-                : { ...d, instructions: [d.instructions.trim(), line].filter(Boolean).join('\n') },
-            )
-          }}
-        />
-      ) : current === 'hours' ? (
+      {current === 'hours' ? (
         <>
           <HoursSummary
             assistantId={assistant.id}
@@ -1480,7 +1460,6 @@ const useBusinessHoursOn = (): boolean => useWorkspaceSettings().data?.businessH
 /** How many cards each section shows, so its skeleton has the same number and nothing jumps when they arrive. */
 const SECTION_CARDS: Record<SectionId, number> = {
   general: 4,
-  review: 2,
   business: 1,
   hours: 3,
   rules: 1,

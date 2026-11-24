@@ -1,8 +1,8 @@
 // Settings › Assistant › Business info (LIN-724): About the business as two parts, the business's own text and the
 // questions and answers (aboutModel.ts), with Try a question, a health check and an editor in a side panel. The
 // assistant still reads one text (draft.instructions, saved with Save); Write with help (WriteWithHelp.tsx) drafts it.
-// Questions callers asked that it could not answer are answered in Open questions (review/AssistantReview.tsx).
-import { INSTRUCTIONS_MAX, type KnowledgeImproveData } from '@linedesk/actions'
+// Questions callers asked that it could not answer are the first rows, "No answer yet" (OpenQuestions.tsx, LIN-797).
+import { INSTRUCTIONS_MAX, type KnowledgeImproveData, type QuestionGroup } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { useT } from '@linedesk/i18n/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -20,6 +20,7 @@ import {
   keyAfter,
   newQuestion,
   parseAbout,
+  withAnswered,
   written,
 } from './aboutModel.ts'
 import type { Draft } from './assistantDraft.ts'
@@ -27,6 +28,7 @@ import { Field, Section, TextArea } from './fields.tsx'
 import { hasKnowledge } from './knowledgeModel.ts'
 import { callAction } from './settings-api.ts'
 import { WriteWithHelp } from './WriteWithHelp.tsx'
+import { OpenQuestionRow, useOpenQuestions } from './OpenQuestions.tsx'
 import './knowledge.css'
 
 type Props = {
@@ -42,6 +44,11 @@ const count = (n: number) => fmt().number(n)
 /** The length shows only from this share of the limit on: below it, the number says nothing worth reading. */
 const COUNT_FROM = 0.8
 // i18n-dynamic: settings.knowledge.issue.*
+/** Whether a text has what is searched for (nothing searched: every text). */
+const matchesSearch = (text: string, search: string) =>
+  !search.trim() || text.toLowerCase().includes(search.trim().toLowerCase())
+/** The open-row key of an open question group, apart from the rows' own keys. */
+const openKey = (g: QuestionGroup) => `open:${g.questionId}`
 /** Search shows only from this many questions on; fewer fit on the screen. */
 const SEARCH_FROM = 6
 const issuesOf = (issues: AboutIssue[], key: string) => issues.filter(i => i.key === key)
@@ -140,8 +147,7 @@ function Questions(props: QuestionsProps) {
   const filled = parts.questions.filter(q => q.line || q.question.trim())
   const shown = parts.questions.filter(q => {
     if (onlyCheck && !flagged.has(q.key)) return false
-    const s = search.trim().toLowerCase()
-    return !s || `${q.question} ${q.answer}`.toLowerCase().includes(s)
+    return matchesSearch(`${q.question} ${q.answer}`, search)
   })
 
   // "/" searches the questions (not while typing somewhere).
@@ -169,6 +175,24 @@ function Questions(props: QuestionsProps) {
   }
 
   const [trying, setTrying] = useState(false)
+  const groups = useOpenQuestions(props.assistant, canEdit).filter(g => matchesSearch(g.question, search))
+  const [onlyOpen, setOnlyOpen] = useState(false)
+  // The server added the answer to the saved text; the draft gets the same line, so unsaved edits keep it.
+  const onAnswered = (question: string, answer: string) => {
+    props.update(withAnswered(parts, question, answer))
+    setOpen(null)
+  }
+  const openRows = groups.map(g => (
+    <OpenQuestionRow
+      key={g.questionId}
+      group={g}
+      toast={props.toast}
+      onAnswered={onAnswered}
+      canEdit={canEdit}
+      open={open === openKey(g)}
+      onOpen={o => setOpen(o ? openKey(g) : null)}
+    />
+  ))
 
   return (
     <div className="kn-block kn-qa">
@@ -198,7 +222,7 @@ function Questions(props: QuestionsProps) {
         </Button>
       </div>
       {trying && <TryQuestion {...props} onOpen={setOpen} onAdd={add} onClose={() => setTrying(false)} />}
-      {(filled.length > SEARCH_FROM || flagged.size > 0) && (
+      {(filled.length > SEARCH_FROM || flagged.size > 0 || groups.length > 0) && (
         <div className="kn-toolbar">
           {filled.length > SEARCH_FROM && (
             <Input
@@ -213,40 +237,58 @@ function Questions(props: QuestionsProps) {
               onChange={e => setSearch(e.target.value)}
             />
           )}
+          {groups.length > 0 && (
+            <button
+              type="button"
+              aria-pressed={onlyOpen}
+              className={cx('kn-chip is-warn', onlyOpen && 'is-on')}
+              onClick={() => {
+                setOnlyCheck(false)
+                setOnlyOpen(!onlyOpen)
+              }}
+            >
+              {t('settings.knowledge.open.filter')} <span>{count(groups.length)}</span>
+            </button>
+          )}
           {flagged.size > 0 && (
             <button
               type="button"
               aria-pressed={onlyCheck}
               className={cx('kn-chip is-warn', onlyCheck && 'is-on')}
-              onClick={() => setOnlyCheck(!onlyCheck)}
+              onClick={() => {
+                setOnlyOpen(false)
+                setOnlyCheck(!onlyCheck)
+              }}
             >
               {t('settings.knowledge.qa.filter.check')} <span>{count(flagged.size)}</span>
             </button>
           )}
         </div>
       )}
-      {parts.questions.length === 0 ? (
+      {parts.questions.length === 0 && groups.length === 0 ? (
         <p className="kn-sub kn-empty">{t('settings.knowledge.qa.empty')}</p>
       ) : shown.length === 0 ? (
         <p className="kn-sub kn-empty">{t('settings.knowledge.qa.noMatch')}</p>
       ) : (
         <div className="kn-qlist">
-          {shown.map(q =>
-            q.key === open ? (
-              <QuestionEditor
-                key={q.key}
-                {...props}
-                update={update}
-                q={q}
-                issues={issuesOf(issues, q.key)}
-                onChange={change => setQuestion(q.key, change)}
-                onRemove={() => remove(q.key)}
-                onClose={() => setOpen(null)}
-              />
-            ) : (
-              <QuestionRow key={q.key} q={q} issues={issuesOf(issues, q.key)} onClick={() => setOpen(q.key)} />
-            ),
-          )}
+          {!onlyCheck && openRows}
+          {!onlyOpen &&
+            shown.map(q =>
+              q.key === open ? (
+                <QuestionEditor
+                  key={q.key}
+                  {...props}
+                  update={update}
+                  q={q}
+                  issues={issuesOf(issues, q.key)}
+                  onChange={change => setQuestion(q.key, change)}
+                  onRemove={() => remove(q.key)}
+                  onClose={() => setOpen(null)}
+                />
+              ) : (
+                <QuestionRow key={q.key} q={q} issues={issuesOf(issues, q.key)} onClick={() => setOpen(q.key)} />
+              ),
+            )}
         </div>
       )}
     </div>

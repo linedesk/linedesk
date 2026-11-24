@@ -1,20 +1,10 @@
-// Open questions (Assistant area, #assistant/<id>/review): the pure part. The questions callers asked that the
+// Open questions (the first rows of Business info's questions and answers, LIN-797): the pure part. The questions callers asked that the
 // assistant could not answer, grouped (`questionKey`: the same question however it was worded), each answered once
 // into About the business or dismissed. How the assistant itself did on a call is for staff only (Server admin ›
 // Call reviews, and the call view's card for server admins).
 import { NEEDS_REVIEW_MAX_SCORE, type QuestionGroup, questionKey } from '@linedesk/actions'
 import type { KnowledgeQuestion } from '@linedesk/db/types'
 import { i18n } from '../i18n/index.tsx'
-
-/** The section's id in the Assistant area (its address stays `#assistant/<id>/review`), and its name in the list. */
-export const REVIEW_SECTION = 'review'
-export const questionsLabel = () => i18n().t('settings.review.questions.navLabel')
-
-/** The heading of the section: "Questions Maya couldn't answer". */
-export const questionsTitle = (assistantName: string) =>
-  assistantName.trim()
-    ? i18n().t('settings.review.questions.title', { name: assistantName.trim() })
-    : i18n().t('settings.review.questions.titleDefault')
 
 /** "How Maya did": the evaluation of one call, as staff read it (call view, Server admin › Call reviews). */
 export const reviewTitle = (assistantName: string) =>

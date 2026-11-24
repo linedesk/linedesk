@@ -140,7 +140,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
     const fresh = unannounced(invites.invitations)
     if (fresh.length) toaster.show(invitationNotice(fresh), false, 8000)
   }, [invites.invitations, toaster.show])
-  // Owners and admins: Open questions (Assistant area, G R); its open question groups are the count on Assistant.
+  // Owners and admins: the open questions (Business info, G R); their groups are the count on Assistant.
   const canReview = me.permissions.includes('settings:write')
   const reviewCount = useReviewCount(canReview)
   const view = useInboxView(nav, me.actorId, !!me.impersonation)

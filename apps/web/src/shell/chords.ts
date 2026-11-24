@@ -13,7 +13,7 @@ const chordTabs: Record<string, InboxTab> = {
 const chordPages: Record<string, { route: PageRoute; section?: string }> = {
   a: { route: 'assistant' },
   c: { route: 'contacts' },
-  r: { route: 'assistant', section: 'review' },
+  r: { route: 'assistant', section: 'business' },
   n: { route: 'insights' },
   o: { route: 'integrations' },
   s: { route: 'workspace' },

@@ -1,6 +1,6 @@
 // Server admin › Call quality › Flagged calls: the calls the evaluation flagged (Missed something, Went wrong) across workspaces,
 // newest first, each with the reviewer's notes on what the assistant did, filtered by workspace. Staff only: what the
-// assistant itself did wrong is ours to fix, so the business never sees it (it sees Open questions). Read-only.
+// assistant itself did wrong is ours to fix, so the business never sees it (it sees the open questions in Business info). Read-only.
 import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { useQuery } from '../cachedQuery.ts'

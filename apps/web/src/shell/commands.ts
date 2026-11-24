@@ -342,7 +342,7 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
                 label: t('shell.command.goToOpenQuestions'),
                 icon: 'flag' as const,
                 shortcut: ['G', 'R'],
-                run: () => c.goPage('assistant', 'review'),
+                run: () => c.goPage('assistant', 'business'),
               },
             ]
           : []),

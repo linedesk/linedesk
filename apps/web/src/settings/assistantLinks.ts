@@ -15,6 +15,8 @@ export const OLD_SECTIONS: Record<string, string> = {
   voice: 'general',
   // The webhook was a section of its own until it moved into Advanced (2026-11-18).
   webhooks: 'advanced',
+  // Open questions became the unanswered rows of Business info's questions and answers (LIN-797).
+  review: 'business',
 }
 
 /**

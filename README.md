@@ -42,6 +42,18 @@ curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/HEAD/scripts/inst
 
 Linedesk picks up the phone for a business: a natural-sounding assistant that knows the business, books appointments into its calendar, takes messages and puts urgent callers through to the right person. Afterwards every call is in one inbox with a summary, next steps, the transcript and the recording. Run it on your own server with your own provider accounts, or use Linedesk Cloud.
 
+## What we focus on
+
+Linedesk does two things, and tries to do them very well:
+
+- **A voice infrastructure layer that is easy to set up and scales.** One command installs the whole stack on your own
+  server: phone numbers, SIP, real-time audio (LiveKit), speech, language model and voice, each behind a provider you
+  choose. When calls grow, the audio and the assistant move to their own
+  [voice servers](docs/hosting.md#separate-voice-servers) and you add more of them.
+- **A simple, beautiful, opinionated UI for phone agents and their calls**, inspired by Superhuman. Fast,
+  keyboard-first and calm: every call lands in one inbox with what happened and what to do next, so you get through
+  them in seconds. We make the choices for you, so there is little to set up and little to learn.
+
 ![The Linedesk inbox](docs/images/inbox.png)
 
 <sub>The inbox, shown in the design prototype with demo data.</sub>

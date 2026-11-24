@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { answeredFrom, checkAbout, joinAbout, keyAfter, newQuestion, parseAbout } from './aboutModel.ts'
+import { answeredFrom, checkAbout, joinAbout, keyAfter, newQuestion, parseAbout, withAnswered } from './aboutModel.ts'
 
 const TEXT = [
   'We fix pipes in Portland.',
@@ -68,4 +68,11 @@ test('keyAfter: the open row keeps its row when an earlier one is merged away or
   expect(keyAfter(added, 'new1')).toBe('q2')
   const cleared = { ...parts, questions: [{ ...first!, answer: '' }, second!] }
   expect(keyAfter(cleared, first!.key)).toBe('dq0')
+})
+
+test('withAnswered: an answered open question becomes the line the server wrote, once', () => {
+  const parts = parseAbout(TEXT)
+  const next = withAnswered(parts, 'Do you sell water softeners?', 'Yes, from $1,200 installed.')
+  expect(joinAbout(next)).toBe(`${TEXT}\nIf a caller asks "Do you sell water softeners?": Yes, from $1,200 installed.`)
+  expect(withAnswered(next, 'Do you sell water softeners?', 'Yes, from $1,200 installed.')).toBe(next)
 })

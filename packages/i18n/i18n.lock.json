@@ -26325,16 +26325,6 @@
       "out": "31bebd86a460c2aef21f9ea3f979b3fedfd4ea35baa198038b44f25ee4c1791e",
       "src": "11300890d7a650d6bc77ab3a826e797e816bb90766aeb84342346c666c8354ce"
     },
-    "settings.assistant.section.review.description": {
-      "by": "ai",
-      "out": "d412495cf854b4898404105adc7a1842cc6e7b11d291d2f5f1ccd245d9a89e99",
-      "src": "2f815bfb5506f751e13c98722d42e8013f69955c160e8236bf7f349616e602f6"
-    },
-    "settings.assistant.section.review.label": {
-      "by": "ai",
-      "out": "4cf11de4a8bf07df33f1a825d36fda5994220829aa4089aa0d71ecef97d7e347",
-      "src": "5e0a96ef86c219c391afd5f0a25827cf8813194caf8e2753aff31c4213879415"
-    },
     "settings.assistant.section.rules.description": {
       "by": "ai",
       "out": "36a07d94045f8800ecfae55e43e601a9778e6f432a265ac0e17229b3c57d2eea",
@@ -33150,16 +33140,6 @@
       "out": "4536782d6e4e3894d77668d18248e5c8f825742006c60a2aaf20565f2ae49d39",
       "src": "55d42f87a924c8fc0ad8833563d4f9d184f17d60342b0ee4e052cdf26db3a86a"
     },
-    "settings.review.questions.cancelTip": {
-      "by": "ai",
-      "out": "31fa5fe801fe22be07186f88f30186d9e88312ec1e7ece38040642c6f385a789",
-      "src": "ea48bd64c4d754d3853dab9b32c4e8994811c3b9df0b90c4a516e1e3daa9b520"
-    },
-    "settings.review.questions.description": {
-      "by": "ai",
-      "out": "a43078dcafc738616a3ad18c3c39c6b8305292addfd47d011c29e213757110e5",
-      "src": "327ccefc90480610a4460412f9339275c09cc42db85deb6ca03bcd2430849e7a"
-    },
     "settings.review.questions.dismiss": {
       "by": "ai",
       "out": "594ca889c4421b8441ab6fe5bb87d98de9fac27785266abb15a9a439264f5a6e",
@@ -33175,50 +33155,15 @@
       "out": "bbbbbe4d16f5b39f9d7da969aaa99f83151a7ebcabcd748a364bb8d7c112ebc9",
       "src": "f5ed8ea9077e1c54e211a19a8742b010becf3377a3831168b63895dde801e829"
     },
-    "settings.review.questions.emptyLine": {
-      "by": "ai",
-      "out": "bb5e01f9fafcaca28c1fcc0da78e63c6b381fa568d9df596e35822fad42847e1",
-      "src": "e617b9ab916085ad0f0771bf709439b36296b25a1424e64638f19c3d1e3eaba2"
-    },
-    "settings.review.questions.emptyLineDefault": {
-      "by": "ai",
-      "out": "333e7bb98dfcfe481a4b8ebb23c4cb626c6ce3897148ebcacf34c74819c55d04",
-      "src": "9a08e33d9f1dbbd5db369c382939f417e6d1e35e24476fde924688b0faa92fbc"
-    },
-    "settings.review.questions.emptyTitle": {
-      "by": "ai",
-      "out": "944651c43580e8078a8cf1699fc84afc77b23ad7c860d54ddecf0c389e0af3e9",
-      "src": "ff7e6901804c94b46d65d809bcca26b7a8c89df9bb45023d0540da5c21d294b2"
-    },
     "settings.review.questions.lastCallTip": {
       "by": "ai",
       "out": "dbcd14c7cf55af28a28104fa30285b295b08a34c8b9985879f59d6f6858b5955",
       "src": "c1e90057235161d32bf4b7c4ea46ce44b376649d6c6c77784aeabe315368acfb"
     },
-    "settings.review.questions.loading": {
-      "by": "ai",
-      "out": "429ae93cd1c9ca0d3a5ab0c54927c816571f68d139cc3a91b532d62efefceda7",
-      "src": "4454efa53efb741c2cf4a13f558b39b0184f15e38d12a0b8344598940409cb16"
-    },
-    "settings.review.questions.navLabel": {
-      "by": "ai",
-      "out": "4cf11de4a8bf07df33f1a825d36fda5994220829aa4089aa0d71ecef97d7e347",
-      "src": "5e0a96ef86c219c391afd5f0a25827cf8813194caf8e2753aff31c4213879415"
-    },
     "settings.review.questions.saveTip": {
       "by": "ai",
       "out": "212ed1f3d6d63aed88b94e09c694245410f9556ddd89a041143b25fc1c176346",
       "src": "c633803ee59de271478dd356fdc1e4a628ee8b386c9814a65560c7b1a18387c3"
-    },
-    "settings.review.questions.title": {
-      "by": "ai",
-      "out": "4d3bea6dd8d0608f29731b50f78bb94e1355df538310e52ca56205d018290755",
-      "src": "600691b7ee7e8317a41974d64cc5e574156f9454f1986a40741c8f3f8e443a4c"
-    },
-    "settings.review.questions.titleDefault": {
-      "by": "ai",
-      "out": "cbca052ffbf7c2946adeec5b0da3dc797e823c14422de0c36a9786f205482454",
-      "src": "9b8c460f3823777635dc0567fd9e344f761bc7e43c367fbfcbf0dd6f33cf83b9"
     },
     "settings.review.score.handledWell": {
       "by": "ai",
@@ -65282,16 +65227,6 @@
       "out": "c8bc82b91ffa7b1d7464d3e920bdc5170df537d8117c373fb5b057f024357070",
       "src": "11300890d7a650d6bc77ab3a826e797e816bb90766aeb84342346c666c8354ce"
     },
-    "settings.assistant.section.review.description": {
-      "by": "ai",
-      "out": "b1c056c79ea5676ffcb47d2e04df7a19df55d5dab397a2ae93dd8c17b7115f3b",
-      "src": "2f815bfb5506f751e13c98722d42e8013f69955c160e8236bf7f349616e602f6"
-    },
-    "settings.assistant.section.review.label": {
-      "by": "ai",
-      "out": "b482744d538bd6c4d951c44a3c41772c6c48de2e784ba03e1a3477cb6083ac53",
-      "src": "5e0a96ef86c219c391afd5f0a25827cf8813194caf8e2753aff31c4213879415"
-    },
     "settings.assistant.section.rules.description": {
       "by": "ai",
       "out": "cecfa506a56488c0404243f56cee2d4878e9f4b48ceb9c9bbb40b402e294f893",
@@ -72107,16 +72042,6 @@
       "out": "385ee0c453490394fa953dd208bf097b8e15ee64b8ccaeb6a6e8f1bfca1e9e91",
       "src": "55d42f87a924c8fc0ad8833563d4f9d184f17d60342b0ee4e052cdf26db3a86a"
     },
-    "settings.review.questions.cancelTip": {
-      "by": "ai",
-      "out": "9f607bed45efceb8b30d916cae77a9e5350880fa65de02fc6ea3d7e04378f0cf",
-      "src": "ea48bd64c4d754d3853dab9b32c4e8994811c3b9df0b90c4a516e1e3daa9b520"
-    },
-    "settings.review.questions.description": {
-      "by": "ai",
-      "out": "8e07c1260cf917edc8d219afb0c21a1828d880dd4b632ce967e2e6e23fbf7255",
-      "src": "327ccefc90480610a4460412f9339275c09cc42db85deb6ca03bcd2430849e7a"
-    },
     "settings.review.questions.dismiss": {
       "by": "ai",
       "out": "1a878a55c594b0f72cfeb04a09946e9571edd22d31279df43f8834a69f67d2fc",
@@ -72132,50 +72057,15 @@
       "out": "e2fcc8f7520431a3dccd685ff5dbc64bdb0b895eb3975498f4bf17f12cd87199",
       "src": "f5ed8ea9077e1c54e211a19a8742b010becf3377a3831168b63895dde801e829"
     },
-    "settings.review.questions.emptyLine": {
-      "by": "ai",
-      "out": "042414700c71036995644ebb0de41b2e914132b7cecb3699e532a8c3e2101530",
-      "src": "e617b9ab916085ad0f0771bf709439b36296b25a1424e64638f19c3d1e3eaba2"
-    },
-    "settings.review.questions.emptyLineDefault": {
-      "by": "ai",
-      "out": "5267a15ebee0d858193020626d5ce8e638301e3ef9b17b77323101a8a17135d3",
-      "src": "9a08e33d9f1dbbd5db369c382939f417e6d1e35e24476fde924688b0faa92fbc"
-    },
-    "settings.review.questions.emptyTitle": {
-      "by": "ai",
-      "out": "72ca7f44a49fabffb1bb22204b320e484b08526c7d22946de7aa3daf9ffb0f01",
-      "src": "ff7e6901804c94b46d65d809bcca26b7a8c89df9bb45023d0540da5c21d294b2"
-    },
     "settings.review.questions.lastCallTip": {
       "by": "ai",
       "out": "731925e8b22341306ee51bf9848fedfa85d79f34719eaa5d356dc59cae2a7ad4",
       "src": "c1e90057235161d32bf4b7c4ea46ce44b376649d6c6c77784aeabe315368acfb"
     },
-    "settings.review.questions.loading": {
-      "by": "ai",
-      "out": "3e0c34e177fcce1ed548867eafe7abefa0574cbab39d93759f340f469eb63311",
-      "src": "4454efa53efb741c2cf4a13f558b39b0184f15e38d12a0b8344598940409cb16"
-    },
-    "settings.review.questions.navLabel": {
-      "by": "ai",
-      "out": "b482744d538bd6c4d951c44a3c41772c6c48de2e784ba03e1a3477cb6083ac53",
-      "src": "5e0a96ef86c219c391afd5f0a25827cf8813194caf8e2753aff31c4213879415"
-    },
     "settings.review.questions.saveTip": {
       "by": "ai",
       "out": "1290e0be583e3c0d00d6477ab2572c0ce17792715274de9924a54919718cf50b",
       "src": "c633803ee59de271478dd356fdc1e4a628ee8b386c9814a65560c7b1a18387c3"
-    },
-    "settings.review.questions.title": {
-      "by": "ai",
-      "out": "bd3e12a84621e0ae8372119b59ad89dc5c1a718651f073e3ded7bf74c4327b55",
-      "src": "600691b7ee7e8317a41974d64cc5e574156f9454f1986a40741c8f3f8e443a4c"
-    },
-    "settings.review.questions.titleDefault": {
-      "by": "ai",
-      "out": "879ad0292eba673c821e6970b176cc2e500ea8f21dffca337ac1352f8755580a",
-      "src": "9b8c460f3823777635dc0567fd9e344f761bc7e43c367fbfcbf0dd6f33cf83b9"
     },
     "settings.review.score.handledWell": {
       "by": "ai",
@@ -104239,16 +104129,6 @@
       "out": "bfde7aac71a45ddcdefbaaadb09d1bd636d8b941a0cd8f5cc680f48c148432a0",
       "src": "11300890d7a650d6bc77ab3a826e797e816bb90766aeb84342346c666c8354ce"
     },
-    "settings.assistant.section.review.description": {
-      "by": "ai",
-      "out": "3e2d470c75b3999c2debd5880234ddd09b3518ae92a80a2d7b7276bc1a865da0",
-      "src": "2f815bfb5506f751e13c98722d42e8013f69955c160e8236bf7f349616e602f6"
-    },
-    "settings.assistant.section.review.label": {
-      "by": "ai",
-      "out": "daef4bf8e54abc84b4319d029b6ff64ccd67a769119157d8f562a2ad637ed280",
-      "src": "5e0a96ef86c219c391afd5f0a25827cf8813194caf8e2753aff31c4213879415"
-    },
     "settings.assistant.section.rules.description": {
       "by": "ai",
       "out": "2f9fd97f9aa2a7c9d9585714e56246a0697e8425291c6b35f8d084ecfe3a7600",
@@ -111064,16 +110944,6 @@
       "out": "f00306e564f1111693aa196e6c02f6c82024b3343ae3c41da6fe743f982c3547",
       "src": "55d42f87a924c8fc0ad8833563d4f9d184f17d60342b0ee4e052cdf26db3a86a"
     },
-    "settings.review.questions.cancelTip": {
-      "by": "ai",
-      "out": "70119419d8f0917e5a9be40b192c59be93b53e4c25015e5ef7f38809e16a18ec",
-      "src": "ea48bd64c4d754d3853dab9b32c4e8994811c3b9df0b90c4a516e1e3daa9b520"
-    },
-    "settings.review.questions.description": {
-      "by": "ai",
-      "out": "03dc45b2bb2118ebcd507f7311094c669825de4dc99d32ae5963989dfb85ac3d",
-      "src": "327ccefc90480610a4460412f9339275c09cc42db85deb6ca03bcd2430849e7a"
-    },
     "settings.review.questions.dismiss": {
       "by": "ai",
       "out": "2dfb040a4d6d04ca8f35ba23d21314431124a5b85d4d9874bd9bcbfd1c242e35",
@@ -111089,50 +110959,15 @@
       "out": "a5bda73b813ccd869126020826686a2cdc129f3e7735bfe79e353b3278896e8d",
       "src": "f5ed8ea9077e1c54e211a19a8742b010becf3377a3831168b63895dde801e829"
     },
-    "settings.review.questions.emptyLine": {
-      "by": "ai",
-      "out": "b43df05d652d2849b15dc763ecd00d2e6622639ceb576be2db9fd4d0a9da9336",
-      "src": "e617b9ab916085ad0f0771bf709439b36296b25a1424e64638f19c3d1e3eaba2"
-    },
-    "settings.review.questions.emptyLineDefault": {
-      "by": "ai",
-      "out": "19b992919622b6d4234efeaa0414175890a33f151d13c8f530b53ab3b25068cf",
-      "src": "9a08e33d9f1dbbd5db369c382939f417e6d1e35e24476fde924688b0faa92fbc"
-    },
-    "settings.review.questions.emptyTitle": {
-      "by": "ai",
-      "out": "acae0a8a450b28b91cc4f94eeb703a0196721bbf8ed323a8c21fd356d904a24a",
-      "src": "ff7e6901804c94b46d65d809bcca26b7a8c89df9bb45023d0540da5c21d294b2"
-    },
     "settings.review.questions.lastCallTip": {
       "by": "ai",
       "out": "6d5d601255925dfca702e5a22113ef44a7a9099acb4c794187cfdee1d96ba53b",
       "src": "c1e90057235161d32bf4b7c4ea46ce44b376649d6c6c77784aeabe315368acfb"
     },
-    "settings.review.questions.loading": {
-      "by": "ai",
-      "out": "8688bad71913e8c34c64d1856e529c6aad067bda28965dcfc6d0cd12e4b69c19",
-      "src": "4454efa53efb741c2cf4a13f558b39b0184f15e38d12a0b8344598940409cb16"
-    },
-    "settings.review.questions.navLabel": {
-      "by": "ai",
-      "out": "daef4bf8e54abc84b4319d029b6ff64ccd67a769119157d8f562a2ad637ed280",
-      "src": "5e0a96ef86c219c391afd5f0a25827cf8813194caf8e2753aff31c4213879415"
-    },
     "settings.review.questions.saveTip": {
       "by": "ai",
       "out": "bfe44d46273a3f588cb7a3309b566a86dd1e26c99ad440c295da42b32f1324da",
       "src": "c633803ee59de271478dd356fdc1e4a628ee8b386c9814a65560c7b1a18387c3"
-    },
-    "settings.review.questions.title": {
-      "by": "ai",
-      "out": "46f7985a902c602d938426b143abfc80ccb5e0d21f0f6a993f2e219754d98861",
-      "src": "600691b7ee7e8317a41974d64cc5e574156f9454f1986a40741c8f3f8e443a4c"
-    },
-    "settings.review.questions.titleDefault": {
-      "by": "ai",
-      "out": "d8af1cb1f8b8f85e9692d23c3dafda0f97cc2c42acd5af0fd6f56a805c51feb4",
-      "src": "9b8c460f3823777635dc0567fd9e344f761bc7e43c367fbfcbf0dd6f33cf83b9"
     },
     "settings.review.score.handledWell": {
       "by": "ai",
@@ -143196,16 +143031,6 @@
       "out": "0128b9d47d480da7a6f6915b106c7ef051b278ef78111bdbae1c44e51838157f",
       "src": "11300890d7a650d6bc77ab3a826e797e816bb90766aeb84342346c666c8354ce"
     },
-    "settings.assistant.section.review.description": {
-      "by": "ai",
-      "out": "5f3d07e7c4731db66da1d08383fe6de767d74ecff8ad48b77615bb880bb6edb8",
-      "src": "2f815bfb5506f751e13c98722d42e8013f69955c160e8236bf7f349616e602f6"
-    },
-    "settings.assistant.section.review.label": {
-      "by": "ai",
-      "out": "a5eebf7813468176ddead13b5e6f4e359ea1dba695f8aacb6f0c7bbc806fc3ff",
-      "src": "5e0a96ef86c219c391afd5f0a25827cf8813194caf8e2753aff31c4213879415"
-    },
     "settings.assistant.section.rules.description": {
       "by": "ai",
       "out": "d197d5c06b89051892f19ce5919b5ab6b5eb9fd83acdeea0e78b63b7db89fc05",
@@ -150021,16 +149846,6 @@
       "out": "d6a0ef90b88c8656adef0210cb5cead6ca06456ca7851094243e54ce33affe06",
       "src": "55d42f87a924c8fc0ad8833563d4f9d184f17d60342b0ee4e052cdf26db3a86a"
     },
-    "settings.review.questions.cancelTip": {
-      "by": "ai",
-      "out": "471c1ebadea9567a1c672196bef465b09c68089528bf7270f929f6a8bc6d3d08",
-      "src": "ea48bd64c4d754d3853dab9b32c4e8994811c3b9df0b90c4a516e1e3daa9b520"
-    },
-    "settings.review.questions.description": {
-      "by": "ai",
-      "out": "7a562ed29183861c1665e87ade2497b42ce1bc398bfdc9e3360a02cbfacf4011",
-      "src": "327ccefc90480610a4460412f9339275c09cc42db85deb6ca03bcd2430849e7a"
-    },
     "settings.review.questions.dismiss": {
       "by": "ai",
       "out": "f0f4a1bef8b0dc24f4303a84adba980b68198235d0ddf8d5c32d702759d63554",
@@ -150046,50 +149861,15 @@
       "out": "961fc6791c9a7583f65e0d8027e4909bb954a63b741f1f757a163bba02154ff9",
       "src": "f5ed8ea9077e1c54e211a19a8742b010becf3377a3831168b63895dde801e829"
     },
-    "settings.review.questions.emptyLine": {
-      "by": "ai",
-      "out": "386a3c1abc1aa422478d45b703b6898a86e62b2925a76492419b60c8cf7d5493",
-      "src": "e617b9ab916085ad0f0771bf709439b36296b25a1424e64638f19c3d1e3eaba2"
-    },
-    "settings.review.questions.emptyLineDefault": {
-      "by": "ai",
-      "out": "cd4ce123962746393a114ac977576ea7180139738e3f454767ad1cb6405dfbb8",
-      "src": "9a08e33d9f1dbbd5db369c382939f417e6d1e35e24476fde924688b0faa92fbc"
-    },
-    "settings.review.questions.emptyTitle": {
-      "by": "ai",
-      "out": "ef5466e6aacb9bbd9e31490044810bdf6aad507e1af9d2e3e87e6067ac04e148",
-      "src": "ff7e6901804c94b46d65d809bcca26b7a8c89df9bb45023d0540da5c21d294b2"
-    },
     "settings.review.questions.lastCallTip": {
       "by": "ai",
       "out": "ff79ba9fee653c3dfde417231972f10381a31a9756996b2b662f3afb96b5bd65",
       "src": "c1e90057235161d32bf4b7c4ea46ce44b376649d6c6c77784aeabe315368acfb"
     },
-    "settings.review.questions.loading": {
-      "by": "ai",
-      "out": "71f69a5044ab643182149775e3af79294f3eb4617b735cffc9225c414659b849",
-      "src": "4454efa53efb741c2cf4a13f558b39b0184f15e38d12a0b8344598940409cb16"
-    },
-    "settings.review.questions.navLabel": {
-      "by": "ai",
-      "out": "a5eebf7813468176ddead13b5e6f4e359ea1dba695f8aacb6f0c7bbc806fc3ff",
-      "src": "5e0a96ef86c219c391afd5f0a25827cf8813194caf8e2753aff31c4213879415"
-    },
     "settings.review.questions.saveTip": {
       "by": "ai",
       "out": "e4b91ed6d1126c9640799c836e477a67b0b12341c36dbef8e3dc1614654d5fe1",
       "src": "c633803ee59de271478dd356fdc1e4a628ee8b386c9814a65560c7b1a18387c3"
-    },
-    "settings.review.questions.title": {
-      "by": "ai",
-      "out": "3c0a97ed8525dc38f213d670822d74f5ecf05757149f1ff7505f32ecdcc22607",
-      "src": "600691b7ee7e8317a41974d64cc5e574156f9454f1986a40741c8f3f8e443a4c"
-    },
-    "settings.review.questions.titleDefault": {
-      "by": "ai",
-      "out": "2ca2f59321bb35a72027d9262e87c0f4b0de83723c17490dac3bec0b050b6a92",
-      "src": "9b8c460f3823777635dc0567fd9e344f761bc7e43c367fbfcbf0dd6f33cf83b9"
     },
     "settings.review.score.handledWell": {
       "by": "ai",
@@ -182153,16 +181933,6 @@
       "out": "545472aed40a0ec7d2df8d827c8b466474f0838e9fbfe74f25838f3c169c53eb",
       "src": "11300890d7a650d6bc77ab3a826e797e816bb90766aeb84342346c666c8354ce"
     },
-    "settings.assistant.section.review.description": {
-      "by": "ai",
-      "out": "603adc1395f1fa25fb63f1d836b33eb498428287e7064a8584ec8e817db29271",
-      "src": "2f815bfb5506f751e13c98722d42e8013f69955c160e8236bf7f349616e602f6"
-    },
-    "settings.assistant.section.review.label": {
-      "by": "ai",
-      "out": "5e037f52d77d5a55a9c4cea42dd5cb1aab5a01ab9a32850b734cb382900d841a",
-      "src": "5e0a96ef86c219c391afd5f0a25827cf8813194caf8e2753aff31c4213879415"
-    },
     "settings.assistant.section.rules.description": {
       "by": "ai",
       "out": "e6b2794e3bb281f464f58098e412e7e1e6f533611a4899b67927fa57e53bf91a",
@@ -188978,16 +188748,6 @@
       "out": "f57bb2f06ab91fc231de4a536ebd53bb5dc4b4ea2d32c7324cac12b3a10035f7",
       "src": "55d42f87a924c8fc0ad8833563d4f9d184f17d60342b0ee4e052cdf26db3a86a"
     },
-    "settings.review.questions.cancelTip": {
-      "by": "ai",
-      "out": "9f607bed45efceb8b30d916cae77a9e5350880fa65de02fc6ea3d7e04378f0cf",
-      "src": "ea48bd64c4d754d3853dab9b32c4e8994811c3b9df0b90c4a516e1e3daa9b520"
-    },
-    "settings.review.questions.description": {
-      "by": "ai",
-      "out": "47eaa9528ba521f050eaf5cfc75ba8c61e45d3aebb353ba871486a411c79e827",
-      "src": "327ccefc90480610a4460412f9339275c09cc42db85deb6ca03bcd2430849e7a"
-    },
     "settings.review.questions.dismiss": {
       "by": "ai",
       "out": "1a878a55c594b0f72cfeb04a09946e9571edd22d31279df43f8834a69f67d2fc",
@@ -189003,50 +188763,15 @@
       "out": "e2fcc8f7520431a3dccd685ff5dbc64bdb0b895eb3975498f4bf17f12cd87199",
       "src": "f5ed8ea9077e1c54e211a19a8742b010becf3377a3831168b63895dde801e829"
     },
-    "settings.review.questions.emptyLine": {
-      "by": "ai",
-      "out": "de3dacccefbe5ed203853e80b7fadf3ba1e753233c83bd0b9cbee652f0a82ede",
-      "src": "e617b9ab916085ad0f0771bf709439b36296b25a1424e64638f19c3d1e3eaba2"
-    },
-    "settings.review.questions.emptyLineDefault": {
-      "by": "ai",
-      "out": "0ee7e00eb319163f9960b5b1f1c006ae2d2e37d124991b0f9322e98b350ff6f4",
-      "src": "9a08e33d9f1dbbd5db369c382939f417e6d1e35e24476fde924688b0faa92fbc"
-    },
-    "settings.review.questions.emptyTitle": {
-      "by": "ai",
-      "out": "b08a9fd9d2f09552a4744e223f317087217a1f373e5593f816b183b51216c296",
-      "src": "ff7e6901804c94b46d65d809bcca26b7a8c89df9bb45023d0540da5c21d294b2"
-    },
     "settings.review.questions.lastCallTip": {
       "by": "ai",
       "out": "3602f7a7404b13337dc7ab12f3c73cdf108409689d95a5d07d0b48f28c1fcda3",
       "src": "c1e90057235161d32bf4b7c4ea46ce44b376649d6c6c77784aeabe315368acfb"
     },
-    "settings.review.questions.loading": {
-      "by": "ai",
-      "out": "cd64860b51e964db12c1ef1494af05b6044d31e33c07af613f0d6a5e9f71c8d0",
-      "src": "4454efa53efb741c2cf4a13f558b39b0184f15e38d12a0b8344598940409cb16"
-    },
-    "settings.review.questions.navLabel": {
-      "by": "ai",
-      "out": "5e037f52d77d5a55a9c4cea42dd5cb1aab5a01ab9a32850b734cb382900d841a",
-      "src": "5e0a96ef86c219c391afd5f0a25827cf8813194caf8e2753aff31c4213879415"
-    },
     "settings.review.questions.saveTip": {
       "by": "ai",
       "out": "8c184d6fba17cffb62ad865b0d9e4a6a09f96a7b48c602f485939a86a843c3fa",
       "src": "c633803ee59de271478dd356fdc1e4a628ee8b386c9814a65560c7b1a18387c3"
-    },
-    "settings.review.questions.title": {
-      "by": "ai",
-      "out": "79dabd6fb6577c3b7a21edc27d8afa9abf8b316c393d18b222de38dd6bbc87bf",
-      "src": "600691b7ee7e8317a41974d64cc5e574156f9454f1986a40741c8f3f8e443a4c"
-    },
-    "settings.review.questions.titleDefault": {
-      "by": "ai",
-      "out": "f17dfedbb98e53d5cad90edc3dd6ca8709dbd0a824906fb81608bf4803f47668",
-      "src": "9b8c460f3823777635dc0567fd9e344f761bc7e43c367fbfcbf0dd6f33cf83b9"
     },
     "settings.review.score.handledWell": {
       "by": "ai",

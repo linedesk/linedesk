@@ -1,17 +1,7 @@
 import { type QuestionGroup, questionKey } from '@linedesk/actions'
 import type { KnowledgeQuestion } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
-import {
-  askedLabel,
-  needsALook,
-  openGroupCount,
-  openGroups,
-  otherIds,
-  questionsLabel,
-  questionsTitle,
-  reviewTitle,
-  scoreWords,
-} from './reviewModel.ts'
+import { askedLabel, needsALook, openGroupCount, openGroups, otherIds, reviewTitle, scoreWords } from './reviewModel.ts'
 
 describe('How the assistant did (staff only)', () => {
   it('names the evaluation after the assistant', () => {
@@ -43,12 +33,6 @@ describe("Questions the assistant couldn't answer", () => {
   })
   const row = (id: string, status: KnowledgeQuestion['status'], question = id, assistant_id = 'as_1') =>
     ({ id, status, question, assistant_id }) as KnowledgeQuestion
-
-  it('the section is Open questions; its heading names the assistant', () => {
-    expect(questionsLabel()).toBe('Open questions')
-    expect(questionsTitle('Maya')).toBe("Questions Maya couldn't answer")
-    expect(questionsTitle(' ')).toBe("Questions the assistant couldn't answer")
-  })
 
   it('says how often a question was asked', () => {
     expect(askedLabel(1)).toBe('Asked once')

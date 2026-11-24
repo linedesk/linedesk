@@ -73,6 +73,14 @@ export function keyAfter(next: AboutParts, key: string): string {
 /** A read row that is no longer written (its answer cleared) keeps a key no read row can have. */
 export const draftKey = (key: string) => (key.startsWith('q') ? `d${key}` : key)
 
+/** The parts with an answered question added as the server writes it (knowledgeQuestion.answer), unless it is there. */
+export function withAnswered(parts: AboutParts, question: string, answer: string): AboutParts {
+  const line = answeredQuestionLine(question, answer)
+  if (parts.questions.some(q => q.line === line)) return parts
+  const q = parseLine(line)!
+  return { ...parts, questions: [...parts.questions, { ...q, key: `q${parts.questions.length}`, line }] }
+}
+
 /** A new, empty row; it is written only once it has a question and an answer. */
 export const newQuestion = (n: number): AboutQuestion => ({
   key: `new${n}`,
