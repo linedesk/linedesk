@@ -262,6 +262,17 @@
   .as-item > .as-item-action .k-btn {
     min-height: 44px;
   }
+  /* The optional providers: a short Open link and a short Show/Hide fit beside their text, so they stay on its line. */
+  .as-optional .as-item:has(> .as-item-action) {
+    flex-wrap: nowrap;
+  }
+  .as-optional .as-item > .as-item-action {
+    flex-basis: auto;
+    margin-left: auto;
+  }
+  .as-optional .as-ws-head {
+    flex-wrap: nowrap;
+  }
 }
 /* The Start-trial dialog: what happens next, said under the plan (the button's tooltip alone hid it). */
 .as-dialog-hint {
@@ -358,6 +369,16 @@
   gap: 12px;
 }
 /* The optional providers (AgentSetup's OptionalProviders): a part of its own under the checklist, folded while setting up. */
+.as-optional-name {
+  margin: 0;
+  min-width: 0;
+}
+.as-optional-name .as-group-label {
+  margin-right: 4px;
+}
+.as-optional-name .as-hint {
+  white-space: nowrap;
+}
 .as-optional .as-optional-toggle {
   margin-left: auto;
 }

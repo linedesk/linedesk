@@ -8007,8 +8007,8 @@
     },
     "admin.provider.category.domains": {
       "by": "ai",
-      "out": "7a019385f4d3f63ba677c1972d762537c467449ed353e91f3a3444621d43031e",
-      "src": "2a9b295ca9accaa2f8888c36adb0630dcd5654b58cf544ca876bf80107181776"
+      "out": "ecca1c38623e552921ade62f71ee5a6e68c5b0ff106c6d51df826f7609040491",
+      "src": "36c673748e56089a2a3410e3068379094041704ab9807fc36c6bdb9ad964e113"
     },
     "admin.provider.category.email": {
       "by": "ai",
@@ -8197,8 +8197,8 @@
     },
     "admin.provider.group.domains.label": {
       "by": "ai",
-      "out": "7a019385f4d3f63ba677c1972d762537c467449ed353e91f3a3444621d43031e",
-      "src": "2a9b295ca9accaa2f8888c36adb0630dcd5654b58cf544ca876bf80107181776"
+      "out": "ecca1c38623e552921ade62f71ee5a6e68c5b0ff106c6d51df826f7609040491",
+      "src": "36c673748e56089a2a3410e3068379094041704ab9807fc36c6bdb9ad964e113"
     },
     "admin.provider.group.domains.why": {
       "by": "ai",
@@ -20090,6 +20090,56 @@
       "out": "3d1d99cfa3c8d62e85e66837cc4caba9e0c46bbe71353ce52c6d197ac53b17b8",
       "src": "3a804808d60dbd9d45c0bc0ca09ff158a05c37418940f189424062019952b626"
     },
+    "onboarding.agentSetup.optional.count": {
+      "by": "ai",
+      "out": "e13edd178cdf20770a84ef13b31bc60183cacc24d1a7b18de49ffe2c6badd85e",
+      "src": "24f51671899d7583949c95da2784e81dd1e9b1acfb0540e15037ed6beb4a9ece"
+    },
+    "onboarding.agentSetup.optional.hide": {
+      "by": "ai",
+      "out": "042fae8a9e4a74b8eab9a8607e4e0b4ce39bb3110264ecceba28f64b3efe1bab",
+      "src": "ac20a57bfde0bbc40bfe70895eb1cfacc944aaff06ca784053623c569b3e1b3d"
+    },
+    "onboarding.agentSetup.optional.hideTitle": {
+      "by": "ai",
+      "out": "654f7d168655399545d9c6443ab5bca6ea62277e6d253e25395d49372d409905",
+      "src": "e61f3ec44dd64819e6a35c67a35c5a13023aa3fd8636b39d290d62638acad7ef"
+    },
+    "onboarding.agentSetup.optional.lede": {
+      "by": "ai",
+      "out": "d496e953388c7a2edf95b0076930062b75f3bfed177b2049f85614d29cb9c304",
+      "src": "ce0cebf1faa7e59877060a153ccb7787023401f46e875165dd095b6b64dc6e58"
+    },
+    "onboarding.agentSetup.optional.off": {
+      "by": "ai",
+      "out": "f0ce94502ed90ac3253eeb12f85f320eeb87b7c2d2be0a1a56f540b5603ead1b",
+      "src": "ca7981b46ecf2c1787b6d76d81d9fd7fa0ca95842e2fcc2a452869891a9334d1"
+    },
+    "onboarding.agentSetup.optional.open": {
+      "by": "ai",
+      "out": "bc385a30b5378841099b66c2c42ded6f46ab144f586be608f541661721776859",
+      "src": "ed077f3d8125d60dca1979c7133601bd187d47c73ed9975028f677e49e709942"
+    },
+    "onboarding.agentSetup.optional.openTitle": {
+      "by": "ai",
+      "out": "b96822fb69f54a370b48325fb3fcb74930d84707db059bc24ad418808c6d817a",
+      "src": "d84eb62ee537037d1c8ec9a5b3dfe4a4642295e74b3b3cdd60983e6b3bbdb922"
+    },
+    "onboarding.agentSetup.optional.show": {
+      "by": "ai",
+      "out": "ccb27f03f03ed86659485a95d9940964513549cc06cff298b8dae691cf3b6762",
+      "src": "0df6f1cad36c49da768a6efdcc2c4be102f5729f7381cb53e4ff8061d17eaeb6"
+    },
+    "onboarding.agentSetup.optional.showTitle": {
+      "by": "ai",
+      "out": "b30b8bfcea115e4f87b2aac83d80a0ed7d97e460bbd52862d6c08e2bf1c5701e",
+      "src": "33cce598e36c48f33972ee5c193152985a8a4efa8b0dd0fb81323fa06b74261e"
+    },
+    "onboarding.agentSetup.optional.title": {
+      "by": "ai",
+      "out": "8eac3e8c811d92a4394279b4aab1d2b25676b958905ad5b55aa145e1204c9b43",
+      "src": "6a4e024db60d47d2fd5483bce31a22a825370fbda5c72349310df032285ed6ba"
+    },
     "onboarding.agentSetup.owner.business": {
       "by": "ai",
       "out": "6eb0f94937ba38dae4febb803851bb1cdd3012e8a554ff129358f08142209c03",
@@ -20289,11 +20339,6 @@
       "by": "ai",
       "out": "6c23a97d76cc2f95a56c4aed3a9c98e66f8ce4547789caea6c0cb4554959b36e",
       "src": "8cd361195a940bb38808c5b78948b167f4da2b9f412ae9982879978356eeb545"
-    },
-    "onboarding.agentSetup.progress.willSetUp": {
-      "by": "ai",
-      "out": "d5d392e95ac1931396c692abd1b256fc6785ca5cfb48dd9bb69da30b9d8022f2",
-      "src": "81496492bbc8370eb5b38bbcfe4e0c5ba2cfa6cae47289fa2715c4e56f76392a"
     },
     "onboarding.agentSetup.progressWhat": {
       "by": "ai",
@@ -25095,6 +25140,11 @@
       "out": "ecc485465b636655dd0da79d3f422cb000e36b4f40498703fe18e2b26ddb9c84",
       "src": "99539935767bfd863e9b37a12e9e06815e5ac931554ea09fdeefff11e6457367"
     },
+    "server.setupAgent.command.installEdit": {
+      "by": "human",
+      "out": "828f50d577222084199531b3373ba38da7b5c7726b6753dd9309f7a12d5ac9de",
+      "src": "57b83170a8a52e7806e285eb150bffec59ef8a313363d7b591758ba4869ad0d7"
+    },
     "server.setupAgent.command.workspace": {
       "by": "ai",
       "out": "b479e88c24ca36480703f1191f30fae765b910359bdf89486e2a626d3286a416",
@@ -25397,8 +25447,13 @@
     },
     "server.setupAgent.prompt.install": {
       "by": "ai",
-      "out": "3f28ee10ad11056f031eb9bf69e28f24a4ef2402ccd9dca1a65990a1de3aa2a0",
-      "src": "17ec590aa1b510d457ea8e97a4e9d979cf9e23ea2aa5fe17bddc9b4fc3a28b13"
+      "out": "31e28ab07114e47093168f4cd2da450eec8060c2f4804cb81313727b1ef6262c",
+      "src": "6588f9e5e88c69f349bf0fa62dbc666171fa07af678a15622ed3eb2e25d38a5d"
+    },
+    "server.setupAgent.prompt.installEdit": {
+      "by": "human",
+      "out": "bc71381472a831d807553964f09f13506c1d1075856d91ce64c942bb7d79a0ed",
+      "src": "11b51e17533ab9dfc235d1f0338dd847ba5b9d88507c429f35ff9c62f360ecf6"
     },
     "server.setupAgent.prompt.toolsConnector": {
       "by": "human",
@@ -37205,20 +37260,10 @@
       "out": "dca370981f6531ea1acb56c1ab2a001f402ee2196ec92f5f6959db0ddb36901f",
       "src": "5e712baf71a8c22dfec5c6cc72f721aa9d74fcd9771a915827bce9c0cb8a5fea"
     },
-    "team.partner.bill.price": {
-      "by": "ai",
-      "out": "695be05139b7e9560c339862e0e582c5847979029ec759b7d697b80ab909d80c",
-      "src": "3eec3ef1dfdd7ebe4dfb760096e5ef6f76fff455624def364f6b6b00f7df1493"
-    },
     "team.partner.bill.waitsForOwner": {
       "by": "ai",
       "out": "fc3611fc671ca434372051ee68920a4850d0001ff1a293b099c26c969952feb6",
       "src": "8f7a8948ee296c4385aef43e14c7562aa13183d004ddb44eb5162f3cf53e1e62"
-    },
-    "team.partner.bill.yearNote": {
-      "by": "ai",
-      "out": "317eb46328995f42447eabcbbd791584d9b1675792078bb42df31719e04278c9",
-      "src": "861960e0df60cec2edea0fd0e7ed4d61dd2df9a12652c44cc0cca3fca3521ae6"
     },
     "team.partner.billing.title": {
       "by": "ai",
@@ -38815,40 +38860,10 @@
       "out": "4cea1e42e588dbed740611d0c33c43d906ba7e46ab4fc5391e350e79a0925d88",
       "src": "0f64e9439378003986b8183ed5149cd31cd8967a34aba88a36011f7ff4c5f2e7"
     },
-    "team.partner.setup.activate.chargedMonthly": {
-      "by": "ai",
-      "out": "60b304b1fc7a87317f866c5a557a1e85631a3c20ac36a725e09073453e67e25d",
-      "src": "fb0a072ee08f84deddc0ddc074e397f8dd8ad828d49244662cc848225850c768"
-    },
-    "team.partner.setup.activate.chargedYearly": {
-      "by": "ai",
-      "out": "a45ad9f6b25564c45fc8784b603fd4fd7a0b138abb21b2f6a03a130a87149d0e",
-      "src": "e3ae8da43117a22ffec99e0b5f000e61eb7d3b8debd02480434b6343a89c9e48"
-    },
-    "team.partner.setup.activate.clients": {
-      "by": "ai",
-      "out": "4e9560c76a643409ebc5f06c9cbe63c51524df7df957170568a18a9f559d6f38",
-      "src": "e60071bf9de5c3f5cea20ae2a1b0ad8688a3bb9b0704a504e9a21abb3aeff3b2"
-    },
     "team.partner.setup.activate.lede": {
       "by": "ai",
       "out": "5064293681d4b745a0aef68de2f75f5a07ca2ab76df4b37bbffbdedd023463b7",
       "src": "4fab2d1708196e435634a088d1a3e670630f08da0d5def718f26fb88de9b1daf"
-    },
-    "team.partner.setup.activate.remove": {
-      "by": "ai",
-      "out": "3828375a2d45384bdec08982937014b61da700bb3503ecb859b8f97398f8c198",
-      "src": "c3812fc4acb861d5182fc2b8155f327f736fbe5e5eb86a7bd7afcb6dc5497282"
-    },
-    "team.partner.setup.activate.removeText": {
-      "by": "ai",
-      "out": "8e05b19e7d0b24238f1446f2efc94bec4ebb148ceb6d8048c6429a0c7cbb89b7",
-      "src": "a8ac85cdb7a3bbe6263371d23b61dc3f4f9088eb7f7990d3072972d50aa45ba9"
-    },
-    "team.partner.setup.activate.removeTitle": {
-      "by": "ai",
-      "out": "a96b247c518ba53bae7b4e3c754ab7342615f5a6c065aab54f9d47ab7aff477d",
-      "src": "01c1f0250884f59318b310f94ab575cdbf6fc21434dcc27756f349a6526b2bde"
     },
     "team.partner.setup.activate.title": {
       "by": "ai",
@@ -38899,11 +38914,6 @@
       "by": "ai",
       "out": "c1c5a5c819505d55d23ad63ecbef6e36a0c3f930a5df5cc3400867992869a893",
       "src": "13ca4764bec19e93f91c193e2d848e6818b0fc472c1eadf8dc9a3bf2df3abacd"
-    },
-    "team.partner.setup.continueByHand": {
-      "by": "ai",
-      "out": "fc5a4e86151a05f4d3cc9bb42488b2a500e5e24b2765f797cbb78e8f6cb9bc03",
-      "src": "14142322b98b73bf90a17cf6dc9a885428300a2528b58cda00f14195e830db4d"
     },
     "team.partner.setup.finishLaterTitle": {
       "by": "ai",
@@ -47109,8 +47119,8 @@
     },
     "admin.provider.category.domains": {
       "by": "ai",
-      "out": "9cb7ecd1aa4c97cf27ad9e56630d6e8c4d111e3c013feb8f8975735ad3f7c4a1",
-      "src": "2a9b295ca9accaa2f8888c36adb0630dcd5654b58cf544ca876bf80107181776"
+      "out": "ee17a7865292b14dea0f898ed77207e18741dbfea53c43fee36e0b35ec6aa53c",
+      "src": "36c673748e56089a2a3410e3068379094041704ab9807fc36c6bdb9ad964e113"
     },
     "admin.provider.category.email": {
       "by": "ai",
@@ -47299,8 +47309,8 @@
     },
     "admin.provider.group.domains.label": {
       "by": "ai",
-      "out": "9cb7ecd1aa4c97cf27ad9e56630d6e8c4d111e3c013feb8f8975735ad3f7c4a1",
-      "src": "2a9b295ca9accaa2f8888c36adb0630dcd5654b58cf544ca876bf80107181776"
+      "out": "ee17a7865292b14dea0f898ed77207e18741dbfea53c43fee36e0b35ec6aa53c",
+      "src": "36c673748e56089a2a3410e3068379094041704ab9807fc36c6bdb9ad964e113"
     },
     "admin.provider.group.domains.why": {
       "by": "ai",
@@ -59192,6 +59202,56 @@
       "out": "ddf6ca99d754cdf2748cf952597a5c8ccd5ea4f4df113afd2ee104ddc9df2e63",
       "src": "3a804808d60dbd9d45c0bc0ca09ff158a05c37418940f189424062019952b626"
     },
+    "onboarding.agentSetup.optional.count": {
+      "by": "ai",
+      "out": "8f0d74de9253c8fca3de5c5cae5e26839011e2d6a5b861b0e624199fc34d0fb7",
+      "src": "24f51671899d7583949c95da2784e81dd1e9b1acfb0540e15037ed6beb4a9ece"
+    },
+    "onboarding.agentSetup.optional.hide": {
+      "by": "ai",
+      "out": "dd680772877e19179aff13edcd986883a259a844168e71a020b986ebcfb5a6fb",
+      "src": "ac20a57bfde0bbc40bfe70895eb1cfacc944aaff06ca784053623c569b3e1b3d"
+    },
+    "onboarding.agentSetup.optional.hideTitle": {
+      "by": "ai",
+      "out": "b17a889d07848ab7daab042832f6205577e68d439d5af84ec1c1b2cbf86f08e0",
+      "src": "e61f3ec44dd64819e6a35c67a35c5a13023aa3fd8636b39d290d62638acad7ef"
+    },
+    "onboarding.agentSetup.optional.lede": {
+      "by": "ai",
+      "out": "4c22bfaa0ab33162d69a2ab04c98c56d2ae77ca161b806923ee9a5b7f6958073",
+      "src": "ce0cebf1faa7e59877060a153ccb7787023401f46e875165dd095b6b64dc6e58"
+    },
+    "onboarding.agentSetup.optional.off": {
+      "by": "ai",
+      "out": "e252efe6974743f63e8e27f312630e1a66d9d794272a90c6f50a7bdbfb45a92d",
+      "src": "ca7981b46ecf2c1787b6d76d81d9fd7fa0ca95842e2fcc2a452869891a9334d1"
+    },
+    "onboarding.agentSetup.optional.open": {
+      "by": "ai",
+      "out": "a01a5fce396edb612052db25ebeb325a72134c8369eb9c771d47ab18d8124247",
+      "src": "ed077f3d8125d60dca1979c7133601bd187d47c73ed9975028f677e49e709942"
+    },
+    "onboarding.agentSetup.optional.openTitle": {
+      "by": "ai",
+      "out": "081ba2b56775c9b41964dd306176bfe27ea50530d3ed89d66f6adec33ce74134",
+      "src": "d84eb62ee537037d1c8ec9a5b3dfe4a4642295e74b3b3cdd60983e6b3bbdb922"
+    },
+    "onboarding.agentSetup.optional.show": {
+      "by": "ai",
+      "out": "5c492f37a63f6e931b6c5cda3097586fd6f14f3f87a1facb851912291241cf46",
+      "src": "0df6f1cad36c49da768a6efdcc2c4be102f5729f7381cb53e4ff8061d17eaeb6"
+    },
+    "onboarding.agentSetup.optional.showTitle": {
+      "by": "ai",
+      "out": "2beb1027d23511c3d1086c179360b2057e8683519c409cf2960b4f7e324ce48a",
+      "src": "33cce598e36c48f33972ee5c193152985a8a4efa8b0dd0fb81323fa06b74261e"
+    },
+    "onboarding.agentSetup.optional.title": {
+      "by": "ai",
+      "out": "d5d406afd993ab50f58d2fb10f64aae1b6961a2872822a3b03fa5ce601892380",
+      "src": "6a4e024db60d47d2fd5483bce31a22a825370fbda5c72349310df032285ed6ba"
+    },
     "onboarding.agentSetup.owner.business": {
       "by": "ai",
       "out": "07cb3ac8a31812acbf584708df01e8b5a8adce1a97ae28b85459a36647bad805",
@@ -59391,11 +59451,6 @@
       "by": "ai",
       "out": "fe57b01c041c6994612680e486afff057f07769bdc7f9d516e78eefd6a69f080",
       "src": "8cd361195a940bb38808c5b78948b167f4da2b9f412ae9982879978356eeb545"
-    },
-    "onboarding.agentSetup.progress.willSetUp": {
-      "by": "ai",
-      "out": "b96a05a7de7c00c7e4d52ea1cf6264806cb2bbfa717025630c428f0916e590b4",
-      "src": "81496492bbc8370eb5b38bbcfe4e0c5ba2cfa6cae47289fa2715c4e56f76392a"
     },
     "onboarding.agentSetup.progressWhat": {
       "by": "ai",
@@ -64197,6 +64252,11 @@
       "out": "2c0582c7c03be3827b82bb34cc2a24281706435dd45f73ab9953b1ea0c5392ca",
       "src": "99539935767bfd863e9b37a12e9e06815e5ac931554ea09fdeefff11e6457367"
     },
+    "server.setupAgent.command.installEdit": {
+      "by": "human",
+      "out": "60fdf72e149299ba321968d36110fa3e0f335f1d1b7409612c2abf8d7c75a490",
+      "src": "57b83170a8a52e7806e285eb150bffec59ef8a313363d7b591758ba4869ad0d7"
+    },
     "server.setupAgent.command.workspace": {
       "by": "ai",
       "out": "304f6aa3f1c2f7c3b9ce4e364648ccbc02010b305ebbbec7733feda18ace6b02",
@@ -64499,8 +64559,13 @@
     },
     "server.setupAgent.prompt.install": {
       "by": "ai",
-      "out": "734ba49448b73eb99ba7a224183a908649db19841bef6cf4cb6fa867a749bcb9",
-      "src": "17ec590aa1b510d457ea8e97a4e9d979cf9e23ea2aa5fe17bddc9b4fc3a28b13"
+      "out": "3c3d58ba8a6027226b24f0f302eb80a9f43a371eea466ee67b777474f1922185",
+      "src": "6588f9e5e88c69f349bf0fa62dbc666171fa07af678a15622ed3eb2e25d38a5d"
+    },
+    "server.setupAgent.prompt.installEdit": {
+      "by": "human",
+      "out": "02526fd067ac1632b380590366c0d2f48b2420a164362f9307ef82765346c1d7",
+      "src": "11b51e17533ab9dfc235d1f0338dd847ba5b9d88507c429f35ff9c62f360ecf6"
     },
     "server.setupAgent.prompt.toolsConnector": {
       "by": "ai",
@@ -76307,20 +76372,10 @@
       "out": "8ba0885d124b34f4a9873952fb75e1a6c5c26ac51fd0c324a15568fa26276718",
       "src": "5e712baf71a8c22dfec5c6cc72f721aa9d74fcd9771a915827bce9c0cb8a5fea"
     },
-    "team.partner.bill.price": {
-      "by": "ai",
-      "out": "b14ca46167247b25c6c8100bed191947eb7885224a72e98158ed9ccd919bf2e9",
-      "src": "3eec3ef1dfdd7ebe4dfb760096e5ef6f76fff455624def364f6b6b00f7df1493"
-    },
     "team.partner.bill.waitsForOwner": {
       "by": "ai",
       "out": "cdc4391aaedeeca54129150be95104b6c1de58219d6fcce1fbcffc91dcec836e",
       "src": "8f7a8948ee296c4385aef43e14c7562aa13183d004ddb44eb5162f3cf53e1e62"
-    },
-    "team.partner.bill.yearNote": {
-      "by": "ai",
-      "out": "d6ce07999edea3420fad09242d51561026833c9ba97c9c4ae00d6baf6cc40661",
-      "src": "861960e0df60cec2edea0fd0e7ed4d61dd2df9a12652c44cc0cca3fca3521ae6"
     },
     "team.partner.billing.title": {
       "by": "ai",
@@ -77917,40 +77972,10 @@
       "out": "4bb3223f06075f7c13b30d07af6d5e6e4e0869f4c3bdd875f13edf1071216a31",
       "src": "0f64e9439378003986b8183ed5149cd31cd8967a34aba88a36011f7ff4c5f2e7"
     },
-    "team.partner.setup.activate.chargedMonthly": {
-      "by": "ai",
-      "out": "4e0f3a8fb19140b62c198d7478e8f43610753091d00421c22f951c8f4f554427",
-      "src": "fb0a072ee08f84deddc0ddc074e397f8dd8ad828d49244662cc848225850c768"
-    },
-    "team.partner.setup.activate.chargedYearly": {
-      "by": "ai",
-      "out": "dee4ce685898173aacb863caa35fa084842558b0baf16b5e81f1588875486fa5",
-      "src": "e3ae8da43117a22ffec99e0b5f000e61eb7d3b8debd02480434b6343a89c9e48"
-    },
-    "team.partner.setup.activate.clients": {
-      "by": "ai",
-      "out": "8c4b2f78371455e3a194ef573f89dacbb823932734e5ec9269cbf23322cca77b",
-      "src": "e60071bf9de5c3f5cea20ae2a1b0ad8688a3bb9b0704a504e9a21abb3aeff3b2"
-    },
     "team.partner.setup.activate.lede": {
       "by": "ai",
       "out": "7ede17c681103c56ac4e2920c7cfb5bcb6de23e28a53c58152bd7cc69458571c",
       "src": "4fab2d1708196e435634a088d1a3e670630f08da0d5def718f26fb88de9b1daf"
-    },
-    "team.partner.setup.activate.remove": {
-      "by": "ai",
-      "out": "f039f4a8c9759318cc3ee9c91607d97c020c8a45c6fb90b096c97f78118841da",
-      "src": "c3812fc4acb861d5182fc2b8155f327f736fbe5e5eb86a7bd7afcb6dc5497282"
-    },
-    "team.partner.setup.activate.removeText": {
-      "by": "ai",
-      "out": "2ce648fd36fd9f700e7208481c47925819dae905d7c74bd53c26917f7ec11e03",
-      "src": "a8ac85cdb7a3bbe6263371d23b61dc3f4f9088eb7f7990d3072972d50aa45ba9"
-    },
-    "team.partner.setup.activate.removeTitle": {
-      "by": "ai",
-      "out": "89e9c56c7a8ad76125bec8b8e9debc63d654f645a0d34517fe5b1fa8228554bb",
-      "src": "01c1f0250884f59318b310f94ab575cdbf6fc21434dcc27756f349a6526b2bde"
     },
     "team.partner.setup.activate.title": {
       "by": "ai",
@@ -78001,11 +78026,6 @@
       "by": "ai",
       "out": "8cb07f96a6258b6f2f8381e162d588ff3de5c361d309dfc4fe06c362894699d7",
       "src": "13ca4764bec19e93f91c193e2d848e6818b0fc472c1eadf8dc9a3bf2df3abacd"
-    },
-    "team.partner.setup.continueByHand": {
-      "by": "ai",
-      "out": "ddc00129855966f904f7ec505aba7250ef7056cdbf419eab32fa372be950fb17",
-      "src": "14142322b98b73bf90a17cf6dc9a885428300a2528b58cda00f14195e830db4d"
     },
     "team.partner.setup.finishLaterTitle": {
       "by": "ai",
@@ -86211,8 +86231,8 @@
     },
     "admin.provider.category.domains": {
       "by": "ai",
-      "out": "b2d95152a9204e9bbc3557bae83021e833b0cb04dd719ef8103c06c9e8968b57",
-      "src": "2a9b295ca9accaa2f8888c36adb0630dcd5654b58cf544ca876bf80107181776"
+      "out": "105f0ee369614bfe1959b3d326533d5aab887e7c6813bc36fd6e8be6abfa87d4",
+      "src": "36c673748e56089a2a3410e3068379094041704ab9807fc36c6bdb9ad964e113"
     },
     "admin.provider.category.email": {
       "by": "ai",
@@ -86401,8 +86421,8 @@
     },
     "admin.provider.group.domains.label": {
       "by": "ai",
-      "out": "b2d95152a9204e9bbc3557bae83021e833b0cb04dd719ef8103c06c9e8968b57",
-      "src": "2a9b295ca9accaa2f8888c36adb0630dcd5654b58cf544ca876bf80107181776"
+      "out": "105f0ee369614bfe1959b3d326533d5aab887e7c6813bc36fd6e8be6abfa87d4",
+      "src": "36c673748e56089a2a3410e3068379094041704ab9807fc36c6bdb9ad964e113"
     },
     "admin.provider.group.domains.why": {
       "by": "ai",
@@ -98294,6 +98314,56 @@
       "out": "db42d44bfd39580b87180eb7464c792af470f025bde85ab0a87d5433dcdf25cf",
       "src": "3a804808d60dbd9d45c0bc0ca09ff158a05c37418940f189424062019952b626"
     },
+    "onboarding.agentSetup.optional.count": {
+      "by": "ai",
+      "out": "3a29894a4b504b598b2a847fc89566ebb58c3ff21c45804f8c0a6cfa7d00cb2c",
+      "src": "24f51671899d7583949c95da2784e81dd1e9b1acfb0540e15037ed6beb4a9ece"
+    },
+    "onboarding.agentSetup.optional.hide": {
+      "by": "ai",
+      "out": "04ae28b7f7cc7536668183b223d02336dbfb01e1a93fe9e7d696bb76ba46e27c",
+      "src": "ac20a57bfde0bbc40bfe70895eb1cfacc944aaff06ca784053623c569b3e1b3d"
+    },
+    "onboarding.agentSetup.optional.hideTitle": {
+      "by": "ai",
+      "out": "daca8638e315d7b78343e3c7cc2502ea151b6636d0fc3aef7fa6d17202a06af2",
+      "src": "e61f3ec44dd64819e6a35c67a35c5a13023aa3fd8636b39d290d62638acad7ef"
+    },
+    "onboarding.agentSetup.optional.lede": {
+      "by": "ai",
+      "out": "b09bb4da40ab29c600405ac15d277871137fda3e3a8326f13259bf4f60cb0c03",
+      "src": "ce0cebf1faa7e59877060a153ccb7787023401f46e875165dd095b6b64dc6e58"
+    },
+    "onboarding.agentSetup.optional.off": {
+      "by": "ai",
+      "out": "da60ff35b212a8aa4758f2a8bf63f12cdc79fb2f84d64ab2ed2689d80417bdf5",
+      "src": "ca7981b46ecf2c1787b6d76d81d9fd7fa0ca95842e2fcc2a452869891a9334d1"
+    },
+    "onboarding.agentSetup.optional.open": {
+      "by": "ai",
+      "out": "9fb440435a0466471535fbd53edeba3bfb5abf47f12a7890ef30b67606558a7e",
+      "src": "ed077f3d8125d60dca1979c7133601bd187d47c73ed9975028f677e49e709942"
+    },
+    "onboarding.agentSetup.optional.openTitle": {
+      "by": "ai",
+      "out": "ce9370dba87df5d0559ccf4f643d1d710fdc74ee76f87e99fbcabd5fe2f2e01b",
+      "src": "d84eb62ee537037d1c8ec9a5b3dfe4a4642295e74b3b3cdd60983e6b3bbdb922"
+    },
+    "onboarding.agentSetup.optional.show": {
+      "by": "ai",
+      "out": "e5adbe81e8aaa15dccf9e7084377db68fcfe2d80f3919bc9fde2431dddb839f4",
+      "src": "0df6f1cad36c49da768a6efdcc2c4be102f5729f7381cb53e4ff8061d17eaeb6"
+    },
+    "onboarding.agentSetup.optional.showTitle": {
+      "by": "ai",
+      "out": "48f924aed403e3459f840008e68610a2aceb6acef119b43e0149fc47e45ddc97",
+      "src": "33cce598e36c48f33972ee5c193152985a8a4efa8b0dd0fb81323fa06b74261e"
+    },
+    "onboarding.agentSetup.optional.title": {
+      "by": "ai",
+      "out": "6b9afca4be30d21b1ebafdd8a442e2b1f2413d6cec6b3cd4728f18d1a00498ba",
+      "src": "6a4e024db60d47d2fd5483bce31a22a825370fbda5c72349310df032285ed6ba"
+    },
     "onboarding.agentSetup.owner.business": {
       "by": "ai",
       "out": "4b000c1c5bffef44b1c57b6416fd2c2f7c6cc53a45ccc9fa552f7b0fab3e9f7d",
@@ -98493,11 +98563,6 @@
       "by": "ai",
       "out": "4c2445cb75ea454b9bb7197ac72af5fa817b0d68ff014922676aab295c637e22",
       "src": "8cd361195a940bb38808c5b78948b167f4da2b9f412ae9982879978356eeb545"
-    },
-    "onboarding.agentSetup.progress.willSetUp": {
-      "by": "ai",
-      "out": "b956ef9d6d23aeb590a0d787f9cf2201b2f4579bc2162e9fbe3ea489b5b06b0d",
-      "src": "81496492bbc8370eb5b38bbcfe4e0c5ba2cfa6cae47289fa2715c4e56f76392a"
     },
     "onboarding.agentSetup.progressWhat": {
       "by": "ai",
@@ -103299,6 +103364,11 @@
       "out": "4824d725c22e0be30b75ddcadf2a395f613c99d2e4468d377d4b54872ccc708f",
       "src": "99539935767bfd863e9b37a12e9e06815e5ac931554ea09fdeefff11e6457367"
     },
+    "server.setupAgent.command.installEdit": {
+      "by": "human",
+      "out": "65d63654ddb07dbbc8643400730ef6fd5ac7ff97db180ea9128167c0077726dc",
+      "src": "57b83170a8a52e7806e285eb150bffec59ef8a313363d7b591758ba4869ad0d7"
+    },
     "server.setupAgent.command.workspace": {
       "by": "ai",
       "out": "39fdb4c0b9a9f0788c4be4d130249024e1f2b7bdca63e779d7004e77d2252013",
@@ -103601,8 +103671,13 @@
     },
     "server.setupAgent.prompt.install": {
       "by": "ai",
-      "out": "b7e790ef1bde1a81545e42a06f1c4fe4e448b96c8b88434a6f9bbb4c05a397d2",
-      "src": "17ec590aa1b510d457ea8e97a4e9d979cf9e23ea2aa5fe17bddc9b4fc3a28b13"
+      "out": "ba9b68bb0313b52cc36821b7189fe0a60663cf1eaf4df219d274bdfe25be7181",
+      "src": "6588f9e5e88c69f349bf0fa62dbc666171fa07af678a15622ed3eb2e25d38a5d"
+    },
+    "server.setupAgent.prompt.installEdit": {
+      "by": "human",
+      "out": "64425d0a215543e0391ece8886e2ce4e656ff998ad69f379ccf95829d0e2a1f3",
+      "src": "11b51e17533ab9dfc235d1f0338dd847ba5b9d88507c429f35ff9c62f360ecf6"
     },
     "server.setupAgent.prompt.toolsConnector": {
       "by": "ai",
@@ -115409,20 +115484,10 @@
       "out": "398fffc33f2362490a63f3e76443b7603e7462fdbb1910ca66e5d4205571cbb8",
       "src": "5e712baf71a8c22dfec5c6cc72f721aa9d74fcd9771a915827bce9c0cb8a5fea"
     },
-    "team.partner.bill.price": {
-      "by": "ai",
-      "out": "b267fca81e95d9ebd68268d3a12e42eeba421bd1140e648c530315899ad2c509",
-      "src": "3eec3ef1dfdd7ebe4dfb760096e5ef6f76fff455624def364f6b6b00f7df1493"
-    },
     "team.partner.bill.waitsForOwner": {
       "by": "ai",
       "out": "e36c405e5c82b4b8c87e1b0f6aa93dc4ddb0ad1078472f0869f08a358870953b",
       "src": "8f7a8948ee296c4385aef43e14c7562aa13183d004ddb44eb5162f3cf53e1e62"
-    },
-    "team.partner.bill.yearNote": {
-      "by": "ai",
-      "out": "19a73548535656c7acea4db539e4dac8f78298ccb87584f0f80eaa8a050cc7b3",
-      "src": "861960e0df60cec2edea0fd0e7ed4d61dd2df9a12652c44cc0cca3fca3521ae6"
     },
     "team.partner.billing.title": {
       "by": "ai",
@@ -117019,40 +117084,10 @@
       "out": "3bacefc811b82ced6ccd1f87fdcd94180187963ad77a97a0f28cb507c1ab7d9e",
       "src": "0f64e9439378003986b8183ed5149cd31cd8967a34aba88a36011f7ff4c5f2e7"
     },
-    "team.partner.setup.activate.chargedMonthly": {
-      "by": "ai",
-      "out": "1a4c5e99a47e8b7a8e138c61778decee2f5c55fdf8686754302c0cf34671317e",
-      "src": "fb0a072ee08f84deddc0ddc074e397f8dd8ad828d49244662cc848225850c768"
-    },
-    "team.partner.setup.activate.chargedYearly": {
-      "by": "ai",
-      "out": "14c74e3107dc0e6232bf0b54686845e959aade9dd02947a21e15a93f5ba620e9",
-      "src": "e3ae8da43117a22ffec99e0b5f000e61eb7d3b8debd02480434b6343a89c9e48"
-    },
-    "team.partner.setup.activate.clients": {
-      "by": "ai",
-      "out": "8a45ea64d458fa5f88825980e2d065b8e2b12ebb036d9c762a58c8f87a62e187",
-      "src": "e60071bf9de5c3f5cea20ae2a1b0ad8688a3bb9b0704a504e9a21abb3aeff3b2"
-    },
     "team.partner.setup.activate.lede": {
       "by": "ai",
       "out": "64c22208123ebb21ddebc5772bdcea0b6cdfd4c5429016de79c3f6a5587926de",
       "src": "4fab2d1708196e435634a088d1a3e670630f08da0d5def718f26fb88de9b1daf"
-    },
-    "team.partner.setup.activate.remove": {
-      "by": "ai",
-      "out": "41e22ed93372748ec6f28cb0080868958a1b860f6c0e1bf0405c636d72a9d7d6",
-      "src": "c3812fc4acb861d5182fc2b8155f327f736fbe5e5eb86a7bd7afcb6dc5497282"
-    },
-    "team.partner.setup.activate.removeText": {
-      "by": "ai",
-      "out": "b1c659a002c97190e4feaf5af064d8c0e4488702d1642a36420f10c2f0ff60d5",
-      "src": "a8ac85cdb7a3bbe6263371d23b61dc3f4f9088eb7f7990d3072972d50aa45ba9"
-    },
-    "team.partner.setup.activate.removeTitle": {
-      "by": "ai",
-      "out": "969a5bd50f0b47b6c8c0c48fe1551846f628196428dd57f415daf6c8ddf2a605",
-      "src": "01c1f0250884f59318b310f94ab575cdbf6fc21434dcc27756f349a6526b2bde"
     },
     "team.partner.setup.activate.title": {
       "by": "ai",
@@ -117103,11 +117138,6 @@
       "by": "ai",
       "out": "1f664ba8176ef9eef8111fa6c37b95d3f5b75df2e0c4193efcc89ea801aa3fd1",
       "src": "13ca4764bec19e93f91c193e2d848e6818b0fc472c1eadf8dc9a3bf2df3abacd"
-    },
-    "team.partner.setup.continueByHand": {
-      "by": "ai",
-      "out": "d150ac4f3ee96baa88ed1f01ff04c1ccfb4bd227a66f23a8b7c8f72c97e43397",
-      "src": "14142322b98b73bf90a17cf6dc9a885428300a2528b58cda00f14195e830db4d"
     },
     "team.partner.setup.finishLaterTitle": {
       "by": "ai",
@@ -125313,8 +125343,8 @@
     },
     "admin.provider.category.domains": {
       "by": "ai",
-      "out": "1ff972d264bca6c07de5a9d55ed56f15d46996454fd344091acc34a1a2e43f05",
-      "src": "2a9b295ca9accaa2f8888c36adb0630dcd5654b58cf544ca876bf80107181776"
+      "out": "fa66b132e2b05b621f7f993fd75bbe12b64542d8f64cd8df09fa6814adba0c0c",
+      "src": "36c673748e56089a2a3410e3068379094041704ab9807fc36c6bdb9ad964e113"
     },
     "admin.provider.category.email": {
       "by": "ai",
@@ -125503,8 +125533,8 @@
     },
     "admin.provider.group.domains.label": {
       "by": "ai",
-      "out": "1ff972d264bca6c07de5a9d55ed56f15d46996454fd344091acc34a1a2e43f05",
-      "src": "2a9b295ca9accaa2f8888c36adb0630dcd5654b58cf544ca876bf80107181776"
+      "out": "fa66b132e2b05b621f7f993fd75bbe12b64542d8f64cd8df09fa6814adba0c0c",
+      "src": "36c673748e56089a2a3410e3068379094041704ab9807fc36c6bdb9ad964e113"
     },
     "admin.provider.group.domains.why": {
       "by": "ai",
@@ -137396,6 +137426,56 @@
       "out": "f06ca61f09b6b8d1505653af3f743022839aa16349270a6c6426eba9bccdf999",
       "src": "3a804808d60dbd9d45c0bc0ca09ff158a05c37418940f189424062019952b626"
     },
+    "onboarding.agentSetup.optional.count": {
+      "by": "ai",
+      "out": "0904b5a194d82ff8405f28ceb3b5df5acf32fee95b285b8e2e0ddf61e2b38181",
+      "src": "24f51671899d7583949c95da2784e81dd1e9b1acfb0540e15037ed6beb4a9ece"
+    },
+    "onboarding.agentSetup.optional.hide": {
+      "by": "ai",
+      "out": "8389c10f44c0b2a0e7f79cc8dc839f0a778b3dd7307d371f947b5fe47c25fb38",
+      "src": "ac20a57bfde0bbc40bfe70895eb1cfacc944aaff06ca784053623c569b3e1b3d"
+    },
+    "onboarding.agentSetup.optional.hideTitle": {
+      "by": "ai",
+      "out": "f6439022437df8d5ae0781f10e8aaf7579ce98ddea30f1fc8e7fec2c81449186",
+      "src": "e61f3ec44dd64819e6a35c67a35c5a13023aa3fd8636b39d290d62638acad7ef"
+    },
+    "onboarding.agentSetup.optional.lede": {
+      "by": "ai",
+      "out": "ab680b15ecd58fe9fdf456e63cb84495d3fb28b395e9947e0674209ec94b811e",
+      "src": "ce0cebf1faa7e59877060a153ccb7787023401f46e875165dd095b6b64dc6e58"
+    },
+    "onboarding.agentSetup.optional.off": {
+      "by": "ai",
+      "out": "01c2df03fd3f553758a90a99605066bd31372cb19f7dce6f22087f6f96680c41",
+      "src": "ca7981b46ecf2c1787b6d76d81d9fd7fa0ca95842e2fcc2a452869891a9334d1"
+    },
+    "onboarding.agentSetup.optional.open": {
+      "by": "ai",
+      "out": "3aa692fcaae417d44b41e4a0b7794cd62239768343a425c68887d6de0f45b13e",
+      "src": "ed077f3d8125d60dca1979c7133601bd187d47c73ed9975028f677e49e709942"
+    },
+    "onboarding.agentSetup.optional.openTitle": {
+      "by": "ai",
+      "out": "1cf30c8dcc5555ade6a30517be787111fbc5b0b5b6167126757615dc78fae960",
+      "src": "d84eb62ee537037d1c8ec9a5b3dfe4a4642295e74b3b3cdd60983e6b3bbdb922"
+    },
+    "onboarding.agentSetup.optional.show": {
+      "by": "ai",
+      "out": "17efc6654ed280c70117040bebd3d505951acc41c48335ad31e6c09ba86db84b",
+      "src": "0df6f1cad36c49da768a6efdcc2c4be102f5729f7381cb53e4ff8061d17eaeb6"
+    },
+    "onboarding.agentSetup.optional.showTitle": {
+      "by": "ai",
+      "out": "22ef94882a84c2ace3ba22d1130f7394135931e1e24f91a317d053cf12a9884e",
+      "src": "33cce598e36c48f33972ee5c193152985a8a4efa8b0dd0fb81323fa06b74261e"
+    },
+    "onboarding.agentSetup.optional.title": {
+      "by": "ai",
+      "out": "250b3946ba3c7230dcd925d250d5f15e11ab6cb76c1b309ca883136356b000a3",
+      "src": "6a4e024db60d47d2fd5483bce31a22a825370fbda5c72349310df032285ed6ba"
+    },
     "onboarding.agentSetup.owner.business": {
       "by": "ai",
       "out": "0d1eea46d9f16cf69587909aa860d2decacf9a68da7fda9c6bfa4eecb9874cee",
@@ -137595,11 +137675,6 @@
       "by": "ai",
       "out": "f1a6f2b36a63adc84467e7eeb7aa12842f830481db3a149099bfc07135fd11ba",
       "src": "8cd361195a940bb38808c5b78948b167f4da2b9f412ae9982879978356eeb545"
-    },
-    "onboarding.agentSetup.progress.willSetUp": {
-      "by": "ai",
-      "out": "5388dcc0318a61fbb1a7b090bd31e6b2e53cb7d3789f4b95dd59fec888d0de51",
-      "src": "81496492bbc8370eb5b38bbcfe4e0c5ba2cfa6cae47289fa2715c4e56f76392a"
     },
     "onboarding.agentSetup.progressWhat": {
       "by": "ai",
@@ -142401,6 +142476,11 @@
       "out": "fa54a68956153a87abe6822d483d537172894e9312ea89a18ff5a04ddcef36ad",
       "src": "99539935767bfd863e9b37a12e9e06815e5ac931554ea09fdeefff11e6457367"
     },
+    "server.setupAgent.command.installEdit": {
+      "by": "human",
+      "out": "4310da6904fe42cd8e9afd1f6789364edf1cc0ee80bd91b5a73ba637c8f011c1",
+      "src": "57b83170a8a52e7806e285eb150bffec59ef8a313363d7b591758ba4869ad0d7"
+    },
     "server.setupAgent.command.workspace": {
       "by": "ai",
       "out": "6bd96ba90e040b02ec4f5e8f6061a3f36712305d31d4d6c2d08fd64a71d438f8",
@@ -142703,8 +142783,13 @@
     },
     "server.setupAgent.prompt.install": {
       "by": "ai",
-      "out": "4971a2ef8cdcc2716104897ddb9dec07eed4ef7d3515181f782b4b28cff4453f",
-      "src": "17ec590aa1b510d457ea8e97a4e9d979cf9e23ea2aa5fe17bddc9b4fc3a28b13"
+      "out": "43a9661222ceaad6783db615262e4948d4efbc648c99323b7e57b1749acb43e8",
+      "src": "6588f9e5e88c69f349bf0fa62dbc666171fa07af678a15622ed3eb2e25d38a5d"
+    },
+    "server.setupAgent.prompt.installEdit": {
+      "by": "human",
+      "out": "aa8cdd4a13adb41a5b115e24216ac3fe1ff7fa3e5316327e97fb116bd9cefa82",
+      "src": "11b51e17533ab9dfc235d1f0338dd847ba5b9d88507c429f35ff9c62f360ecf6"
     },
     "server.setupAgent.prompt.toolsConnector": {
       "by": "ai",
@@ -154511,20 +154596,10 @@
       "out": "6e6c6302b9c9f9effc5f2902dd06e57e6627066c494b716418489640d21c46d2",
       "src": "5e712baf71a8c22dfec5c6cc72f721aa9d74fcd9771a915827bce9c0cb8a5fea"
     },
-    "team.partner.bill.price": {
-      "by": "ai",
-      "out": "4005218f642423de0a05cde4a220fa6bcdbf1ca11dcd728c8e510e4f883beea8",
-      "src": "3eec3ef1dfdd7ebe4dfb760096e5ef6f76fff455624def364f6b6b00f7df1493"
-    },
     "team.partner.bill.waitsForOwner": {
       "by": "ai",
       "out": "e75a0031d4d8992af0b107bcf10dff817c923489589cd3002afe4b33b9ba45ee",
       "src": "8f7a8948ee296c4385aef43e14c7562aa13183d004ddb44eb5162f3cf53e1e62"
-    },
-    "team.partner.bill.yearNote": {
-      "by": "ai",
-      "out": "38bb5c4797b3e1d6dd1d8e4f042a8184b4e430999bafffb6411ac353c63b870a",
-      "src": "861960e0df60cec2edea0fd0e7ed4d61dd2df9a12652c44cc0cca3fca3521ae6"
     },
     "team.partner.billing.title": {
       "by": "ai",
@@ -156121,40 +156196,10 @@
       "out": "24f169e72e09d8eb3110c1d004a96589c3f49f2c4ed512a84d9a78cd9e889e34",
       "src": "0f64e9439378003986b8183ed5149cd31cd8967a34aba88a36011f7ff4c5f2e7"
     },
-    "team.partner.setup.activate.chargedMonthly": {
-      "by": "ai",
-      "out": "17ff0e76f38113b0fc56aa6fbf4a553d724c1e5a609465a68231db6afbd3f8a6",
-      "src": "fb0a072ee08f84deddc0ddc074e397f8dd8ad828d49244662cc848225850c768"
-    },
-    "team.partner.setup.activate.chargedYearly": {
-      "by": "ai",
-      "out": "508ae37422f1b9ee376abc34c12767a2eab46a3fd0c4751a62b7eb170e4fbf24",
-      "src": "e3ae8da43117a22ffec99e0b5f000e61eb7d3b8debd02480434b6343a89c9e48"
-    },
-    "team.partner.setup.activate.clients": {
-      "by": "ai",
-      "out": "8586de0a450d31e905d146b4ffe3dc153d4124ad0f267ab049532df1375c8902",
-      "src": "e60071bf9de5c3f5cea20ae2a1b0ad8688a3bb9b0704a504e9a21abb3aeff3b2"
-    },
     "team.partner.setup.activate.lede": {
       "by": "ai",
       "out": "7c0313e4296a6e4066ea4a928abff22a42bb3552107d82eccf8ef0e273f319d5",
       "src": "4fab2d1708196e435634a088d1a3e670630f08da0d5def718f26fb88de9b1daf"
-    },
-    "team.partner.setup.activate.remove": {
-      "by": "ai",
-      "out": "e9653dc3edcbc072d033d200b3aa56539fde84e9b7cc80287fedc9f91cbe03ad",
-      "src": "c3812fc4acb861d5182fc2b8155f327f736fbe5e5eb86a7bd7afcb6dc5497282"
-    },
-    "team.partner.setup.activate.removeText": {
-      "by": "ai",
-      "out": "07d9034fc6fe1ba9e9fc11720af815054b24a1af118e17d342dd3a768eda0b4c",
-      "src": "a8ac85cdb7a3bbe6263371d23b61dc3f4f9088eb7f7990d3072972d50aa45ba9"
-    },
-    "team.partner.setup.activate.removeTitle": {
-      "by": "ai",
-      "out": "4dfc2959f3c6f7245775854e57175bf0b94c08b7695d80ce30c5cfa7331e3b3c",
-      "src": "01c1f0250884f59318b310f94ab575cdbf6fc21434dcc27756f349a6526b2bde"
     },
     "team.partner.setup.activate.title": {
       "by": "ai",
@@ -156205,11 +156250,6 @@
       "by": "ai",
       "out": "bffc1b1b3d0698972ec176cbee418b901e4eaab12db1f9f41bb47a9c1b374108",
       "src": "13ca4764bec19e93f91c193e2d848e6818b0fc472c1eadf8dc9a3bf2df3abacd"
-    },
-    "team.partner.setup.continueByHand": {
-      "by": "ai",
-      "out": "bca4126ced3168ad33448a9e1d695a58e91aeb1c31e67b452941f5032ad0a3ab",
-      "src": "14142322b98b73bf90a17cf6dc9a885428300a2528b58cda00f14195e830db4d"
     },
     "team.partner.setup.finishLaterTitle": {
       "by": "ai",
@@ -164415,8 +164455,8 @@
     },
     "admin.provider.category.domains": {
       "by": "ai",
-      "out": "12b5f6d4e8f3ee388acab9386a196cdb308acbdab178943e511d514432c4f07a",
-      "src": "2a9b295ca9accaa2f8888c36adb0630dcd5654b58cf544ca876bf80107181776"
+      "out": "c3d0abf00340f27946772a3ae1d2d4c85a5516b43cffdfcb615ff0ee89b5ebe8",
+      "src": "36c673748e56089a2a3410e3068379094041704ab9807fc36c6bdb9ad964e113"
     },
     "admin.provider.category.email": {
       "by": "ai",
@@ -164605,8 +164645,8 @@
     },
     "admin.provider.group.domains.label": {
       "by": "ai",
-      "out": "12b5f6d4e8f3ee388acab9386a196cdb308acbdab178943e511d514432c4f07a",
-      "src": "2a9b295ca9accaa2f8888c36adb0630dcd5654b58cf544ca876bf80107181776"
+      "out": "c3d0abf00340f27946772a3ae1d2d4c85a5516b43cffdfcb615ff0ee89b5ebe8",
+      "src": "36c673748e56089a2a3410e3068379094041704ab9807fc36c6bdb9ad964e113"
     },
     "admin.provider.group.domains.why": {
       "by": "ai",
@@ -176498,6 +176538,56 @@
       "out": "2838ce6b0ab7ec1b1a906d0772702710df5e34c2f5c50301ea1ae114974ab1e4",
       "src": "3a804808d60dbd9d45c0bc0ca09ff158a05c37418940f189424062019952b626"
     },
+    "onboarding.agentSetup.optional.count": {
+      "by": "ai",
+      "out": "8f0d74de9253c8fca3de5c5cae5e26839011e2d6a5b861b0e624199fc34d0fb7",
+      "src": "24f51671899d7583949c95da2784e81dd1e9b1acfb0540e15037ed6beb4a9ece"
+    },
+    "onboarding.agentSetup.optional.hide": {
+      "by": "ai",
+      "out": "dd680772877e19179aff13edcd986883a259a844168e71a020b986ebcfb5a6fb",
+      "src": "ac20a57bfde0bbc40bfe70895eb1cfacc944aaff06ca784053623c569b3e1b3d"
+    },
+    "onboarding.agentSetup.optional.hideTitle": {
+      "by": "ai",
+      "out": "e3f08aa041ad72f22eab4c23d5d1bfe8f41ba7038abbfa0bcfe53476a428c4f6",
+      "src": "e61f3ec44dd64819e6a35c67a35c5a13023aa3fd8636b39d290d62638acad7ef"
+    },
+    "onboarding.agentSetup.optional.lede": {
+      "by": "ai",
+      "out": "339f5621b467270e3ba2d5f080938d1ae4236919a6fdae3ecd3fd6031b5efb27",
+      "src": "ce0cebf1faa7e59877060a153ccb7787023401f46e875165dd095b6b64dc6e58"
+    },
+    "onboarding.agentSetup.optional.off": {
+      "by": "ai",
+      "out": "f47dfde9cb6fd44e4be5d25be16a8bea3bd596e711d262997e16f429a50a6f93",
+      "src": "ca7981b46ecf2c1787b6d76d81d9fd7fa0ca95842e2fcc2a452869891a9334d1"
+    },
+    "onboarding.agentSetup.optional.open": {
+      "by": "ai",
+      "out": "a01a5fce396edb612052db25ebeb325a72134c8369eb9c771d47ab18d8124247",
+      "src": "ed077f3d8125d60dca1979c7133601bd187d47c73ed9975028f677e49e709942"
+    },
+    "onboarding.agentSetup.optional.openTitle": {
+      "by": "ai",
+      "out": "a1046fa4b71fa996a8c88df769f8e0e5e830bc5e386bb2142f1ec57b7a9edc0e",
+      "src": "d84eb62ee537037d1c8ec9a5b3dfe4a4642295e74b3b3cdd60983e6b3bbdb922"
+    },
+    "onboarding.agentSetup.optional.show": {
+      "by": "ai",
+      "out": "5c492f37a63f6e931b6c5cda3097586fd6f14f3f87a1facb851912291241cf46",
+      "src": "0df6f1cad36c49da768a6efdcc2c4be102f5729f7381cb53e4ff8061d17eaeb6"
+    },
+    "onboarding.agentSetup.optional.showTitle": {
+      "by": "ai",
+      "out": "6bcbb439d8e353187a2fc3be1a4c4f09bcef908f4cbbc87ff6fd16d5117a9def",
+      "src": "33cce598e36c48f33972ee5c193152985a8a4efa8b0dd0fb81323fa06b74261e"
+    },
+    "onboarding.agentSetup.optional.title": {
+      "by": "ai",
+      "out": "dd4abdaf90950cea43bfc73f88393b4d75f0db81ccec391fd4def697cea7d346",
+      "src": "6a4e024db60d47d2fd5483bce31a22a825370fbda5c72349310df032285ed6ba"
+    },
     "onboarding.agentSetup.owner.business": {
       "by": "ai",
       "out": "a4b1ff8ed3a3acf35fb25adf767b9c525791a1d34891efd14500a1886dfa754c",
@@ -176697,11 +176787,6 @@
       "by": "ai",
       "out": "02356bb6b7c90782a7c496aba318a1500ada98c2d8bd6f421500ea20cad8f413",
       "src": "8cd361195a940bb38808c5b78948b167f4da2b9f412ae9982879978356eeb545"
-    },
-    "onboarding.agentSetup.progress.willSetUp": {
-      "by": "ai",
-      "out": "bc95cc153a3544a6dd767c5e768756a4ddd5463f0d0bd1c7339278c3abe7212d",
-      "src": "81496492bbc8370eb5b38bbcfe4e0c5ba2cfa6cae47289fa2715c4e56f76392a"
     },
     "onboarding.agentSetup.progressWhat": {
       "by": "ai",
@@ -181503,6 +181588,11 @@
       "out": "76d9480b787886793fb375c6929b73dd0315143b0608821fda0d8e0b2e615c62",
       "src": "99539935767bfd863e9b37a12e9e06815e5ac931554ea09fdeefff11e6457367"
     },
+    "server.setupAgent.command.installEdit": {
+      "by": "human",
+      "out": "6682f8c0e76c79434089f81174c91a6968670d479035bdfd19ee18253943036f",
+      "src": "57b83170a8a52e7806e285eb150bffec59ef8a313363d7b591758ba4869ad0d7"
+    },
     "server.setupAgent.command.workspace": {
       "by": "ai",
       "out": "9bd37e7b321005a9464fd67ee5e6c0cab89f533aca4f9b03ef9203da6de57f7b",
@@ -181805,8 +181895,13 @@
     },
     "server.setupAgent.prompt.install": {
       "by": "ai",
-      "out": "d82cc64311fd2fc425a0211d7b007b80ba177f8831ef6815588c8b2e44765d91",
-      "src": "17ec590aa1b510d457ea8e97a4e9d979cf9e23ea2aa5fe17bddc9b4fc3a28b13"
+      "out": "4f88b84768308562d22268a0421d7a80c98a9536f6b8e75e822ecd4284b15f1e",
+      "src": "6588f9e5e88c69f349bf0fa62dbc666171fa07af678a15622ed3eb2e25d38a5d"
+    },
+    "server.setupAgent.prompt.installEdit": {
+      "by": "human",
+      "out": "9ae7b61f8cd4e0c0db59f3703354eb0b39e7c0bd147b8c057cef90ce2d3814c0",
+      "src": "11b51e17533ab9dfc235d1f0338dd847ba5b9d88507c429f35ff9c62f360ecf6"
     },
     "server.setupAgent.prompt.toolsConnector": {
       "by": "ai",
@@ -193613,20 +193708,10 @@
       "out": "a35d3f5c0edbc270021b435a8c0c2e5582e1beb48b29c015cb85ef05a8a27df5",
       "src": "5e712baf71a8c22dfec5c6cc72f721aa9d74fcd9771a915827bce9c0cb8a5fea"
     },
-    "team.partner.bill.price": {
-      "by": "ai",
-      "out": "5e19437bea32e6713db4eb126b36c7af17e0ffb44dfb2b61424b840bba12c40f",
-      "src": "3eec3ef1dfdd7ebe4dfb760096e5ef6f76fff455624def364f6b6b00f7df1493"
-    },
     "team.partner.bill.waitsForOwner": {
       "by": "ai",
       "out": "65598bbe51a1cc3f933a139b42ca29b88ad5b752c4fff19284e73c8a0ca76ca1",
       "src": "8f7a8948ee296c4385aef43e14c7562aa13183d004ddb44eb5162f3cf53e1e62"
-    },
-    "team.partner.bill.yearNote": {
-      "by": "ai",
-      "out": "04bb0fcffdbd16038e91573d407e96869982a280664dab2ccdae4c88bc77b859",
-      "src": "861960e0df60cec2edea0fd0e7ed4d61dd2df9a12652c44cc0cca3fca3521ae6"
     },
     "team.partner.billing.title": {
       "by": "ai",
@@ -195223,40 +195308,10 @@
       "out": "4bb3223f06075f7c13b30d07af6d5e6e4e0869f4c3bdd875f13edf1071216a31",
       "src": "0f64e9439378003986b8183ed5149cd31cd8967a34aba88a36011f7ff4c5f2e7"
     },
-    "team.partner.setup.activate.chargedMonthly": {
-      "by": "ai",
-      "out": "082ff1e2eb9605a434a0d3ec202f2a9b9258b5b40495899a5193a04030e75266",
-      "src": "fb0a072ee08f84deddc0ddc074e397f8dd8ad828d49244662cc848225850c768"
-    },
-    "team.partner.setup.activate.chargedYearly": {
-      "by": "ai",
-      "out": "efa59059c7c2d8c738d598a0f624497ffff320c60c04a3b0a26e59496bfbba5b",
-      "src": "e3ae8da43117a22ffec99e0b5f000e61eb7d3b8debd02480434b6343a89c9e48"
-    },
-    "team.partner.setup.activate.clients": {
-      "by": "ai",
-      "out": "27668b62c51aa6b571e9a0589000713a5e5f582f7c74befcf343fb784be78c33",
-      "src": "e60071bf9de5c3f5cea20ae2a1b0ad8688a3bb9b0704a504e9a21abb3aeff3b2"
-    },
     "team.partner.setup.activate.lede": {
       "by": "ai",
       "out": "33ba00180a4f808e2c8ec979552b633135ac4e7724cd67918570a2200e132f6d",
       "src": "4fab2d1708196e435634a088d1a3e670630f08da0d5def718f26fb88de9b1daf"
-    },
-    "team.partner.setup.activate.remove": {
-      "by": "ai",
-      "out": "a3037dc71a43fa40bb1e03b5844b83474819caeffa882d2e7793e31daf092939",
-      "src": "c3812fc4acb861d5182fc2b8155f327f736fbe5e5eb86a7bd7afcb6dc5497282"
-    },
-    "team.partner.setup.activate.removeText": {
-      "by": "ai",
-      "out": "aec720773c2d7e1d437cf6eade0afc794597c9abc27db8fde9b02bd16f18c304",
-      "src": "a8ac85cdb7a3bbe6263371d23b61dc3f4f9088eb7f7990d3072972d50aa45ba9"
-    },
-    "team.partner.setup.activate.removeTitle": {
-      "by": "ai",
-      "out": "705e20cb5470467e5e9a933b59272ed529bea980c2f77e8f550a7b9ee8ca7bf5",
-      "src": "01c1f0250884f59318b310f94ab575cdbf6fc21434dcc27756f349a6526b2bde"
     },
     "team.partner.setup.activate.title": {
       "by": "ai",
@@ -195307,11 +195362,6 @@
       "by": "ai",
       "out": "5e3ef375ce250ab7b67f7a02257332c95cdc8264d68baca0b14b24b6f61ad6f0",
       "src": "13ca4764bec19e93f91c193e2d848e6818b0fc472c1eadf8dc9a3bf2df3abacd"
-    },
-    "team.partner.setup.continueByHand": {
-      "by": "ai",
-      "out": "4aa9bd07784905d0e603191361dde7eb2620d5935bfc2ec6e950666015185117",
-      "src": "14142322b98b73bf90a17cf6dc9a885428300a2528b58cda00f14195e830db4d"
     },
     "team.partner.setup.finishLaterTitle": {
       "by": "ai",

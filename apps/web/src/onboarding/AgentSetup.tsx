@@ -940,12 +940,15 @@ function OptionalProviders({ items, openFirst }: { items: readonly OptionalProvi
   return (
     <div className="as-group as-group-ws as-optional">
       <div className="as-ws-head">
-        <h3 className="as-group-label" id="as-group-optional">
-          {t('onboarding.agentSetup.optional.title')}
-        </h3>
-        <span className="as-hint">
-          {t('onboarding.agentSetup.optional.count', { done: connected, total: items.length })}
-        </span>
+        {/* Title and count one text block: on a phone they wrap as one line of words, beside the button. */}
+        <p className="as-optional-name">
+          <span className="as-group-label" id="as-group-optional" role="heading" aria-level={3}>
+            {t('onboarding.agentSetup.optional.title')}
+          </span>{' '}
+          <span className="as-hint">
+            {t('onboarding.agentSetup.optional.count', { done: connected, total: items.length })}
+          </span>
+        </p>
         <Button
           size="sm"
           variant="ghost"
