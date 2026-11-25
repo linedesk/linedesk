@@ -43,7 +43,7 @@ export function requireLivekitEnv(env: Env = process.env) {
  * Turns off LiveKit's local inference (LIN-226). Its audio end-of-turn model runs in a process of its own (350-500 MB)
  * that only the SDK's TurnDetector with a VAD uses, and no Linedesk pipeline does: the three stages have no VAD
  * (pipeline.ts, `vad: null`), a realtime model detects turns on the server. LIVEKIT_AGENTS_LOCAL_EOT=0 is read by our
- * patch of the SDK (patches/@livekit__agents@*.patch): no inference process. LIVEKIT_AGENTS_PRELOAD_LOCAL_INFERENCE=0
+ * patch of the SDK (patches/@livekit__agents.patch): no inference process. LIVEKIT_AGENTS_PRELOAD_LOCAL_INFERENCE=0
  * is the SDK's own: a call process does not load the native library either. Set in the worker before it starts its
  * processes, which inherit the environment.
  */

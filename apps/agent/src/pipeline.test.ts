@@ -422,7 +422,7 @@ test("no pipeline uses LiveKit's local end-of-turn model, and the SDK patch that
   // turns local inference off (env.ts, turnOffLocalInference).
   const stages = await configFromEnv({ DEEPGRAM_API_KEY: 'dg', LLM_PROVIDER: 'openrouter', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' })
   expect(createPipeline(stages).vad).toBeNull()
-  // patches/@livekit__agents@*.patch: without it the worker starts the inference process anyway.
+  // patches/@livekit__agents.patch: without it the worker starts the inference process anyway.
   const sdkWorker = readFileSync(new URL('worker.js', import.meta.resolve('@livekit/agents')), 'utf8')
   expect(sdkWorker).toContain('process.env.LIVEKIT_AGENTS_LOCAL_EOT')
 })
